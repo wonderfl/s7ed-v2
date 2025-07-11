@@ -1,5 +1,5 @@
-from utils.city import CityState, CityStateStruct
-from utils.general import General, GeneralStruct,CITY_NAMES
+from datas.city import CityState, CityStateStruct
+from datas.general import General, GeneralStruct,CITY_NAMES
 
 def xor_partial(data: bytes, offset: int, length: int, key: int) -> bytes:
     chunk = data[offset:offset+length]
