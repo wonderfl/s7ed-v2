@@ -65,7 +65,7 @@ def generals_city(id=None):
         print(f" . 도시 번호 {num:03}에 해당하는 도시가 없습니다.")
         return    
 
-    filtered = [general for general in generals if general.city==num]
+    filtered = [general for general in generals if general.city==num and general.state < 6]
     if not filtered:
         print("해당 이름의 장수가 없습니다.")
         return
@@ -118,19 +118,13 @@ game_commands = {
 }
 
 def game_play():
-    gn = len(generals)
-    cn = len(cities)
-    if gn == 0 or cn == 0:
-        print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
-        return
-    
-    #print(f"장수 수: {gn}, 도시 수: {cn}")
+    global __home
+
     hero = generals[__hero]
     if not hero:
         print("영웅을 찾을 수 없습니다.")
         return
-    
-    global __home
+
     __home = hero.city
     if __home < 0 or __home >= len(cities):
         print("영웅의 도시 정보가 잘못되었습니다.")

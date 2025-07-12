@@ -15,51 +15,79 @@ def listup_generals():
   print("--------------------------------------------------------------------------------")
   print("장수: {1} 명".format( 0, len(generals)))
 
-def listup_items():
-  print("--------------------------------------------------------------------------------")            
-  for i, item in enumerate(items):
-      print(f" . {item.num:03}: {item}")
-  print("--------------------------------------------------------------------------------")
-  print("아이템: {1} 개".format( 0, len(items)))
+def listup_items(str="-1"):    
+    num = int(str)
+    name = "전체"
+    if( 0 <= num and num < len(generals)):
+        name = generals[num].name
+    elif ( 65535 == num ):
+        name = "주인 없는"
+
+    filtered = [item for item in items if -1 == num or ( -1 != num and item.owner == num) ]
+    print("--------------------------------------------------------------------------------")            
+    for i, item in enumerate(filtered):
+        print(f" . {item.num:03}: {item}")
+    print("--------------------------------------------------------------------------------")
+    print("'{0}' 아이템: {1} 개".format( name, len(filtered)))
+
+def listup_owners(str="-1"):
+    
+    num = int(str)    
+    owners = {}
+    for i, item in enumerate(items):
+        if item.owner not in owners:        
+            owners[item.owner]=[]
+
+    filtered = [item for item in items if -1 == num or ( -1 != num and item.owner == num) ]
+    for id, item in enumerate(filtered):
+        value = owners.get(item.owner)
+        if value is None:
+            continue
+        value.append(item)
+
+    for id, value in owners.items():
+        if( -1 != num and id != num):
+            continue
+
+        name = "주인없음"
+        if( 0 <= id and id < len(generals)):
+            name = generals[id].states()
+    
+        print("")
+        print(f"'{name}'의 아이템: {len(value)}")        
+        print("--------------------------------------------------------------------------------")    
+        for i, item in enumerate(value):
+            print(f" . {item.num:03}: {item}")            
 
 def listup_realms():
-  filtered = [realm for realm in realms if realm.ruler != 65535]
-  if not filtered:
-    print("세력 정보가 없습니다.".format('realm'))
-    return
+    filtered = [realm for realm in realms if realm.ruler != 65535]
+    if not filtered:
+        print("세력 정보가 없습니다.".format('realm'))
+        return
 
-  print("--------------------------------------------------------------------------------")            
-  for i, realm in enumerate(filtered):
-      print(f" . {realm.num:03}: {realm}")
-  print("--------------------------------------------------------------------------------")
-  print("세력: {1}".format( 0, len(filtered)))
+    print("--------------------------------------------------------------------------------")            
+    for i, realm in enumerate(filtered):
+        print(f" . {realm.num:03}: {realm}")
+    print("--------------------------------------------------------------------------------")
+    print("세력: {1}".format( 0, len(filtered)))
 
 def listup_cities():
-  print("--------------------------------------------------------------------------------")            
-  for i, city in enumerate(cities):
-      print(f" . {city.num:03}: {city}")
-  print("--------------------------------------------------------------------------------")
-  print("장수: {1} 명".format( 0, len(cities)))    
-   
-
+    print("--------------------------------------------------------------------------------")            
+    for i, city in enumerate(cities):
+        print(f" . {city.num:03}: {city}")
+    print("--------------------------------------------------------------------------------")
+    print("장수: {1} 명".format( 0, len(cities)))
 
 listup_commands = {
     "1": ActionMenu("listup generals", listup_generals, 2, "장수 리스트업."),
     "2": ActionMenu("listup items", listup_items, 2, "아이템 리스트업."),
-    "3": ActionMenu("listup realm", listup_realms, 2, "세력 리스트업."),
-    "4": ActionMenu("listup cities", listup_cities, 2, "도시 리스트업."),
+    "3": ActionMenu("listup owner's items", listup_owners, 2, "아이템 리스트업."),
+    "4": ActionMenu("listup realm", listup_realms, 2, "세력 리스트업."),
+    "5": ActionMenu("listup cities", listup_cities, 2, "도시 리스트업."),
     "0": ActionMenu("return menu", None, 9, "이전 메뉴로."),
 }
 
 def listup():
-    
-    gn = len(generals)
-    cn = len(cities)
-    
-    print(f"장수 수: {gn}, 도시 수: {cn}")
-    if gn == 0 or cn == 0:
-        print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
-        return
     
     commands = [(key, value[0]) for key, value in listup_commands.items() if value[2] != 0]
     cmds = "\n".join( f" {key}. {name}" for key, name in commands)

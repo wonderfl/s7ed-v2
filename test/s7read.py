@@ -1,5 +1,5 @@
 from datas.city import CityState, CityStateStruct
-from datas.general import General, GeneralStruct,CITY_NAMES
+from datas.general import General, GeneralStruct,_CITY_
 
 def xor_partial(data: bytes, offset: int, length: int, key: int) -> bytes:
     chunk = data[offset:offset+length]
@@ -34,11 +34,11 @@ with open("D_Save07dec.s7", "rb") as f:
 
 # 출력 예시
 for i, general in enumerate(generals):
-    cname = CITY_NAMES[general.city] if general.city < len(CITY_NAMES) else "Unknown"
+    cname = _CITY_[general.city] if general.city < len(_CITY_) else "Unknown"
     print(f"{i:03}: {general.name()}, {cname}")
 
 for i, city in enumerate(cities):
     gov = generals[city.governor]
     gname = gov.name()
-    cname = CITY_NAMES[city.num]
+    cname = _CITY_[city.num]
     print(f"{i:03}. {cname}[{gname}]{city}")

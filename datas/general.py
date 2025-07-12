@@ -1,12 +1,16 @@
 import struct
 
-CITY_NAMES = [
-    '낙랑', '양평', '북평', '계', '남피', '업', '평원', '북해', '성양', '진양',
-    '상당', '하비', '소패', '복양', '진류', '허창', '초', '여남', '하내', '낙양',
+_CITY_ = [
+    '낙랑', '양평', '북평', '  계', '남피', '  업', '평원', '북해', '성양', '진양',
+    '상당', '하비', '소패', '복양', '진류', '허창', '  초', '여남', '하내', '낙양',
     '홍농', '장안', '천수', '안정', '무위', '서량', '무도', '한중', '자동', '성도',
-    '강주', '영안', '건녕', '운남', '영창', '완', '신야', '양양', '강하', '상용',
-    '강릉', '장사', '영릉', '무릉', '계양', '수춘', '여강', '건업', '오', '회계',
-    '시상', '건안', '남해', '교지'
+    '강주', '영안', '건녕', '운남', '영창', '  완', '신야', '양양', '강하', '상용',
+    '강릉', '장사', '영릉', '무릉', '계양', '수춘', '여강', '건업', '  오', '회계',
+    '시상', '건안', '남해', '교지', '없음'
+]
+
+_STATE_ = [
+    '군주','태수','군사','일반','재야',' -  ','대기','사망',
 ]
 
 # 포맷   의미	         크기
@@ -51,6 +55,7 @@ class General:
         name1 = unpacked[23]
         name2 = unpacked[24]
         
+        state = unpacked[26]
         realm = unpacked[27]
         city = unpacked[28]
 
@@ -80,7 +85,7 @@ class General:
         
         self.num = num        
         self.name = self.name0 + self.name1
-        self.properties = properties
+        self.props = properties
         self.faceno = faceno
         self.birthyear = birthyear
         self.appearance = appearance 
@@ -88,12 +93,13 @@ class General:
 
         self.fame = fame
         self.achieve = achieve
-        self.soldiers = soldiers
+        self.soldier = soldiers
 
         self.family = family
         self.parent = parent
         self.colleague = colleague
 
+        self.state = state
         self.realm = realm
         self.city = city
 
@@ -109,15 +115,28 @@ class General:
         self.actions = actions
     
     def properties(self):
-        return "[ " + format(self.properties[0], '08b')+","+ format(self.properties[1], '08b') + ","+ format(self.properties[2], '08b') +","+ format(self.properties[3], '08b') + " ]"
+        return "[ " + format(self.props[0], '08b')+","+ format(self.props[1], '08b') + ","+ format(self.props[2], '08b') +","+ format(self.props[3], '08b') + " ]"
+    
+    def states(self):
+        return "{0:>3}".format(self.name if len(self.name) > 2 else '  '+self.name) + "[ "+ _CITY_[ self.city if self.city != 255 else 54 ]+":"+ _STATE_[self.state]+", " +str(self.birthyear)+'년' + " ]"
+    
+    def states2(self):
+        return "[ " + "{0:>3}:{1:<3}".format(str(self.faceno),str(self.family)) +" ]"
+    
+    def loyalties(self):
+        return "[ " +"{0},{1:>3}:{2},{3}".format( self.realm if self.realm != 255 else '-', self.salary, self.loyaty, self.actions)+" ]"    
+    
+    def relations(self):
+        return "[ " + str(self.relation) +" ]"
+    
+    def stats(self):
+        return "[ " + str(self.str) +","+ str(self.int)+ ","+str(self.pol)+","+str(self.chr)+" ]"
+    
+    def soldiers(self):
+        return "[ " + str(self.soldier)+","+ str(self.training)+" ]"
 
     def __repr__(self):
-        return self.name + "[ " + str(self.faceno) + ","+str(self.birthyear) + ","+str(self.appearance) +","+str(self.employment) +" ]" + \
-            "[ " + str(self.family) +","+ str(self.parent)+","+ str(self.realm)+","+ str(self.city)+ " ]" + \
-            "[ " + str(self.str) +","+ str(self.int)+ ","+str(self.pol)+","+str(self.chr)+" ]" + \
-            "[ " + str(self.relation) +" ]" + \
-            "[ " + str(self.fame) +","+ str(self.achieve)+","+ str(self.soldiers)+","+ str(self.training)+" ]" + \
-            "[ " + str(self.loyaty) +","+ str(self.item) + ","+ str(self.salary) +","+ str(self.actions) + " ]"
+        return self.states() + self.states2() + self.loyalties() + self.stats() + self.soldiers() 
 
 
 

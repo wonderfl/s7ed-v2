@@ -83,6 +83,12 @@ while True:
         print(f" . '{params[0]}' 명령어는 실행할 수 없습니다.")
         continue
 
+    gn = len(generals)
+    cn = len(cities)
+    if gn == 0 or cn == 0:
+        print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
+        continue
+
     args = params[1:]
     if(  0 < len(args)):
         command.action(*args)

@@ -8,7 +8,7 @@ import globals
 from globals import generals_offset, cities_offset, items_offset, realm_offset
 from globals import __hero, __home, __load
 
-from datas.general import General, GeneralStruct, CITY_NAMES
+from datas.general import General, GeneralStruct, _CITY_
 from datas.city import CityState, CityStateStruct
 from datas.item import ItemState, ItemStateStruct
 from datas.realm import RealmState, RealmStateStruct
@@ -63,7 +63,7 @@ def load_file(needs=True):
                 chunk = f.read(CityStateStruct.size)
                 decoded = __decrypt(chunk)
 
-                city = CityState(i, CITY_NAMES[i], decoded)
+                city = CityState(i, _CITY_[i], decoded)
                 _cities.append(city)        
 
         globals.generals.clear()
@@ -112,7 +112,7 @@ def save_file():
                 chunk = f.read(CityStateStruct.size)
                 decoded = __decrypt(chunk)
 
-                city = CityState(i, CITY_NAMES[i], decoded)
+                city = CityState(i, _CITY_[i], decoded)
                 cities.append(city)
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")

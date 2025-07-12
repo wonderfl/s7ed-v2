@@ -205,14 +205,6 @@ find_commands = {
 }
 
 def search():
-    gn = len(generals)
-    cn = len(cities)
-    
-    print(f"장수 수: {gn}, 도시 수: {cn}")
-    if gn == 0 or cn == 0:
-        print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
-        return
-    
     commands = [(key, value[0]) for key, value in find_commands.items() if value[2] != 0]
     cmds = "\n".join( f" {key}. {name}" for key, name in commands)
     while True:
