@@ -13,6 +13,8 @@ print(hex_bytes3.hex().upper())
 
 
 
+hex1 = "C0B0B5B5"
+
 hex_string = "BAF1B0CB"# 비검
 hex_string = "B4DCB1D8"#단극
 hex_string = "C3B6C1FABFA9B0F1C5B8"#철질여골타
@@ -23,6 +25,8 @@ hex_string = "C8B2BAB80000C0AF"
 
 hex_string = "BEC6C8B8B3B2"
 hex_string = "C0E5BFC2"
+hex_string = "C0B0B5B5"
+hex_string = "B4EBBAD8"
 byte_data = bytes.fromhex(hex_string)
 hangul_text = byte_data.decode("euc-kr")
 print(hangul_text)  # 출력: 위소 홍사
