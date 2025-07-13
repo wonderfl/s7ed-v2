@@ -66,11 +66,11 @@ def listup_owners(str="-1"):
 
         name = "주인없음"
         if( 0 <= id and id < len(generals)):
-            name = generals[id].states()
+            name = generals[id].name
     
         print("")
-        print(f"'{name}'의 아이템: {len(value)}")        
-        print("--------------------------------------------------------------------------------")    
+        #print(f"'{name}'의 아이템: {len(value)}")        
+        #print("--------------------------------------------------------------------------------")    
         for i, item in enumerate(value):
             print(f" . {item.num:03}: {item}")            
 
