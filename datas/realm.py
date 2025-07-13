@@ -1,4 +1,5 @@
 import struct
+from globals import generals, cities
 
 # 포맷   의미	         크기
 # b     signed char	    1바이트
@@ -15,15 +16,24 @@ import struct
 #                              '<  OO xxx xxx xxx xx xxx ')  # 총 168 bytes
 RealmStateStruct = struct.Struct('<HH 22s 54s 54s HH 30s ')  # 총 168 bytes
 class RealmState:
-  def __init__(self, num, raw_data):
-    unpacked = RealmStateStruct.unpack(raw_data)
+    def __init__(self, num, raw_data):
+        unpacked = RealmStateStruct.unpack(raw_data)
 
-    ruler = unpacked[0]    
-    staff = unpacked[1]
+        ruler = unpacked[0]    
+        staff = unpacked[1]
 
-    self.num = num
-    self.ruler = ruler
-    self.staff = staff  
+        self.num = num
+        self.ruler = ruler
+        self.staff = staff  
 
-  def __repr__(self):
-      return str(self.ruler) + "[ " + str(self.staff)  +" ]"    
+    def __repr__(self):
+        ruler = None
+        if( 0 <= self.ruler and self.ruler < len(generals)):
+            ruler = generals[self.ruler]
+
+        staff = None
+        if( 0 <= self.staff and self.staff < len(generals)):            
+            staff = generals[self.staff]
+
+        return ruler.states() + \
+               "[{0}]".format(staff.fixed if staff is not None else "   -    ")

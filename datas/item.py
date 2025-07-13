@@ -1,5 +1,7 @@
 import struct
 
+from globals import generals, cities
+
 # 포맷   의미	         크기
 # b     signed char	    1바이트
 # B	    unsigned char	1바이트
@@ -27,4 +29,8 @@ class ItemState:
     self.name = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore")
     
   def __repr__(self):
-      return self.name + "[ " + str(self.owner)  +" ]"
+      owner = None
+      if( 0 <= self.owner and self.owner < len(generals)):
+          owner = generals[self.owner]
+
+      return "[{0}] ".format(owner.fixed if owner is not None else "   -    ") + self.name 

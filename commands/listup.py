@@ -8,12 +8,27 @@ from globals import generals, items, realms, cities
 from globals import __hero, __home, __load
 from globals import ActionMenu
 
-def listup_generals():
-  print("--------------------------------------------------------------------------------")            
-  for i, general in enumerate(generals):
-      print(f" . {general.num:03}: {general}")
-  print("--------------------------------------------------------------------------------")
-  print("장수: {1} 명".format( 0, len(generals)))
+def listup_generals(str="-1"):
+  
+    state = -1
+    if("+" == str):
+        state = 5        
+    elif("?" == str):
+        state = 6
+    else:
+        try:        
+            num = int(str)
+            if( 0 <= num and num <= 7):
+                state = num
+        except (ValueError, TypeError):
+            state = -1
+
+    filtered = [general for general in generals if -1 == state or ( -1 != state and general.state == state)]
+    print("--------------------------------------------------------------------------------")            
+    for i, general in enumerate(filtered):
+        print(f" .{general.num:03}:{general}")
+    print("--------------------------------------------------------------------------------")
+    print("장수: {1} 명".format( 0, len(filtered)))
 
 def listup_items(str="-1"):    
     num = int(str)

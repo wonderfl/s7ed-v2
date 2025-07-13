@@ -1,5 +1,7 @@
 import struct
 
+from globals import generals, cities
+
 # 포맷   의미	         크기
 # b     signed char	    1바이트
 # B	    unsigned char	1바이트
@@ -50,6 +52,13 @@ class CityState:
 
 
     def __repr__(self):
-        return self.name + "[ " + str(self.governor) + ","+ str(self.peoples) + "00,"+ str(self.golds) +","+ str(self.foods) +" ]" + \
-            "[ " + str(self.devs)+"/"+ str(self.devmax) + ","+ str(self.shops) +"/"+ str(self.shopmax)+ " ]" + \
-            "[ " + str(self.secu)+ ","+ str(self.tech)+ ","+ str(self.defs)+ " ]"
+
+        name = "   -    "
+        if( 0 <= self.governor and self.governor < len(generals)):
+            gov = generals[self.governor]
+            name = gov.fixed
+        return self.name + \
+            "[{0:>4}]".format( name ) + \
+            "[{0:7},{1:7},{2:7}]".format( self.peoples*100, self.golds, self.foods) + \
+            "[{0:4} /{1:4} {2:4} /{3:4}]".format( self.devs, self.devmax, self.shops,self.shopmax)+ \
+            "[{0:3} {1:4} {2:4}]".format(self.secu, self.tech, self.defs)

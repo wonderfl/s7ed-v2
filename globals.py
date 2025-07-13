@@ -2,7 +2,7 @@ from collections import namedtuple
 
 __hero = 493
 __home = 0
-__load = "saves/D_Save07.s7"
+__load = "saves/D_Save01.s7"
 
 generals_offset = 0x0000009C  # 장수 데이터 시작 위치 예시
 # 1 22A0 + 9c = 1 233C
