@@ -10,7 +10,7 @@ _CITY_ = [
 ]
 
 _STATE_ = [
-    '군주','태수','군사','일반','재야',' +  ',' ?  ','사망',
+    '군주','태수','군사','일반','재야',' ?  ',' -  ','사망',
 ]
 
 # 포맷   의미	         크기
@@ -157,15 +157,15 @@ class General:
     
     def states(self):
         return "{0:>4}".format( self.fixed ) + "[ "+ \
-            "{0:3} {1:3} {2} {3:3} {4}".format( self.relation, self.faceno, _CITY_[ self.city if self.city != 255 else 54 ], self.family if self.family != self.num else "  .",  _STATE_[self.state])+ \
-            " {0:3} {1:3} {2} {3}".format( self.birthyear, self.appearance, '남' if 0 == self.gender else '여', " " if 0 == self.turned else "!" )+ " ]"
+            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],   _STATE_[self.state])+ \
+            "{0:3} {1} {2:3}".format( self.birthyear, '남' if 0 == self.gender else '여', self.family if self.family != self.num else "   " )+ " ]"
     
     def loyalties(self):
-        return "[" +"{0:2} {1:3} {2:3} {3:3}".format( self.realm if self.realm != 255 else ' -', self.salary, self.loyaty, self.actions)+" ]"        
+        return "[" +"{0:2} {1:3} {2:3} {3:3}".format( self.realm if self.realm != 255 else '  ', self.salary, self.loyaty, self.actions)+" ]"        
     
     def abilities(self):
         return "[ " + \
-            "{0} {1} {2} {3} {4:2} {5:2}".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity ) + \
+            "{0} {1} {2} {3} {4:2} {5:2} {6:3}".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity, self.relation ) + \
             " ]"
     
     def stats(self):
