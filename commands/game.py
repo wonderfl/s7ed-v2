@@ -3,9 +3,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from globals import generals, cities
-from globals import __hero, __home, __load
-
+import globals
 from globals import ActionMenu
 
 
@@ -15,7 +13,7 @@ def move_city():
         if not name:
             break
 
-        filtered = [city for city in cities if city.name.startswith(name)]
+        filtered = [city for city in globals.cities if city.name.startswith(name)]
         if not filtered:
             print("해당 이름의 도시가 없습니다.")
             continue
@@ -33,7 +31,7 @@ def builds_in():
         if not name:
             break
 
-        filtered = [city for city in cities if city.name.startswith(name)]
+        filtered = [city for city in globals.cities if city.name.startswith(name)]
         if not filtered:
             print("해당 이름의 도시가 없습니다.")
             continue
@@ -46,26 +44,23 @@ def builds_in():
             print("'{0}' 으로 찾은 도시: {1} 개".format(name, len(filtered)))
 
 def info_city(id=None):
-    global __home
+    print("\n도시 정보:".format(id))
 
-    print("\n도시 정보:{0}[{1}]".format(id, __home))
-
-    num = __home if id is None else int(id)    
-    city = cities[num] if num is not None and 0 <= num < len(cities) else None
+    num = globals._home if id is None else int(id)    
+    city = globals.cities[num] if num is not None and 0 <= num < len(globals.cities) else None
     if not city:
         print(f" . 도시 번호 {num:03}에 해당하는 도시가 없습니다.")
         return
-    print(f" . {city.num:03}: {city}")
+    print(f" . {city.num:03}: {city.details()}")
 
 def generals_city(id=None):
-    global __home
-    num = __home if id is None else int(id)
-    city = cities[num] if num is not None and 0 <= num < len(cities) else None
+    num = globals._home if id is None else int(id)
+    city = globals.cities[num] if num is not None and 0 <= num < len(globals.cities) else None
     if not city:
         print(f" . 도시 번호 {num:03}에 해당하는 도시가 없습니다.")
         return    
 
-    filtered = [general for general in generals if general.city==num and general.state < 6]
+    filtered = [general for general in globals.generals if general.city==num and general.state < 6]
     if not filtered:
         print("해당 이름의 장수가 없습니다.")
         return
@@ -73,7 +68,7 @@ def generals_city(id=None):
     print(f"\n번호: {city.num:02}\n정보: {city}")    
     print("--------------------------------------------------------------------------------")
     for i, general in enumerate(filtered):
-        print(f" . {general.num:03}: {general}")
+        print(f" . {general.num:03}: {general.details()}")
 
     if 0 < len(filtered):
         print("--------------------------------------------------------------------------------")
@@ -81,10 +76,8 @@ def generals_city(id=None):
 
 def generals_realm(id=None):
     
-    global __hero
-    
-    num = __hero if id is None else int(id)
-    hero = generals[num]
+    num = globals._hero if id is None else int(id)
+    hero = globals.generals[num]
     if not hero:
         print("영웅을 찾을 수 없습니다.")
         return
@@ -94,7 +87,7 @@ def generals_realm(id=None):
         print("{0}[{1},{2}] 장수의 세력이 없습니다.".format(hero.name, id, realm, ))
         return
 
-    filtered = [general for general in generals if general.realm==realm]
+    filtered = [general for general in globals.generals if general.realm==realm]
     if not filtered:
         print("세력의 장수가 없습니다.")
         return
@@ -102,7 +95,7 @@ def generals_realm(id=None):
     print(f"\n'{hero.name}'의 세력: {realm:02}")
     print("--------------------------------------------------------------------------------")
     for i, general in enumerate(filtered):
-        print(f" . {general.num:03}: {general}")
+        print(f" . {general.num:03}: {general.details()}")
 
     if 0 < len(filtered):
         print("--------------------------------------------------------------------------------")
@@ -118,19 +111,17 @@ game_commands = {
 }
 
 def game_play():
-    global __home
-
-    hero = generals[__hero]
+    hero = globals.generals[globals._hero]
     if not hero:
         print("영웅을 찾을 수 없습니다.")
         return
 
-    __home = hero.city
-    if __home < 0 or __home >= len(cities):
+    globals._home = hero.city
+    if globals._home < 0 or globals._home >= len(globals.cities):
         print("영웅의 도시 정보가 잘못되었습니다.")
         return
     
-    home = cities[__home]
+    home = globals.cities[globals._home]
     if not home:
         print("영웅의 도시를 찾을 수 없습니다.")
         return
@@ -138,7 +129,7 @@ def game_play():
     commands = [(key, value[0]) for key, value in game_commands.items() if value[2] != 0]
     cmds = "\n".join( f" {key}. {name}" for key, name in commands)
     while True:
-        print(f"\n: {hero.name}[ {hero.num:03} in {home.num}]\n: {home}")    
+        print("\n[{0}년 {1}월]:\n\n. {2}: {3}".format(globals._year, globals._month, hero.name, home.details()))
 
         params = input("\n{0}\n\n? ".format(cmds)).split()
         if( 0 >= len(params)):

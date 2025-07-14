@@ -14,17 +14,25 @@ from globals import generals, cities
 
 #                              '<  4  22s 54s 54s 4  30s  ')  # 총 168 bytes
 #                              '<  OO xxx xxx xxx xx xxx ')  # 총 168 bytes
-RealmStateStruct = struct.Struct('<HH 22s 54s 54s HH 30s ')  # 총 168 bytes
+RealmStateStruct = struct.Struct('<HH 6s 2s 2s 2s 2s 8s 54s 54s HH 30s ')  # 총 168 bytes
 class RealmState:
     def __init__(self, num, raw_data):
         unpacked = RealmStateStruct.unpack(raw_data)
 
         ruler = unpacked[0]    
         staff = unpacked[1]
+        name0 = unpacked[3]
+        name1 = unpacked[4]
+        name2 = unpacked[5]
+        name3 = unpacked[6]
 
         self.num = num
         self.ruler = ruler
-        self.staff = staff  
+        self.staff = staff
+        self.name = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore") + \
+            name1.split(b'\x00')[0].decode("euc-kr", errors="ignore") + \
+            name2.split(b'\x00')[0].decode("euc-kr", errors="ignore") + \
+            name3.split(b'\x00')[0].decode("euc-kr", errors="ignore")
 
     def __repr__(self):
         ruler = None
@@ -35,5 +43,4 @@ class RealmState:
         if( 0 <= self.staff and self.staff < len(generals)):            
             staff = generals[self.staff]
 
-        return ruler.states() + \
-               "[{0}]".format(staff.fixed if staff is not None else "   -    ")
+        return ruler.states() + "[{0}] {1}".format(staff.fixed if staff is not None else "   -    ", self.name)

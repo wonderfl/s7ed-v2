@@ -1,8 +1,12 @@
 from collections import namedtuple
 
-__hero = 493
-__home = 0
-__load = "saves/D_Save01.s7"
+_hero = 493
+_home = 0
+_load = "saves/D_Save01.s7"
+_year = 189
+_month = 3
+
+current_year_offset = 0x00000019
 
 generals_offset = 0x0000009C  # 장수 데이터 시작 위치 예시
 # 1 22A0 + 9c = 1 233C

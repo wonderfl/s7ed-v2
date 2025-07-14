@@ -1,5 +1,7 @@
 import struct
 
+import globals
+
 _CITY_ = [
     '낙랑', '양평', '북평', ' 계 ', '남피', ' 업 ', '평원', '북해', '성양', '진양',
     '상당', '하비', '소패', '복양', '진류', '허창', ' 초 ', '여남', '하내', '낙양',
@@ -42,6 +44,7 @@ class General:
         faceno  = unpacked[1]
         appearance = unpacked[2]        
         birthyear = unpacked[3]
+        years = globals._year- birthyear
         employment = unpacked[4]
 
         achieve = unpacked[5]
@@ -126,6 +129,7 @@ class General:
         self.props = properties
         self.faceno = faceno
         self.birthyear = birthyear
+        self.years = years
         self.appearance = appearance 
         self.employment = employment 
 
@@ -157,25 +161,36 @@ class General:
     
     def states(self):
         return "{0:>4}".format( self.fixed ) + "[ "+ \
-            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],   _STATE_[self.state])+ \
-            "{0:3} {1} {2:3}".format( self.birthyear, '남' if 0 == self.gender else '여', self.family if self.family != self.num else "   " )+ " ]"
+            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],   _STATE_[self.state])+ " ]"
     
-    def loyalties(self):
-        return "[" +"{0:2} {1:3} {2:3} {3:3}".format( self.realm if self.realm != 255 else '  ', self.salary, self.loyaty, self.actions)+" ]"        
-    
-    def abilities(self):
-        return "[ " + \
-            "{0} {1} {2} {3} {4:2} {5:2} {6:3}".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity, self.relation ) + \
+    def states_detail(self):
+        return "{0:>4}".format( self.fixed ) + \
+            "[ "+ \
+            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],  _STATE_[self.state])+ \
+            "{0:3}:{1:3} {2} {3:3}".format( self.years if 0<self.years else "  -", self.birthyear, '남' if 0 == self.gender else '여', self.family if self.family != self.num else "   " )+ \
             " ]"
     
+    def loyalties(self):
+        return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.salary, self.loyaty, self.actions)
+    
+    def abilities(self):
+        return "[ {0} {1} {2} {3} {4:2} {5:2} {6:3} ]".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity, self.relation )
+    
     def stats(self):
-        return "[ " + "{0:3} {1:3} {2:3} {3:3}".format( self.str,self.int,self.pol,self.chr)+" ]"
+        return "[ {0:3} {1:3} {2:3} {3:3} ]".format( self.str,self.int,self.pol,self.chr)
     
     def soldiers(self):
-        return "[ " + "{0:>5}:{1:<3}".format( self.soldier, self.training)+" ]"
+        return "[{0:>5}:{1:<3}]".format( self.soldier, self.training)
+    
+    def profiles(self):
+        return self.states() + self.loyalties() + self.soldiers()
+    
+    def details(self):
+        return self.states_detail() + self.loyalties() + self.soldiers() + self.stats() + self.abilities()     
 
     def __repr__(self):
-        return self.states() + self.loyalties() + self.soldiers() + self.stats() + self.abilities() 
+        return self.profiles()
+    
 
 
 

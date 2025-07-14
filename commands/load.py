@@ -5,8 +5,6 @@ import copy
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import globals
-from globals import generals_offset, cities_offset, items_offset, realm_offset
-from globals import __hero, __home, __load
 
 from datas.general import General, GeneralStruct, _CITY_
 from datas.city import CityState, CityStateStruct
@@ -17,7 +15,7 @@ from utils.decode import __decrypt
 
 def load_file(needs=True):
     if needs == False:
-        fname = __load
+        fname = globals._load
     else:
         fname = input(f"'Load' 파일이름: ")
 
@@ -34,8 +32,14 @@ def load_file(needs=True):
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
         with open(fname, "rb") as f:
+            f.seek(globals.current_year_offset )
+            val0 = f.read(2)
+            val1 = f.read(2)
+            globals._month = int.from_bytes(val0)
+            globals._year = int.from_bytes(val1)
+
             for i in range(620): # 620명 기준
-                f.seek(generals_offset + i * GeneralStruct.size)
+                f.seek(globals.generals_offset + i * GeneralStruct.size)
                 chunk = f.read(GeneralStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -43,7 +47,7 @@ def load_file(needs=True):
                 _generals.append(general)
 
             for i in range(72): # 72개 아이템 기준
-                f.seek(items_offset + i * ItemStateStruct.size)
+                f.seek(globals.items_offset + i * ItemStateStruct.size)
                 chunk = f.read(ItemStateStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -51,7 +55,7 @@ def load_file(needs=True):
                 _items.append(item)
 
             for i in range(54): # 54개 도시 기준
-                f.seek(realm_offset + i * RealmStateStruct.size)
+                f.seek(globals.realm_offset + i * RealmStateStruct.size)
                 chunk = f.read(RealmStateStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -59,7 +63,7 @@ def load_file(needs=True):
                 _realms.append(realm)
 
             for i in range(54): # 54개 도시 기준
-                f.seek(cities_offset + i * CityStateStruct.size)
+                f.seek(globals.cities_offset + i * CityStateStruct.size)
                 chunk = f.read(CityStateStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -78,11 +82,10 @@ def load_file(needs=True):
         globals.cities.clear()
         globals.cities.extend(copy.deepcopy(_cities))
 
-        hero = globals.generals[__hero]
+        hero = globals.generals[globals._hero]
+        globals._home = hero.city
 
-        global __home
-        __home = hero.city
-        print(f":'{fname}' 파일을 성공적으로 불러왔습니다. {hero.name}[{__home}]")
+        print(f":'{fname}' 파일을 성공적으로 불러왔습니다. {globals._year}년{globals._month}월:{hero.name}[{globals._home}]")
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
@@ -90,9 +93,9 @@ def load_file(needs=True):
     
 
 def save_file():
-    fname = input(f"'Save' 파일이름: {__load}")
+    fname = input(f"'Save' 파일이름: {globals._load}")
     if not fname:
-        fname = __load
+        fname = globals._load
     return
 
     try:

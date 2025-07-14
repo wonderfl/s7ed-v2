@@ -3,12 +3,13 @@ text1 = "양평"
 text2 = "하후돈"
 text3 = "유여"
 text3 = "주노"
+text3 = "촉한"
 hex_bytes0 = text0.encode("euc-kr")
 hex_bytes1 = text1.encode("euc-kr")
 hex_bytes2 = text2.encode("euc-kr")
 hex_bytes3 = text3.encode("euc-kr")
 print(hex_bytes0.hex().upper(), hex_bytes1.hex().upper(), hex_bytes2.hex().upper())  # 출력: BFC0BCD220C8ABBBE7
-print(hex_bytes3.hex().upper())
+print(text3, hex_bytes3.hex().upper())
 
 
 

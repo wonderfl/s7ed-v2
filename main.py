@@ -1,7 +1,6 @@
 import sys
 
-from globals import generals, cities
-from globals import __hero, __home, __load
+import globals
 from globals import ActionMenu
 
 from commands.listup import listup
@@ -13,14 +12,14 @@ def quit():
     exit(0)
 
 def whoiam():
-    gn = len(generals)
-    cn = len(cities)
+    gn = len(globals.generals)
+    cn = len(globals.cities)
     print(f"장수 수: {gn}, 도시 수: {cn}")
     if gn == 0 or cn == 0:
         print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
         return
     
-    hero = generals[__hero]
+    hero = globals.generals[globals._hero]
     if not hero:
         print("영웅을 찾을 수 없습니다.")
         return
@@ -29,7 +28,7 @@ def whoiam():
         print("영웅의 도시를 찾을 수 없습니다.")
         return
 
-    print(f"{generals[__hero]}")
+    print(f"{globals.generals[globals._hero]}")
     print(f"{home[0]}")
 
 def help():
@@ -59,7 +58,7 @@ commands = {
 args = sys.argv[1:]
 if len(args) > 1:
     if args[0] == "--load" or args[0] == "-l":    
-       __load = args[1]
+       _load = args[1]
 
 menu = 0
 filtered = [(key, value[0]) for key, value in commands.items() if value[2] != 0]
@@ -83,8 +82,8 @@ while True:
         print(f" . '{params[0]}' 명령어는 실행할 수 없습니다.")
         continue
 
-    gn = len(generals)
-    cn = len(cities)
+    gn = len(globals.generals)
+    cn = len(globals.cities)
     if gn == 0 or cn == 0:
         print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
         continue

@@ -51,8 +51,14 @@ class CityState:
         self.tech = tech        
 
 
-    def __repr__(self):
+    def profiles(self):
+        name = "   -    "
+        if( 0 <= self.governor and self.governor < len(generals)):
+            gov = generals[self.governor]
+            name = gov.fixed
+        return self.name + "[{0:>4}]".format( name ) + "[{0:7},{1:7},{2:7}]".format( self.peoples*100, self.golds, self.foods)
 
+    def details(self):
         name = "   -    "
         if( 0 <= self.governor and self.governor < len(generals)):
             gov = generals[self.governor]
@@ -62,3 +68,6 @@ class CityState:
             "[{0:7},{1:7},{2:7}]".format( self.peoples*100, self.golds, self.foods) + \
             "[{0:4} /{1:4} {2:4} /{3:4}]".format( self.devs, self.devmax, self.shops,self.shopmax)+ \
             "[{0:3} {1:4} {2:4}]".format(self.secu, self.tech, self.defs)
+
+    def __repr__(self):
+        return self.profiles()
