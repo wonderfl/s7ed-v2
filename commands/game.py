@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -43,29 +44,19 @@ def builds_in():
             print("--------------------------------------------------------------------------------")
             print("'{0}' 으로 찾은 도시: {1} 개".format(name, len(filtered)))
 
-def info_city(id=None):
-    print("\n도시 정보:".format(id))
-
+def generals_city(id=None):
     num = globals._home if id is None else int(id)    
     city = globals.cities[num] if num is not None and 0 <= num < len(globals.cities) else None
     if not city:
         print(f" . 도시 번호 {num:03}에 해당하는 도시가 없습니다.")
         return
+    
     print(f" . {city.num:03}: {city.details()}")
 
-def generals_city(id=None):
-    num = globals._home if id is None else int(id)
-    city = globals.cities[num] if num is not None and 0 <= num < len(globals.cities) else None
-    if not city:
-        print(f" . 도시 번호 {num:03}에 해당하는 도시가 없습니다.")
-        return    
-
-    filtered = [general for general in globals.generals if general.city==num and general.state < 6]
+    filtered = [general for general in globals.generals if general.city==num and general.state < 5]
     if not filtered:
-        print("해당 이름의 장수가 없습니다.")
+        print("해당 도시에 장수가 없습니다.")
         return
-
-    print(f"\n번호: {city.num:02}\n정보: {city}")    
     print("--------------------------------------------------------------------------------")
     for i, general in enumerate(filtered):
         print(f" . {general.num:03}: {general.details()}")
@@ -74,37 +65,54 @@ def generals_city(id=None):
         print("--------------------------------------------------------------------------------")
         print("'{0}' 에 있는 장수: {1} 명".format(city.name, len(filtered)))
 
+
 def generals_realm(id=None):
+
+    if( id is None):
+        num = globals.generals[globals._hero].realm
+    else:
+        try: 
+            num = int(id)
+        except:
+            if( id == '-'):
+                num = -1
+            else:
+                print("'{0}'세력 정보가 없습니다.".format(id))
+                return
+
+    founds = [realm for realm in globals.realms if -1 == num or (-1 !=num and realm.num == num) ]
+    if not founds:
+        print("'{}'세력 정보가 잆습니다.".format(num))
+        return
     
-    num = globals._hero if id is None else int(id)
-    hero = globals.generals[num]
-    if not hero:
-        print("영웅을 찾을 수 없습니다.")
+    if( 1 >= len(founds) and 65535 == founds[0].ruler):
+        print("'{}' 사라진 세력입니다.".format(num))
         return
 
-    realm = hero.realm  
-    if (255 == realm):
-        print("{0}[{1},{2}] 장수의 세력이 없습니다.".format(hero.name, id, realm, ))
-        return
+    gn = len(globals.generals)
+    for i, found in enumerate(founds):
+        if 0 > found.ruler or found.ruler >= gn:
+            #print("'{}'세력 정보가 잆습니다.".format(id))
+            continue
 
-    filtered = [general for general in globals.generals if general.realm==realm]
-    if not filtered:
-        print("세력의 장수가 없습니다.")
-        return
+        ruler = globals.generals[found.ruler]
+        filtered = [general for general in globals.generals if general.realm==found.num]
+        if not filtered:
+            print("'{}'세력의 장수가 없습니다.".format(ruler.name))
+            continue
 
-    print(f"\n'{hero.name}'의 세력: {realm:02}")
-    print("--------------------------------------------------------------------------------")
-    for i, general in enumerate(filtered):
-        print(f" . {general.num:03}: {general.details()}")
-
-    if 0 < len(filtered):
+        print(f"\n'{ruler.name}'의 세력")
         print("--------------------------------------------------------------------------------")
-        print("'{0}'세력의 장수: {1} 명".format(realm, len(filtered)))           
+        for i, general in enumerate(filtered):
+            print(f" . {general.num:03}: {general.details()}")
+
+        if 0 < len(filtered):
+            print("--------------------------------------------------------------------------------")
+            print("'{0}'세력의 장수: {1} 명".format(ruler.name, len(filtered)))
 
 game_commands = {
-    "1": ActionMenu("info city", info_city, 1, "도시의 정보를 확인합니다."),    
-    "2": ActionMenu("generals in city", generals_city, 1, "도시의 장수 리스트업."),
-    "3": ActionMenu("generals in realm", generals_realm, 1, "세력의 장수 리스트업."),
+    "1": ActionMenu("generals city", generals_city, 1, "도시의 정보를 확인합니다."),    
+    "2": ActionMenu("generals realm", generals_realm, 1, "세력의 장수 리스트업."),
     "4": ActionMenu("builds in ", builds_in, 1, "도시의 건물 리스트업."),
     "5": ActionMenu("move to ", move_city, 1, "도시를 이동합니다."),    
     "0": ActionMenu("return menu ", None, 1, "이전 메뉴로."),
@@ -130,8 +138,9 @@ def game_play():
     cmds = "\n".join( f" {key}. {name}" for key, name in commands)
     while True:
         print("\n[{0}년 {1}월]:\n\n. {2}: {3}".format(globals._year, globals._month, hero.name, home.details()))
-
-        params = input("\n{0}\n\n? ".format(cmds)).split()
+        
+        text = input("\n{0}\n\n? ".format(cmds))
+        params = [p for p in re.split(r'[ .,]', text) if p]
         if( 0 >= len(params)):
             break
         

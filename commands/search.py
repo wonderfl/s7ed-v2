@@ -235,5 +235,3 @@ def search():
             continue
 
         command.action(*args)
-
-        

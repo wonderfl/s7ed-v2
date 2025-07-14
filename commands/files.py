@@ -5,6 +5,7 @@ import copy
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import globals
+from globals import ActionMenu
 
 from datas.general import General, GeneralStruct, _CITY_
 from datas.city import CityState, CityStateStruct
@@ -120,3 +121,39 @@ def save_file():
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")
         return None    
+    
+find_commands = {
+    "1": ActionMenu("load game", load_file, 2, "게임 데이터 로드."),
+    "2": ActionMenu("save game", save_file, 2, "게임 데이터 저장."),
+
+    #"3": ActionMenu("load scenario", load_scene, 2, "시나리오 로드."),
+    #"4": ActionMenu("save scenario", save_scene, 2, "시나리오 저장."),    
+    
+    #"5": ActionMenu("load new 100", load_100, 2, "새로운 장수 로드."),
+    #"6": ActionMenu("save new 100", save_100, 2, "새로운 장수 저장."),
+    "0": ActionMenu("return menu", None, 9, "이전 메뉴로."),
+}
+
+def files():
+    commands = [(key, value[0]) for key, value in find_commands.items() if value[2] != 0]
+    cmds = "\n".join( f"  {key}. {name}" for key, name in commands)
+    while True:
+        print("\n: files".format(globals._year, globals._month))
+        params = input("\n{0}\n\n? ".format(cmds)).split()
+        if( 0 >= len(params)):
+            break
+        
+        if( "0" == params[0]):
+            return
+    
+        command = find_commands.get(params[0])
+        if not command:
+            print(f" . '{params[0]}' 명령어를 찾을 수 없습니다.")
+            continue
+
+        args = params[1:]
+        if not command.action:
+            print(f" . '{params[0]}' 명령어는 실행할 수 없습니다.")
+            continue
+
+        command.action(*args)

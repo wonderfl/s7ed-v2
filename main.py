@@ -3,10 +3,11 @@ import sys
 import globals
 from globals import ActionMenu
 
-from commands.listup import listup
-from commands.search import search
-from commands.load import load_file, save_file
-from commands.game import game_play
+import commands.files
+
+import commands.listup
+import commands.search
+import commands.game
 
 def quit():
     exit(0)
@@ -41,18 +42,16 @@ def help():
     print("quit, exit, 종료 - 프로그램 종료")
 
 # "command", "menu", "action", "help"
-commands = {
+main_commands = {
     "H": ActionMenu("help", help, 0, "도움말을 보여줍니다."),
     "I": ActionMenu("whoi", whoiam, 0, "주인공 정보를 보여줍니다."),
     
-    "1": ActionMenu("load", load_file, 1, "파일을 불러옵니다."),
-    "2": ActionMenu("save", save_file, 2, "파일에 저장합니다."),
-    "3": ActionMenu("list", listup, 3, "검색을 시작합니다."),
-    "4": ActionMenu("find", search, 3, "검색을 시작합니다."),
+    "1": ActionMenu("file", commands.files.files, 1, "파일을 불러옵니다."),
+    "2": ActionMenu("list", commands.listup.listup, 3, "검색을 시작합니다."),
+    "3": ActionMenu("find", commands.search.search, 3, "검색을 시작합니다."),
 
-    "9": ActionMenu("play", game_play, 4, "게임을 시작합니다."),
-    "0": ActionMenu("exit", quit, 9, "프로그램을 종료합니다."),
-}
+    "9": ActionMenu("play", commands.game.game_play, 4, "게임을 시작합니다."),
+    "0": ActionMenu("exit", quit, 9, "프로그램을 종료합니다."),}
 
 
 args = sys.argv[1:]
@@ -61,10 +60,9 @@ if len(args) > 1:
        _load = args[1]
 
 menu = 0
-filtered = [(key, value[0]) for key, value in commands.items() if value[2] != 0]
+filtered = [(key, value[0]) for key, value in main_commands.items() if value[2] != 0]
 
-
-load_file(False)
+commands.files.load_file(False)
 
 cmds = ": "+", ".join( f"{key}.{name}" for key, name in filtered)
 while True:
@@ -74,7 +72,7 @@ while True:
         continue
 
     #print("명령어:", params, len(params))
-    command = commands.get(params[0])
+    command = main_commands.get(params[0])
     if not command:
         print(f" . '{params[0]}' 명령어를 찾을 수 없습니다.")
         continue
