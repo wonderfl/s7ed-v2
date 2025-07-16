@@ -1,4 +1,5 @@
 import sys
+import re
 
 import globals
 from globals import ActionMenu
@@ -46,11 +47,11 @@ main_commands = {
     "H": ActionMenu("help", help, 0, "도움말을 보여줍니다."),
     "I": ActionMenu("whoi", whoiam, 0, "주인공 정보를 보여줍니다."),
     
-    "1": ActionMenu("file", commands.files.files, 1, "파일을 불러옵니다."),
-    "2": ActionMenu("list", commands.listup.listup, 3, "검색을 시작합니다."),
-    "3": ActionMenu("find", commands.search.search, 3, "검색을 시작합니다."),
+    "1": ActionMenu("home", commands.files.files, 1, "파일을 관리합니다."),
+    "2": ActionMenu("listup", commands.listup.listup, 3, "정보를 확인합니다."),
+    "3": ActionMenu("search", commands.search.search, 3, "검색을 시작합니다."),
 
-    "9": ActionMenu("play", commands.game.game_play, 4, "게임을 시작합니다."),
+    "8": ActionMenu("play", commands.game.game_play, 4, "게임을 시작합니다."),
     "0": ActionMenu("exit", quit, 9, "프로그램을 종료합니다."),}
 
 
@@ -66,7 +67,8 @@ commands.files.load_file(False)
 
 cmds = ": "+", ".join( f"{key}.{name}" for key, name in filtered)
 while True:
-    params = input(f"{cmds} ? ").split()
+    text = input("\n{0}\n\n? ".format(cmds))
+    params = [p for p in re.split(r'[ .,]', text) if p]
     if( 0 >= len(params)):
         print(" . 명령어를 입력하세요..")
         continue
@@ -86,11 +88,8 @@ while True:
         print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
         continue
 
-    args = params[1:]
-    if(  0 < len(args)):
-        command.action(*args)
-    else:
-        command.action()
+    args = params[1:]    
+    command.action(*args)
 
     continue   
     

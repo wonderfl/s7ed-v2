@@ -9,7 +9,7 @@ from globals import ActionMenu
 
 def find_city():
     while True:
-        str = input("\n도시 이름? ")
+        str = input("\n찾을 도시? ")
         if not str:
             break
 
@@ -36,24 +36,6 @@ def find_city():
             print("--------------------------------------------------------------------------------")
             print("'{0}' 으로 찾은 도시: {1}".format( name, len(filtered)))
 
-def find_search():
-    while True:
-        name = input("\n장수에서 찾을 이름? ")
-        if not name:
-            break
-
-        filtered = [person for person in globals.generals if name in person.name]
-        if not filtered:
-            print("'{}' 이름에 있는 장수가 없습니다.".format(name))
-            continue
-
-        for i, general in enumerate(filtered):
-            print(f" . {general.num:03}: {general}")
-
-        if 1 > len(filtered):
-            print("--------------------------------------------------------------------------------")
-            print("'{0}' 이름에 있는 장수: {1} 명".format( name, len(filtered)))
-
 def find_general():
     while True:
         str = input("\n찾을 장수? ")
@@ -70,13 +52,13 @@ def find_general():
         except:
             name = str
 
-        filtered = [person for person in globals.generals if name == person.name]
+        filtered = [person for person in globals.generals if name in person.name]
         if not filtered:
             print("'{}' 이름을 가진 장수가 없습니다.".format(name))
             continue
 
         for i, general in enumerate(filtered):
-            print(f" . {general.num:03}: {general}")
+            print(f" {general.num:03}: {general}")
 
         if 1 > len(filtered):
             print("--------------------------------------------------------------------------------")
@@ -120,7 +102,7 @@ def find_family():
             print("\n{0}[{1}]의 가문: '{2}'".format( name, found.num, founder.name, len(filtered)))
             print("--------------------------------------------------------------------------------")            
             for i, general in enumerate(filtered):
-                print(f" . {general.num:03}: {general}")
+                print(f" {general.num:03}: {general}")
             print("--------------------------------------------------------------------------------")            
             print("'{0}[{1}]' 가문의 장수: {2} 명".format( founder.name, founder.num, len(filtered)))
 
@@ -153,7 +135,7 @@ def find_parent():
 
             print("--------------------------------------------------------------------------------")
             for i, general in enumerate(filtered):
-                print(f" . {general.num:03}: {general}")
+                print(f" {general.num:03}: {general}")
             print("--------------------------------------------------------------------------------")
             print("'{0}[{1}]'의 자녀인 장수: {2} 명".format( name, found.num, len(filtered)))
 
@@ -196,23 +178,22 @@ def find_sibling():
             print("\n'{0}[{1}]'의 부모: {2}[{3}] ".format( name, found.num, parent_name, parent_num))
             print("--------------------------------------------------------------------------------")
             for i, general in enumerate(filtered):
-                print(f" . {general.num:03}: {general}")
+                print(f" {general.num:03}: {general}")
             print("--------------------------------------------------------------------------------")
             print("'{0}[{1}]'의 형제 장수: {2} 명".format( name, found.num, len(filtered)))
 
 
 find_commands = {
     "1": ActionMenu("city", find_city, 2, "도시 검색."),
-    "2": ActionMenu("name", find_search, 2, "문자열로 이름 검색."),
-    "3": ActionMenu("general", find_general, 2, "장수 검색."),
+    "2": ActionMenu("general", find_general, 2, "장수 검색."),
 
-    "4": ActionMenu("family", find_family, 4, "가문의 장수 검색."),
-    "5": ActionMenu("child", find_parent, 4, "자녀 검색."),
-    "6": ActionMenu("siblings", find_sibling, 4, "형제 검색."),
+    "3": ActionMenu("family", find_family, 4, "가문의 장수 검색."),
+    "4": ActionMenu("child", find_parent, 4, "자녀 검색."),
+    "5": ActionMenu("siblings", find_sibling, 4, "형제 검색."),
     "0": ActionMenu("return menu", None, 9, "이전 메뉴로."),
 }
 
-def search():
+def search(*args):
     commands = [(key, value[0]) for key, value in find_commands.items() if value[2] != 0]
     cmds = "\n".join( f"  {key}. {name}" for key, name in commands)
     while True:
@@ -228,10 +209,9 @@ def search():
         if not command:
             print(f" . '{params[0]}' 명령어를 찾을 수 없습니다.")
             continue
-
-        args = params[1:]
         if not command.action:
             print(f" . '{params[0]}' 명령어는 실행할 수 없습니다.")
             continue
 
+        args = params[1:]
         command.action(*args)

@@ -28,6 +28,9 @@ hex_string = "BEC6C8B8B3B2"
 hex_string = "C0E5BFC2"
 hex_string = "C0B0B5B5"
 hex_string = "B4EBBAD8"
+hex_string = "C7E5C1A6"
+
+hex_string = "C07EC3DF"
 byte_data = bytes.fromhex(hex_string)
 hangul_text = byte_data.decode("euc-kr")
 print(hangul_text)  # 출력: 위소 홍사

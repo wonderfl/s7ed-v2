@@ -14,13 +14,14 @@ from globals import generals, cities
 
 #                              '<  4  22s 54s 54s 4  30s  ')  # 총 168 bytes
 #                              '<  OO xxx xxx xxx xx xxx ')  # 총 168 bytes
-RealmStateStruct = struct.Struct('<HH 6s 2s 2s 2s 2s 8s 54s 54s HH 30s ')  # 총 168 bytes
+RealmStateStruct = struct.Struct('<HH 6s 2s2s2s2s 8s 54s 54s HH 30s ')  # 총 168 bytes
 class RealmState:
     def __init__(self, num, raw_data):
         unpacked = RealmStateStruct.unpack(raw_data)
 
         ruler = unpacked[0]    
         staff = unpacked[1]
+        
         name0 = unpacked[3]
         name1 = unpacked[4]
         name2 = unpacked[5]

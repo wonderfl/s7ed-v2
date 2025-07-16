@@ -1,24 +1,63 @@
 import sys
 import os
+import re
 import copy
+import struct
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import globals
+import globals as gl
 from globals import ActionMenu
 
-from datas.general import General, GeneralStruct, _CITY_
+from datas.general import General, GeneralStruct
 from datas.city import CityState, CityStateStruct
 from datas.item import ItemState, ItemStateStruct
 from datas.realm import RealmState, RealmStateStruct
 
 from utils.decode import __decrypt
 
-def load_file(needs=True):
+# 1. 폴더 경로 설정
+#_saves = "./saves"
+_saves = "E:/05.game/Sam7pk"
+_start = "D_Save"
+
+# 정규식 패턴 정의 (예: data_숫자4자리.csv)
+#pattern = re.compile(r"^data_\d{4}\.csv$")
+pattern = re.compile(r"^D_Save\d{2}\.s7$")
+
+def listup_file(ext='.s7', **args):
+
+    # 2. 파일 목록 필터링 (.txt 또는 .csv)
+    files = [f for f in os.listdir(_saves) 
+             if os.path.isfile(os.path.join(_saves, f)) and pattern.match(f)]
+    
+    # 3. 목록 출력
+    if not files:
+        print(f"해당 폴더에 {ext} 파일이 없습니다.")
+        return ""
+
+    print("\n  {0}\n".format(_saves))
+    for idx, filename in enumerate(files):
+        print(f"  {idx+1}. {filename}")
+    print("")
+
+    # 4. 사용자로부터 파일 선택
+    try:
+        selected_index = int(input("Load File: "))
+        selected_file = files[selected_index-1]
+        return _saves+ '/' + selected_file
+    except (ValueError, IndexError):
+        print("잘못된 입력입니다.")
+        return ""
+
+
+
+def load_file(needs=True, **args):
     if needs == False:
-        fname = globals._load
+        fname = gl._load
     else:
-        fname = input(f"'Load' 파일이름: ")
+        #fname = input(f"'Load' 파일이름: ")
+        fname = listup_file(".s7")
 
     if( 0 >= len(fname) ):
         print("파일이름이 없습니다.")
@@ -33,14 +72,14 @@ def load_file(needs=True):
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
         with open(fname, "rb") as f:
-            f.seek(globals.current_year_offset )
+            f.seek(gl.current_year_offset )
             val0 = f.read(2)
             val1 = f.read(2)
-            globals._month = int.from_bytes(val0)
-            globals._year = int.from_bytes(val1)
+            gl._month = int.from_bytes(val0)
+            gl._year = int.from_bytes(val1)
 
             for i in range(620): # 620명 기준
-                f.seek(globals.generals_offset + i * GeneralStruct.size)
+                f.seek(gl.generals_offset + i * GeneralStruct.size)
                 chunk = f.read(GeneralStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -48,15 +87,15 @@ def load_file(needs=True):
                 _generals.append(general)
 
             for i in range(72): # 72개 아이템 기준
-                f.seek(globals.items_offset + i * ItemStateStruct.size)
+                f.seek(gl.items_offset + i * ItemStateStruct.size)
                 chunk = f.read(ItemStateStruct.size)
                 decoded = __decrypt(chunk)
 
-                item = ItemState(i, decoded)
+                item = ItemState(decoded)
                 _items.append(item)
 
             for i in range(54): # 54개 도시 기준
-                f.seek(globals.realm_offset + i * RealmStateStruct.size)
+                f.seek(gl.realm_offset + i * RealmStateStruct.size)
                 chunk = f.read(RealmStateStruct.size)
                 decoded = __decrypt(chunk)
 
@@ -64,39 +103,52 @@ def load_file(needs=True):
                 _realms.append(realm)
 
             for i in range(54): # 54개 도시 기준
-                f.seek(globals.cities_offset + i * CityStateStruct.size)
+                f.seek(gl.cities_offset + i * CityStateStruct.size)
                 chunk = f.read(CityStateStruct.size)
                 decoded = __decrypt(chunk)
 
-                city = CityState(i, _CITY_[i], decoded)
-                _cities.append(city)        
+                city = CityState(i, gl._cityNames_[i], decoded)
+                _cities.append(city)
 
-        globals.generals.clear()
-        globals.generals.extend(copy.deepcopy(_generals))
+            f.seek(gl.hero_golds_offset)
+            chunk = f.read(2)
+            decoded = __decrypt(chunk)
+            gl.hero_golds = struct.unpack('<H', decoded)[0]
 
-        globals.items.clear()
-        globals.items.extend(copy.deepcopy(_items))
+            for i in range(620): # 54개 도시 기준
+                f.seek(gl.hero_relations_offset + i * 2)
+                chunk = f.read(2)
+                decoded = __decrypt(chunk)
 
-        globals.realms.clear()
-        globals.realms.extend(copy.deepcopy(_realms))
+                _closeness = struct.unpack('<H', decoded)[0]
+                gl.hero_relations.append(_closeness)
 
-        globals.cities.clear()
-        globals.cities.extend(copy.deepcopy(_cities))
+        gl.generals.clear()
+        gl.generals.extend(copy.deepcopy(_generals))
 
-        hero = globals.generals[globals._hero]
-        globals._home = hero.city
+        gl.items.clear()
+        gl.items.extend(copy.deepcopy(_items))
 
-        print(f":'{fname}' 파일을 성공적으로 불러왔습니다. {globals._year}년{globals._month}월:{hero.name}[{globals._home}]")
+        gl.realms.clear()
+        gl.realms.extend(copy.deepcopy(_realms))
+
+        gl.cities.clear()
+        gl.cities.extend(copy.deepcopy(_cities))
+
+        hero = gl.generals[gl._hero]
+        gl._home = hero.city
+
+        print(f"\nLoad '{fname}' Completed.. ({gl._year}년 {gl._month}월: {hero.name}[{hero.city}])")
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
         return None
     
 
-def save_file():
-    fname = input(f"'Save' 파일이름: {globals._load}")
+def save_file(**args):
+    fname = input(f"'Save' 파일이름: {gl._load}")
     if not fname:
-        fname = globals._load
+        fname = gl._load
     return
 
     try:
@@ -123,22 +175,22 @@ def save_file():
         return None    
     
 find_commands = {
-    "1": ActionMenu("load game", load_file, 2, "게임 데이터 로드."),
-    "2": ActionMenu("save game", save_file, 2, "게임 데이터 저장."),
+    "1": gl.ActionMenu("load game", load_file, 2, "게임 데이터 로드."),
+    "2": gl.ActionMenu("save game", save_file, 2, "게임 데이터 저장."),
 
-    #"3": ActionMenu("load scenario", load_scene, 2, "시나리오 로드."),
-    #"4": ActionMenu("save scenario", save_scene, 2, "시나리오 저장."),    
+    #"3": gl.ActionMenu("load scenario", load_scene, 2, "시나리오 로드."),
+    #"4": gl.ActionMenu("save scenario", save_scene, 2, "시나리오 저장."),    
     
-    #"5": ActionMenu("load new 100", load_100, 2, "새로운 장수 로드."),
-    #"6": ActionMenu("save new 100", save_100, 2, "새로운 장수 저장."),
-    "0": ActionMenu("return menu", None, 9, "이전 메뉴로."),
+    #"5": gl.ActionMenu("load new 100", load_100, 2, "새로운 장수 로드."),
+    #"6": gl.ActionMenu("save new 100", save_100, 2, "새로운 장수 저장."),
+    "0": gl.ActionMenu("return menu", None, 9, "이전 메뉴로."),
 }
 
-def files():
+def files(*args):
     commands = [(key, value[0]) for key, value in find_commands.items() if value[2] != 0]
     cmds = "\n".join( f"  {key}. {name}" for key, name in commands)
     while True:
-        print("\n: files".format(globals._year, globals._month))
+        print("\n: files".format(gl._year, gl._month))
         params = input("\n{0}\n\n? ".format(cmds)).split()
         if( 0 >= len(params)):
             break

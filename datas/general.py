@@ -1,19 +1,6 @@
 import struct
 
-import globals
-
-_CITY_ = [
-    '낙랑', '양평', '북평', ' 계 ', '남피', ' 업 ', '평원', '북해', '성양', '진양',
-    '상당', '하비', '소패', '복양', '진류', '허창', ' 초 ', '여남', '하내', '낙양',
-    '홍농', '장안', '천수', '안정', '무위', '서량', '무도', '한중', '자동', '성도',
-    '강주', '영안', '건녕', '운남', '영창', ' 완 ', '신야', '양양', '강하', '상용',
-    '강릉', '장사', '영릉', '무릉', '계양', '수춘', '여강', '건업', ' 오 ', '회계',
-    '시상', '건안', '남해', '교지', '없음'
-]
-
-_STATE_ = [
-    '군주','태수','군사','일반','재야',' ?  ',' -  ','사망',
-]
+import globals as gl
 
 # 포맷   의미	         크기
 # b     signed char	    1바이트
@@ -26,25 +13,18 @@ _STATE_ = [
 # d	    double	        8바이트
 # s	    bytes	        지정 길이
 
-def _bits(value: int, start: int, length: int) -> int:
-    """주어진 정수 값에서 특정 비트 구간 추출"""
-    return (value >> (16 - start - length)) & ((1 << length) - 1)
-
-
 # -*- coding: utf-8 -*-           4   8   6  4   10   2   12     18   12  1 2  8        2  4    1 2  2  1 21
 #                             '< OO OOOO OOO OO xxxxx O xxxxOx OOOOOO xxx x OO OOOOOOOO OO OOxO B BB BB B xxx')  # 총 120bytes
-GeneralStruct = struct.Struct('< 4s HHHH HHH HH HHHHH H HHHHHH 6s6s6s 12s B BB BBBBBBBB BB BBBB B BB BB B 21s')  # 총 120bytes
+GeneralStruct = struct.Struct('< I HHHH HHH HH HHHHH H HHHHHH 6s6s6s 12s B BB BBBBBBBB BB BBBB B BB BB B 21s')  # 총 120bytes
 class General:
     def __init__(self, num, raw_data):
         unpacked = GeneralStruct.unpack(raw_data)
-        
 
         properties  = unpacked[0]
-
         faceno  = unpacked[1]
         appearance = unpacked[2]        
         birthyear = unpacked[3]
-        years = globals._year- birthyear
+        years = gl._year- birthyear
         employment = unpacked[4]
 
         achieve = unpacked[5]
@@ -60,33 +40,35 @@ class General:
         #.성별: 89 00
         #.용맹: ABC 101
         #.냉정: DEF 101
-        self.ambition = _bits(value0, 8, 4)
-        self.fidelity = _bits(value0,12, 4)
-        self.gender   = _bits(value0, 0, 1)
-        self.valour   = _bits(value0, 2, 3)
-        self.composed = _bits(value0, 5, 3)        
+        self.ambition = gl.bit16from(value0, 8, 4)
+        self.fidelity = gl.bit16from(value0,12, 4)
+        self.gender   = gl.bit16from(value0, 0, 1)
+        self.valour   = gl.bit16from(value0, 2, 3)
+        self.composed = gl.bit16from(value0, 5, 3)
 
         value1 = unpacked[11]
         #.특성: 0123 0011 3 매력, 
         #.건강: 4567 0000
         #.성장: 89AB 0010 
         #.수명: CDEF 0111
-        self.job      = _bits(value1, 8, 4)
-        self.injury   = _bits(value1,12, 4)
-        self.growth   = _bits(value1, 0, 4)
-        self.lifespan = _bits(value1, 4, 4)        
+        self.job      = gl.bit16from(value1, 8, 4)
+        self.injury   = gl.bit16from(value1,12, 4)
+        self.growth   = gl.bit16from(value1, 0, 4)
+        self.lifespan = gl.bit16from(value1, 4, 4)        
 
         value2 = unpacked[12]
         #.인물: 0123 0000
         #.전략: 4567 0011
         #.행동: 89AB 0000
         #.???: CDEF 0000
-        self.turned = _bits(value2, 0, 1)
+        self.turned = gl.bit16from(value2, 0, 1)
+        self.turns = gl.bit16from(value2, 1, 7)
 
         value3 = unpacked[13]
         value4 = unpacked[14]
 
         colleague = unpacked[15]
+        equips = unpacked[16]
 
         actions = unpacked[20]
         capture_ruler = unpacked[21]
@@ -127,6 +109,18 @@ class General:
         self.name = self.name0 + self.name1
         self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
         self.props = properties
+        
+        names = [
+            name for i, name in enumerate(gl._prop1Names_) if gl.bit32from(self.props, i, 1)
+        ]
+        self.propstr = ''.join(name + (' ' if (i + 1) % 4 == 0 and i != len(names) - 1 else '') for i, name in enumerate(names))
+        
+        fixed = [
+            name if gl.bit32from(self.props, i, 1) else '  '
+            for i, name in enumerate(gl._prop1Names_)
+        ]
+        self.propfixed = ''.join(name for i, name in enumerate(fixed))
+
         self.faceno = faceno
         self.birthyear = birthyear
         self.years = years
@@ -140,6 +134,10 @@ class General:
         self.family = family
         self.parent = parent
         self.colleague = colleague
+        self.equips = equips
+
+        self.equipstr = ' '.join([str for i, str in enumerate(gl._equipNames_) if gl.bit16from2(self.equips, i, 1)])
+        self.equipfixed = ''.join( [ str if gl.bit16from2(self.equips, i, 1) else '  ' for i, str in enumerate(gl._equip1Names_) ])        
 
         self.state = state
         self.realm = realm
@@ -157,21 +155,40 @@ class General:
         self.actions = actions
     
     def properties(self):
-        return "[ " + format(self.props[0], '08b')+","+ format(self.props[1], '08b') + ","+ format(self.props[2], '08b') +","+ format(self.props[3], '08b') + " ]"
+        #return "[{0}]".format(format(self.props, '032b'))
+        return "[{0}]".format(self.propstr)
+        #return "[{0}]".format(self.propfixed)
+    
+    def equipments(self):
+        #return "[{0}]".format(format(self.equips, '016b'))
+        return "[{0}]".format(self.equipstr)    
     
     def states(self):
-        return "{0:>4}".format( self.fixed ) + "[ "+ \
-            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],   _STATE_[self.state])+ " ]"
+        closeness = gl.hero_relations[self.num]
+        return "{0:>4}".format( self.fixed ) + \
+            "[ {0}{1:2} {2} {3} {4:3} ]".format( 
+                " " if 0 == self.turned else "!", self.turns, 
+                gl._cityNames_[ self.city if self.city != 255 else 54 ],  
+                gl._rankStates_[self.state], 
+                closeness if 100 >= closeness else 100) 
     
     def states_detail(self):
+        closeness = gl.hero_relations[self.num]
         return "{0:>4}".format( self.fixed ) + \
             "[ "+ \
-            "{0} {1} {2} ".format( " " if 0 == self.turned else "!", _CITY_[ self.city if self.city != 255 else 54 ],  _STATE_[self.state])+ \
-            "{0:3}:{1:3} {2} {3:3}".format( self.years if 0<self.years else "  -", self.birthyear, '남' if 0 == self.gender else '여', self.family if self.family != self.num else "   " )+ \
+            "{0}{1:3} {2} {3} {4:3} ".format( 
+                " " if 0 == self.turned else "!", self.turns, 
+                gl._cityNames_[ self.city if self.city != 255 else 54 ], 
+                gl._rankStates_[self.state],
+                closeness if 100 >= closeness else 100 ) +\
+            "{0:3}:{1:3} {2} {3:3}".format( 
+                self.years if 0<self.years else "  -", self.birthyear, 
+                '남' if 0 == self.gender else '여', 
+                self.family if self.family != self.num else "   " )+ \
             " ]"
     
-    def loyalties(self):
-        return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.salary, self.loyaty, self.actions)
+    def loyalties(self):        
+        return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.actions, self.salary, self.loyaty)
     
     def abilities(self):
         return "[ {0} {1} {2} {3} {4:2} {5:2} {6:3} ]".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity, self.relation )
@@ -185,8 +202,14 @@ class General:
     def profiles(self):
         return self.states() + self.loyalties() + self.soldiers()
     
+    def profiles2(self):
+        return self.states_detail() + self.loyalties() + self.soldiers()    
+    
     def details(self):
-        return self.states_detail() + self.loyalties() + self.soldiers() + self.stats() + self.abilities()     
+        return self.states_detail() + self.loyalties() + self.soldiers() + self.stats() + self.abilities()
+    
+    def details2(self):
+        return self.states_detail() + self.loyalties() + self.soldiers() + self.properties() + self.equipments()    
 
     def __repr__(self):
         return self.profiles()
