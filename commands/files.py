@@ -77,8 +77,8 @@ def load_file(needs=True, **args):
             f.seek(gl.current_year_offset )
             val0 = f.read(2)
             val1 = f.read(2)
-            gl._month = int.from_bytes(val0)
-            gl._year = int.from_bytes(val1)
+            gl._month = int.from_bytes(val0, 'big')
+            gl._year = int.from_bytes(val1,'big')
 
             for i in range(620): # 620명 기준
                 f.seek(gl.generals_offset + i * GeneralStruct.size)

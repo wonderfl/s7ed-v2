@@ -61,7 +61,8 @@ class OfficerEditorApp:
         self.frame_realm.grid(row=0, column=0, padx=(8,0), pady=0)
 
         #tk.Label(self.frame_left, text="", pady=0).pack()
-        self.listbox_realm = tk.Listbox(self.frame_realm, font=font.Font(family="맑은 고딕", size=10, underline=0), height=28, width=16)
+        #font=font.Font(family="맑은 고딕", size=10, underline=0),
+        self.listbox_realm = tk.Listbox(self.frame_realm,  height=28, width=16)
         self.listbox_realm.pack(fill="y")
         for i in range(72):
             self.listbox_realm.insert(tk.END, f"세력 {i:03}")
@@ -86,7 +87,8 @@ class OfficerEditorApp:
         self.frame_item.grid(row=0, column=0, padx=(8,0), pady=0)
 
         #tk.Label(self.frame_left, text="", pady=0).pack()
-        self.listbox_item = tk.Listbox(self.frame_item, font=font.Font(family="맑은 고딕", size=10, underline=0), height=28, width=16)
+        #font=font.Font(family="맑은 고딕", size=10, underline=0), 
+        self.listbox_item = tk.Listbox(self.frame_item, height=28, width=16)
         self.listbox_item.pack(fill="y")
         for i in range(72):
             self.listbox_item.insert(tk.END, f"아이템 {i:03}")
@@ -111,7 +113,8 @@ class OfficerEditorApp:
         self.frame_item.grid(row=0, column=0, padx=(8,0), pady=0)
 
         #tk.Label(self.frame_left, text="", pady=0).pack()
-        self.listbox_item = tk.Listbox(self.frame_item, font=font.Font(family="맑은 고딕", size=10, underline=0), height=28, width=16)
+        #font=font.Font(family="맑은 고딕", size=10, underline=0),
+        self.listbox_item = tk.Listbox(self.frame_item, height=28, width=16)
         self.listbox_item.pack(fill="y")
 
         for i in range(54):
@@ -137,7 +140,8 @@ class OfficerEditorApp:
         self.frame_left.grid(row=0, column=0, padx=(8,0), pady=0)
 
         #tk.Label(self.frame_left, text="", pady=0).pack()
-        self.listbox = tk.Listbox(self.frame_left, font=font.Font(family="맑은 고딕", size=10, underline=0), height=28, width=16)
+        #font=font.Font(family="맑은 고딕", size=10, underline=0), 
+        self.listbox = tk.Listbox(self.frame_left, height=28, width=16)
         self.listbox.pack(fill="y")
 
         for i in range(620):
