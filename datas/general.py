@@ -1,6 +1,7 @@
 import struct
 
 import globals as gl
+import utils.padstr as pads
 
 # 포맷   의미	         크기
 # b     signed char	    1바이트
@@ -107,7 +108,10 @@ class General:
         
         self.num = num        
         self.name = self.name0 + self.name1
-        self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
+        
+        #self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
+        self.fixed = pads.pad_string(self.name,8,'center')
+
         self.props = properties
         
         names = [
@@ -164,28 +168,27 @@ class General:
         return "[{0}]".format(self.equipstr)    
     
     def states(self):
-        closeness = gl.hero_relations[self.num]
+        closeness = gl.relations[self.num]
         return "{0:>4}".format( self.fixed ) + \
-            "[ {0}{1:2} {2} {3} {4:3} ]".format( 
+            "[{0}{1:2} {2} {3} {4:3} ]".format( 
                 " " if 0 == self.turned else "!", self.turns, 
                 gl._cityNames_[ self.city if self.city != 255 else 54 ],  
                 gl._rankStates_[self.state], 
                 closeness if 100 >= closeness else 100) 
     
     def states_detail(self):
-        closeness = gl.hero_relations[self.num]
+        closeness = gl.relations[self.num]
         return "{0:>4}".format( self.fixed ) + \
-            "[ "+ \
-            "{0}{1:3} {2} {3} {4:3} ".format( 
+            "[{0}{1:3} {2} {3} {4:3} ".format( 
                 " " if 0 == self.turned else "!", self.turns, 
                 gl._cityNames_[ self.city if self.city != 255 else 54 ], 
                 gl._rankStates_[self.state],
                 closeness if 100 >= closeness else 100 ) +\
-            "{0:3}:{1:3} {2} {3:3}".format( 
+            "{0:3}:{1:3} {2} {3:3} ]".format( 
                 self.years if 0<self.years else "  -", self.birthyear, 
                 '남' if 0 == self.gender else '여', 
-                self.family if self.family != self.num else "   " )+ \
-            " ]"
+                self.family if self.family != self.num else "   " )
+            
     
     def loyalties(self):        
         return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.actions, self.salary, self.loyaty)

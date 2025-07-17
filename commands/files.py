@@ -67,6 +67,8 @@ def load_file(needs=True, **args):
     _items=[]
     _realms=[]
     _cities=[]
+    _relations=[]
+    _sentiments=[]
     
     try:
         # 장수 620명 기준 읽기 예시
@@ -103,6 +105,7 @@ def load_file(needs=True, **args):
                 _realms.append(realm)
 
             for i in range(54): # 54개 도시 기준
+                #print('읽을도시:{0}'.format(i))
                 f.seek(gl.cities_offset + i * CityStateStruct.size)
                 chunk = f.read(CityStateStruct.size)
                 decoded = __decrypt(chunk)
@@ -115,13 +118,21 @@ def load_file(needs=True, **args):
             decoded = __decrypt(chunk)
             gl.hero_golds = struct.unpack('<H', decoded)[0]
 
-            for i in range(620): # 54개 도시 기준
+            for i in range(620): # 620명 기준
                 f.seek(gl.hero_relations_offset + i * 2)
                 chunk = f.read(2)
                 decoded = __decrypt(chunk)
 
                 _closeness = struct.unpack('<H', decoded)[0]
-                gl.hero_relations.append(_closeness)
+                _relations.append(_closeness)
+
+            for i in range(54): # 54 도시 민심
+                f.seek(gl.hero_sentiments_offset + i)
+                chunk = f.read(1)
+                decoded = __decrypt(chunk)
+                
+                _sentiment = struct.unpack('<B', decoded)[0]
+                _sentiments.append(_sentiment)
 
         gl.generals.clear()
         gl.generals.extend(copy.deepcopy(_generals))
@@ -135,10 +146,21 @@ def load_file(needs=True, **args):
         gl.cities.clear()
         gl.cities.extend(copy.deepcopy(_cities))
 
+        gl.relations.clear()
+        gl.relations.extend(copy.deepcopy(_relations))
+
+        gl.sentiments.clear()
+        gl.sentiments.extend(copy.deepcopy(_sentiments))
+
+
+        gn = len(gl.generals)
+        cn = len(gl.cities)
         hero = gl.generals[gl._hero]
         gl._home = hero.city
+        home = gl.cities[gl._home]
 
-        print(f"\nLoad '{fname}' Completed.. ({gl._year}년 {gl._month}월: {hero.name}[{hero.city}])")
+        print(f"\nLoad '{fname}' Completed.. {cn}:{gn}")
+        print("{0}년 {1}월: {2} / {3}".format( gl._year,gl._month, hero.name, home.details2()))
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")

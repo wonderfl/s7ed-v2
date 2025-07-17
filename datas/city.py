@@ -1,6 +1,6 @@
 import struct
 
-from globals import generals, cities
+import globals  as gl
 
 # 포맷   의미	         크기
 # b     signed char	    1바이트
@@ -52,14 +52,16 @@ class CityState:
 
 
     def profiles(self):
+        senti = gl.sentiments[self.num]
         name = "   -    "
-        if( 0 <= self.governor and self.governor < len(generals)):
-            gov = generals[self.governor]
+        if( 0 <= self.governor and self.governor < len(gl.generals)):
+            gov = gl.generals[self.governor]
             name = gov.fixed
-        return self.name + "[{0:>4}]".format( name ) + "[{0:7},{1:7},{2:7}]".format( self.peoples*100, self.golds, self.foods)
+        return self.name + "[{0:>4}]".format( name ) + "[{0:7},{1:3},{2:7},{3:7}]".format( self.peoples*100, senti, self.golds, self.foods)
     
     def profiles2(self):
-        return self.name + "[{0:7},{1:7},{2:7}]".format( self.peoples*100, self.golds, self.foods)    
+        senti = gl.sentiments[self.num]
+        return self.name + "[{0:7},{1:3},{2:7},{3:7}]".format( self.peoples*100, senti, self.golds, self.foods)    
 
     def details(self):
         return self.profiles()+ \

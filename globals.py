@@ -51,29 +51,43 @@ _month = 3
 
 current_year_offset = 0x00000019
 
+generals = []
 generals_offset = 0x0000009C  # 장수 데이터 시작 위치 예시
 # 1 22A0 + 9c = 1 233C
 generals_ends = 620 * 200 + 0x0000009C
-generals = []
 
+
+items = []
 items_offset = 0x0001234C  # 장수 데이터 시작 위치 예시
 # B40 + 0x0001234C = 1 2E8C
 items_ends = 72 * 40  + 0x0001234C
-items = []
 
+
+realms = []
 realm_offset =  0x00012FCC  # 세력 데이터 시작 위치 예시 168bytes
 realm_ends = 620 * 200 + 0x0000009C
-realms = []
 
+
+cities = []
 cities_offset = 0x000154C6  # 장수 데이터 시작 위치 예시
 # D80 + 0x000154C6 = 1 6246
 cities_ends = 64 * 54  + 0x000154C6
-cities = []
 
-hero_golds_offset = 0x00016246
+
 hero_golds = 0
+hero_golds_offset = 0x00016246
+
+
+relations = []
 hero_relations_offset = 0x00016266
-hero_relations = []
+hero_relations_ends = hero_relations_offset + 2*620 # 0x0001673E
+
+
+
+sentiments = []
+hero_sentiments_offset = 0x0001673E
+hero_sentiments_ends = hero_sentiments_offset + 1*54
+
 
 save_ends = 0x00019731
 

@@ -1,5 +1,6 @@
 import struct
 import globals as gl
+import utils.padstr as pads
 
 # 포맷   의미	         크기
 # b     signed char	    1바이트
@@ -31,11 +32,13 @@ class ItemState:
     value4 = unpacked[8]
 
     self.u00 = u00
-    self.propstr = ','.join([str for i, str in enumerate(gl._propNames_) if gl.bit32from(self.u00, i, 1)])
+    self.propstr = ','.join([str for i, str in enumerate(gl._propNames_) if gl.bit32from(self.u00, i, 1) ])
+    #self.propstr = ''.join([str if gl.bit32from(self.u00, i, 1) else '' for i, str in enumerate(gl._prop1Names_) ])
 
     self.owner = owner
     self.market = market
     self.name = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore")
+    self.fixed = pads.pad_string(self.name, 12,'center')
 
     self.item_type = item_type
     self.num = num
@@ -48,7 +51,15 @@ class ItemState:
       if( 0 <= self.owner and self.owner < len(gl.generals)):
           owner = gl.generals[self.owner]
 
-      return "[{0}][ {2} {3} {4}  {5} {6:4} {7}] {1:8}".format(owner.fixed if owner is not None else "   -    ", \
-          self.name, gl._itemTypes_[self.item_type], gl._itemStats_[self.item_type] if 0 < self.stats else ' -  ', \
-          '+'+"{0:<2}".format(self.stats) if 0 < self.stats else '-  ', self.propstr if 0<self.u00 else '    ', \
-          self.price if 0<self.price else '   -', '$' if 3 == self.market else ' ' )
+      return "{0}[ {1:3} {2}][ {3} {4} {5} {6:4} {7}] {8}".format(
+           self.fixed
+          ,owner.num if owner is not None else '   '
+          ,owner.fixed if owner is not None else '   -    '
+          ,gl._itemTypes_[self.item_type]
+          ,gl._itemStats_[self.item_type] if 0 < self.stats else ' -  '
+          ,'+'+"{0:<2}".format(self.stats) if 0 < self.stats else '-  '
+          ,self.price if 0<self.price else '   -'
+          ,'$' if 3 == self.market else ' '
+          ,self.propstr if 0<self.u00 else '  '
+)
+  
