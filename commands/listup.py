@@ -87,7 +87,7 @@ def listup_generals(*args):
     equips = False
     
     states = set()
-    max_state = len(gl._rankStates_)
+    max_state = len(gl._stateNames_)
     for arg in args:
         if False == arg.isdecimal():
             if "*" in arg: # props
@@ -132,7 +132,7 @@ def listup_generals(*args):
     for state in sorted(states):            
         statestr = "전체"
         if 0 <= state and state < max_state:
-            statestr = gl._rankStates_[state]
+            statestr = gl._stateNames_[state]
 
         filtered = [general for general in gl.generals if -1 == state or ( -1 != state and general.state == state)]
         print("")

@@ -17,9 +17,20 @@ _cityNames_ = [
     '강주', '영안', '건녕', '운남', '영창', ' 완 ', '신야', '양양', '강하', '상용',
     '강릉', '장사', '영릉', '무릉', '계양', '수춘', '여강', '건업', ' 오 ', '회계',
     '시상', '건안', '남해', '교지', '없음']
-_rankStates_ = ['군주','태수','군사','일반','재야',' +  ',' -  ',' X  ',]
+
+_stateNames_ = ['군주','태수','군사','일반','재야',' +  ',' -  ',' X  ','없음']
+_stateNames2 = ['군주','태수','군사','일반','재야','미발견','대기','사망']
+
+_rankNames_ = ["1품관", "2품관", "3품관", "4품관", "5품관"]
+
 _itemTypes_=[ "명마","무구","지도","의학","기서","병법","경서","역사","논문","옥새","보물","성수" ]
 _itemStats_=[ "","무력","","","지력","지력","지력","정치","정치","매력","","" ]
+
+_healthStates_=[ "양호", "경상A","경상B","경상C","경상D", "중상A","중상B","중상C"]
+
+_tendencies_=[ "능력","명성","의리","자기" ]
+_strategies_=[ "무관심","내정","방어","수호전","군비","모략","사욕" ]
+
 _propNames_=[ 
    "첩보","발명","조교","상재","응사","반계","수습","정찰",
    "무쌍","돌격","일기","강행","수복","수군","화시","난사",
@@ -45,7 +56,7 @@ _equip1Names_=[
 
 _hero = 493
 _home = 0
-_load = "saves/D_Save01.s7"
+_load = "saves/D_Save08.s7"
 _year = 189
 _month = 3
 
@@ -77,14 +88,11 @@ cities_ends = 64 * 54  + 0x000154C6
 hero_golds = 0
 hero_golds_offset = 0x00016246
 
-
-relations = []
+relations = [] # 주인공과 친밀도
 hero_relations_offset = 0x00016266
 hero_relations_ends = hero_relations_offset + 2*620 # 0x0001673E
 
-
-
-sentiments = []
+sentiments = [] # 각 도시별 민심
 hero_sentiments_offset = 0x0001673E
 hero_sentiments_ends = hero_sentiments_offset + 1*54
 

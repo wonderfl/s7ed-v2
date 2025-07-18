@@ -14,9 +14,10 @@ import utils.padstr as pads
 # d	    double	        8바이트
 # s	    bytes	        지정 길이
 
-# -*- coding: utf-8 -*-           4   8   6  4   10   2   12     18   12  1 2  8        2  4    1 2  2  1 21
-#                             '< OO OOOO OOO OO xxxxx O xxxxOx OOOOOO xxx x OO OOOOOOOO OO OOxO B BB BB B xxx')  # 총 120bytes
-GeneralStruct = struct.Struct('< I HHHH HHH HH HHHHH H HHHHHH 6s6s6s 12s B BB BBBBBBBB BB BBBB B BB BB B 21s')  # 총 120bytes
+# -*- coding: utf-8 -*-          4 8    6   4  10    2 12     18     12  1 2  8        2  4    1 4    1   3 18
+#                             '< O OOOO OOO OO xxxxx O xxxxOx OOOOOO xxx x OO OOOOOOOO OO OOxO B OOOO O OOO xxx')  # 총 120bytes
+GeneralStruct = struct.Struct('< I HHHH HHH HH HHHHH H HHHHHH 6s6s6s 12s B BB BBBBBBBB BB BBBB B BBBB B BBB 18s')  # 총 120bytes
+                               # 0 1234 567 89 01234 5 678901  2 3 4   5 6 78 90123456 78 9012 3 4567 8 901 234567890123456789012345678901234567890123456789
 class General:
     def __init__(self, num, raw_data):
         unpacked = GeneralStruct.unpack(raw_data)
@@ -62,8 +63,10 @@ class General:
         #.전략: 4567 0011
         #.행동: 89AB 0000
         #.???: CDEF 0000
-        self.turned = gl.bit16from(value2, 0, 1)
-        self.turns = gl.bit16from(value2, 1, 7)
+        self.tendency   = gl.bit16from(value2, 8, 4) # 인물경향
+        self.strategy   = gl.bit16from(value2,12, 4) # 전략경향
+        self.turned     = gl.bit16from(value2, 0, 1)
+        self.opposite   = gl.bit16from(value2, 4, 4)
 
         value3 = unpacked[13]
         value4 = unpacked[14]
@@ -72,7 +75,7 @@ class General:
         equips = unpacked[16]
 
         actions = unpacked[20]
-        capture_ruler = unpacked[21]
+
 
         name0 = unpacked[22]
         name1 = unpacked[23]
@@ -99,8 +102,19 @@ class General:
         salary = unpacked[40] # 봉록
         training = unpacked[41] # 훈련
         relation = unpacked[43] # 상성
+
+        item = unpacked[48] # 아이템        
         
-        item = unpacked[48] # 아이템
+        capture_ruler = unpacked[21] # 포획 군주
+
+        ambush_cnt = unpacked[44] # 매복 횟수        
+        ambush_realm = unpacked[45] # 매복 세력
+        operate_cnt = unpacked[46] # 작전 횟수
+        operate_realm = unpacked[47] # 작전 세력
+        capture_cnt = unpacked[49] # 포획 횟수
+
+        wins1 = unpacked[50] # 무술대회 우승
+        wins2 = unpacked[51] # 한시대회 우승
 
         self.name0 = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore")
         self.name1 = name1.split(b'\x00')[0].decode("euc-kr", errors="ignore")
@@ -111,12 +125,9 @@ class General:
         
         #self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
         self.fixed = pads.pad_string(self.name,8,'center')
-
         self.props = properties
         
-        names = [
-            name for i, name in enumerate(gl._prop1Names_) if gl.bit32from(self.props, i, 1)
-        ]
+        names = [ name for i, name in enumerate(gl._prop1Names_) if gl.bit32from(self.props, i, 1)]
         self.propstr = ''.join(name + (' ' if (i + 1) % 4 == 0 and i != len(names) - 1 else '') for i, name in enumerate(names))
         
         fixed = [
@@ -141,22 +152,42 @@ class General:
         self.equips = equips
 
         self.equipstr = ' '.join([str for i, str in enumerate(gl._equipNames_) if gl.bit16from2(self.equips, i, 1)])
-        self.equipfixed = ''.join( [ str if gl.bit16from2(self.equips, i, 1) else '  ' for i, str in enumerate(gl._equip1Names_) ])        
+        self.equipfixed = ''.join( [ str if gl.bit16from2(self.equips, i, 1) else '  ' for i, str in enumerate(gl._equip1Names_) ])
+
+        self.actions = actions
 
         self.state = state
         self.realm = realm
         self.city = city
+        self.rank = rank
 
         self.str = str0
         self.int = int0
         self.pol = pol0
         self.chr = chr0
-        self.loyaty = loyalty 
+
+        self.str1 = str1
+        self.int1 = int1
+        self.pol1 = pol1
+        self.chr1 = chr1        
+
+        self.loyalty = loyalty 
         self.item = item
         self.salary = salary
         self.training = training
         self.relation = relation
-        self.actions = actions
+
+        #-----------------------------------------
+        self.capture_ruler = capture_ruler # 포획 군주
+        self.ambush_realm = ambush_realm # 매복 세력
+        self.operate_realm = operate_realm # 작전 세력
+
+        self.capture_cnt = capture_cnt # 포획 횟수
+        self.ambush_cnt = ambush_cnt # 매복 횟수
+        self.operate_cnt = operate_cnt # 작전 횟수
+        
+        self.wins1 = wins1
+        self.wins2 = wins2
     
     def properties(self):
         #return "[{0}]".format(format(self.props, '032b'))
@@ -171,18 +202,18 @@ class General:
         closeness = gl.relations[self.num]
         return "{0:>4}".format( self.fixed ) + \
             "[{0}{1:2} {2} {3} {4:3} ]".format( 
-                " " if 0 == self.turned else "!", self.turns, 
+                " " if 0 == self.turned else "!", self.opposite, 
                 gl._cityNames_[ self.city if self.city != 255 else 54 ],  
-                gl._rankStates_[self.state], 
+                gl._stateNames_[self.state], 
                 closeness if 100 >= closeness else 100) 
     
     def states_detail(self):
         closeness = gl.relations[self.num]
         return "{0:>4}".format( self.fixed ) + \
             "[{0}{1:3} {2} {3} {4:3} ".format( 
-                " " if 0 == self.turned else "!", self.turns, 
+                " " if 0 == self.turned else "!", self.opposite, 
                 gl._cityNames_[ self.city if self.city != 255 else 54 ], 
-                gl._rankStates_[self.state],
+                gl._stateNames_[self.state],
                 closeness if 100 >= closeness else 100 ) +\
             "{0:3}:{1:3} {2} {3:3} ]".format( 
                 self.years if 0<self.years else "  -", self.birthyear, 
@@ -191,7 +222,7 @@ class General:
             
     
     def loyalties(self):        
-        return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.actions, self.salary, self.loyaty)
+        return "[{0:2} {1:3} {2:3} {3:3} ]".format( self.realm if self.realm != 255 else '  ', self.actions, self.salary, self.loyalty)
     
     def abilities(self):
         return "[ {0} {1} {2} {3} {4:2} {5:2} {6:3} ]".format( self.lifespan, self.growth, self.valour, self.composed, self.ambition, self.fidelity, self.relation )

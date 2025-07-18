@@ -35,15 +35,15 @@ class ItemState:
     self.propstr = ','.join([str for i, str in enumerate(gl._propNames_) if gl.bit32from(self.u00, i, 1) ])
     #self.propstr = ''.join([str if gl.bit32from(self.u00, i, 1) else '' for i, str in enumerate(gl._prop1Names_) ])
 
+    self.num = num
     self.owner = owner
-    self.market = market
     self.name = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore")
     self.fixed = pads.pad_string(self.name, 12,'center')
-
+    
+    self.market = market
     self.item_type = item_type
-    self.num = num
-    self.price = price*100
     self.stats = stats
+    self.price = price*100
     self.v4 = value4
     
   def __repr__(self):
