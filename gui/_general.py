@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 
 import globals as gl
+from . import _realm
+from . import _realm
 
 
 
@@ -221,13 +223,7 @@ class GeneralTab:
         frame_skills = tk.LabelFrame(parent, text="무장 특기", width=self._width01, height=172)
         frame_skills.grid(row=nr, column=nc, pady=(4,0) )
         frame_skills.grid_propagate(False)  # 크기 고정
-        skill_names = [
-            "첩보","발명","조교","상재", "응사","반계","수습","정찰",
-            "무쌍","돌격","일기","강행", "수복","수군","화시","난시",
-            "선동","신산","허보","천문", "수공","고무","욕설","혈공",
-            "귀모","성흔","행동","단련", "의술","점복","평가","부호",
-        ]
-        for i, name in enumerate(skill_names):
+        for i, name in enumerate(gl._propNames_):
             var = tk.IntVar()
             checked = tk.Checkbutton(frame_skills, text=name, width=6, height=1, highlightthickness=0, borderwidth=0, variable=var )
             checked.grid(row=i//4, column=i%4, sticky="w", pady=0,ipady=0)
@@ -372,10 +368,6 @@ class GeneralTab:
         self.frame_1.grid(row=0, column=1, padx=(4,0))
         self.frame_1.grid_propagate(False)  # 크기 고정
 
-        self.frame_2 = tk.LabelFrame(parent, text="", width=self._width10, height=self._height0, borderwidth=0, highlightthickness=0)
-        self.frame_2.grid(row=0, column=2, padx=(4,0))
-        self.frame_2.grid_propagate(False)  # 크기 고정        
-        
         self.build_basic(self.frame_1, 0, 0) # 기본 설정
         self.build_family(self.frame_1, 1, 0) # 혈연
         self.build_traits(self.frame_1, 2, 0) # 특성
@@ -384,8 +376,13 @@ class GeneralTab:
         self.build_skills(self.frame_1, 4, 0) # 특기
         self.build_equips(self.frame_1, 5, 0) # 장비
 
+
+        self.frame_2 = tk.LabelFrame(parent, text="", width=self._width10, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_2.grid(row=0, column=2, padx=(4,0))
+        self.frame_2.grid_propagate(False)  # 크기 고정
+
         self.build_personalities(self.frame_2, 0, 0) # 개성
         self.build_experiences(self.frame_2, 3, 0) # 경험치
 
         # 설정 버튼
-        tk.Button(self.frame_2, text="설 정", width=10).grid(row=4, column=0)        
+        tk.Button(self.frame_2, text="설 정", width=10).grid(row=4, column=0)

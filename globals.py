@@ -56,7 +56,7 @@ _equip1Names_=[
 
 _hero = 493
 _home = 0
-_load = "saves/D_Save08.s7"
+_load = "saves/D_Save01.s7"
 _year = 189
 _month = 3
 

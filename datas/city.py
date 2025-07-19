@@ -34,7 +34,7 @@ class CityState:
 
         secu = unpacked[9]
         defs = unpacked[10]
-        tech = unpacked[11]        
+        tech = unpacked[11]
 
         self.golds = golds
         self.foods = foods
@@ -48,7 +48,7 @@ class CityState:
 
         self.secu = secu
         self.defs = defs
-        self.tech = tech        
+        self.tech = tech
 
 
     def profiles(self):

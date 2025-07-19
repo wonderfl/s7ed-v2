@@ -70,7 +70,7 @@ if len(args) > 1:
 menu = 0
 filtered = [(key, value[0]) for key, value in main_commands.items() if value[2] != 0]
 
-commands.files.load_file(True)
+commands.files.load_file(False)
 
 popup()
 exit()

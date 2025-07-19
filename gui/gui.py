@@ -1,10 +1,11 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog, messagebox
 
-import gui._general as t_gnl
-import gui._item as t_item
-import gui._city as t_city
-import gui._realm as t_realm
+import gui._general as _gnl
+import gui._item as _item
+
+import commands.files as file
 
 import globals as gl
 
@@ -28,20 +29,21 @@ class OfficerEditorApp:
         self.tab4 = ttk.Frame(notebook)
 
         # 장수 전체 정보
-        notebook.add(self.tab1, text="  장수   ")
-        t_gnl.GeneralTab(self.tab1)
+        notebook.add(self.tab1, text="세력/도시/아이템")
+        _item.ItemTab(self.tab1)
 
         # 아이템 전체 정보        
-        notebook.add(self.tab2, text="  아이템  ")
-        t_item.ItemTab(self.tab2)
+        notebook.add(self.tab2, text="  장수  ")
+        _gnl.GeneralTab(self.tab2)
 
-        # 도시 전체 정보        
-        notebook.add(self.tab3, text="  도시    ")
-        t_city.CityTab(self.tab3)
 
-        # 세력 전체 정보        
-        notebook.add(self.tab4, text="  세력    ")
-        t_realm.RealmTab(self.tab4)
+        # 하단 footbar
+        self.footbar = tk.Frame(self.root, bg="lightgray", height=30)
+        self.footbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # footbar 내부 내용 (예: 상태 텍스트)
+        self.status = tk.Label(self.footbar, text="준비됨", bg="lightgray", anchor="w")
+        self.status.pack(side=tk.LEFT, padx=10)        
 
 
         # 하단 푸터/풋바
@@ -49,16 +51,51 @@ class OfficerEditorApp:
         #self.footbar.pack(side="bottom", fill="x")
 
 
+def open_file():
+    #filepath = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+    filepath = filedialog.askopenfilename(filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")])
+    if filepath:
+        file.open_file(filepath)
+        messagebox.showinfo("로딩 완료", f"{filepath}를 불러왔습니다.")
+    #    with open(filepath, "r", encoding="utf-8") as file:
+
+    #        text.delete("1.0", tk.END)
+    #        text.insert(tk.END, file.read())
+
+def save_file():
+    filepath = filedialog.asksaveasfilename(defaultextension=".txt",
+                                             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+    #if filepath:
+    #    with open(filepath, "w", encoding="utf-8") as file:
+    #        file.write(text.get("1.0", tk.END))
+    #    messagebox.showinfo("저장 완료", f"{filepath}에 저장되었습니다.")
+
 
 def app():
     root = tk.Tk()
-    app = OfficerEditorApp(root)
+    root.title("파일 입출력 예제")
 
+    # 메뉴 바 생성
+    menu_bar = tk.Menu(root)
+    file_menu = tk.Menu(menu_bar, tearoff=0)
+    file_menu.add_command(label="열기", command=open_file)
+    file_menu.add_command(label="저장", command=save_file)
+    file_menu.add_separator()
+    file_menu.add_command(label="종료", command=root.quit)
+    menu_bar.add_cascade(label="파일", menu=file_menu)
+
+    root.config(menu=menu_bar)
+
+    # 텍스트 편집기 영역
+    #text = tk.Text(root, wrap="word")
+    #text.pack(expand=True, fill="both")
+
+    editor = OfficerEditorApp(root)
     root.mainloop()
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = OfficerEditorApp(root)
+    app()
 
     root.mainloop()
 

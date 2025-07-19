@@ -51,18 +51,8 @@ def listup_file(ext='.s7', **args):
         return ""
 
 
+def open_file(fname):
 
-def load_file(needs=True, **args):
-    if needs == False:
-        fname = gl._load
-    else:
-        #fname = input(f"'Load' 파일이름: ")
-        fname = listup_file(".s7")
-
-    if( 0 >= len(fname) ):
-        print("파일이름이 없습니다.")
-        return
-    
     _generals=[]
     _items=[]
     _realms=[]
@@ -165,7 +155,20 @@ def load_file(needs=True, **args):
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
         return None
-    
+        
+
+def load_file(needs=True, **args):
+    if needs == False:
+        fname = gl._load
+    else:
+        #fname = input(f"'Load' 파일이름: ")
+        fname = listup_file(".s7")
+
+    if( 0 >= len(fname) ):
+        print("파일이름이 없습니다.")
+        return
+    open_file(fname)    
+
 
 def save_file(**args):
     fname = input(f"'Save' 파일이름: {gl._load}")
