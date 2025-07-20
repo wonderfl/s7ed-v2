@@ -15,7 +15,7 @@ class GeneralTab:
 
     _width00 = 276
     _width01 = 272
-    _height0 = 540
+    _height0 = 524
 
     _width10 = 328
     _width11 = 320
@@ -221,7 +221,7 @@ class GeneralTab:
         self.turnv = var
 
     def build_family(self, parent, nr, nc):
-        frame_family = tk.LabelFrame(parent, text="무장 혈연", width=self._width01, height=54)
+        frame_family = tk.LabelFrame(parent, text="무장 혈연", width=self._width01, height=44)
         frame_family.grid(row=nr, column=nc, pady=(4,0) )
         frame_family.grid_propagate(False)  # 크기 고정
 
@@ -243,7 +243,7 @@ class GeneralTab:
         self.parents=entri2
 
     def build_stats(self, parent, nr, nc):
-        frame_stats = tk.LabelFrame(parent, text="무장 능력", width=self._width01, height=48)
+        frame_stats = tk.LabelFrame(parent, text="무장 능력", width=self._width01, height=44)
         frame_stats.grid(row=nr, column=nc, pady=(4,0) )
         frame_stats.grid_propagate(False)  # 크기 고정
 
@@ -350,13 +350,13 @@ class GeneralTab:
         frame_exp.grid_propagate(False)  # 크기 고정        
 
         # 단련 경험
-        frame_exp1 = tk.LabelFrame(frame_exp, text="무장 경험", width=self._width11, height=48, )
+        frame_exp1 = tk.LabelFrame(frame_exp, text="무장 경험", width=self._width11, height=44, )
         frame_exp1.grid(row=0, column=0, pady=(4,0) )
         frame_exp1.grid_propagate(False)  # 크기 고정
         self.append_entries(frame_exp1, self.trains, ["무력", "지력", "정치", "매력"])
 
         # 소속
-        frame_affil = tk.LabelFrame(frame_exp, text="무장 소속", width=self._width11, height=96)
+        frame_affil = tk.LabelFrame(frame_exp, text="무장 소속", width=self._width11, height=88)
         frame_affil.grid(row=1, column=0, pady=(4,0) )
         frame_affil.grid_propagate(False)  # 크기 고정
 
@@ -397,20 +397,30 @@ class GeneralTab:
         if -1 == self.realm_num:
             filters.append("도시전체")
 
+
         listup=[]
+        self.city_num = -1
         for i, city in enumerate(gl.cities):
             if self.realm_num != -1 and city.realm != self.realm_num:
                 continue
-            filters.append('{0:2}.{1}'.format(city.num,city.name))
+            filters.append('{0:3}. {1}'.format(city.num,city.name))
             listup.append(city.num)
 
         self.city_filter['values'] = filters
         self.city_filter.set("세력전체")
+        if -1 == self.realm_num:
+            self.city_filter.set("도시전체")        
 
+        print('filter: {}, {}'.format(self.realm_num, self.city_num))
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
-            if general.city in listup:
+            if -1 == self.realm_num and -1 == self.city_num:
                 self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
+                continue
+
+            if -1 != self.realm_num:
+                if general.realm == self.realm_num and general.city in listup:
+                    self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
          
     def city_selected(self, event):
         selected = self.city_filter.get()
@@ -427,11 +437,15 @@ class GeneralTab:
                 continue
             if self.city_num != -1 and city.num != self.city_num:
                 continue            
-            filters.append('{0:2}.{1}'.format(city.num,city.name))
+            filters.append('{0:3}. {1}'.format(city.num,city.name))
             listup.append(city.num)                    
 
+        print('filter: {}, {}'.format(self.realm_num, self.city_num))
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
+            if self.realm_num != -1 and self.realm_num != general.realm:
+                continue
+
             if general.city in listup:
                 self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
 
@@ -452,12 +466,16 @@ class GeneralTab:
         self.city_filter.pack(side="top", fill="y", pady=2)  
         self.city_filter.bind("<<ComboboxSelected>>", self.city_selected)
 
-        # Scrollbar 연결
-        scrollbar = tk.Scrollbar(parent, orient="vertical")
-        scrollbar.pack(side="right", fill="y", pady=4)
+        # 좌측 장수 리스트
+        self.frame_listup = tk.LabelFrame(parent, text="", width=100, height=self._height0, ) #borderwidth=0, highlightthickness=0)
+        self.frame_listup.pack(side="top", pady=4, fill="y")
 
-        self.lb_generals = tk.Listbox(parent, height=28, width=10, highlightthickness=0, relief="flat")
-        self.lb_generals.pack(side="left", pady=8, fill="both", expand=True)
+        # Scrollbar 연결
+        scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
+        scrollbar.pack(side="right", fill="y", pady=2)
+
+        self.lb_generals = tk.Listbox(self.frame_listup, height=28, width=10, highlightthickness=0, relief="flat")
+        self.lb_generals.pack(side="left", pady=2, fill="both", expand=True)
         self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_generals.yview)
         self.lb_generals.config(yscrollcommand=scrollbar.set)        
@@ -469,7 +487,7 @@ class GeneralTab:
         self.frame_general.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
-        self.frame_0 = tk.LabelFrame(self.frame_general, text="", width=100, height=self._height0,)
+        self.frame_0 = tk.LabelFrame(self.frame_general, text="", width=100, height=self._height0, borderwidth=0, highlightthickness=0)
         self.frame_0.grid(row=0, column=0, padx=(4,0))
         self.frame_0.grid_propagate(False)  # 크기 고정
 
