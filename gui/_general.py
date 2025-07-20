@@ -51,6 +51,7 @@ class GeneralTab:
                 continue
             ruler_name = " {0:3}. {1}".format( realm.num, gl.generals[realm.ruler].name)        
             filters.append(ruler_name)
+        filters.append("255. 없음")
         
         self.realm_filter['values'] = filters
         self.realm_filter.set("세력전체")
@@ -396,7 +397,6 @@ class GeneralTab:
 
         if -1 == self.realm_num:
             filters.append("도시전체")
-
 
         listup=[]
         self.city_num = -1

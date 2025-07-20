@@ -56,12 +56,14 @@ def open_file():
     filepath = filedialog.askopenfilename(filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")])
     if filepath:
         file.open_file(filepath)
-        messagebox.showinfo("로딩 완료", f"{filepath}를 불러왔습니다.")
+        #messagebox.showinfo("로딩 완료", f"{filepath}를 불러왔습니다.")
 
         _app.generalTab.listup_generals()
         #_app.itemTab.listup_items()
         #_app.itemTab.cityTab.listup_cities()
         #_app.itemTab.realmTab.listup_realms()
+
+        _app.status.config(text="로딩 완료: {0}를 불러왔습니다.".format(filepath))        
 
     #    with open(filepath, "r", encoding="utf-8") as file:
 
