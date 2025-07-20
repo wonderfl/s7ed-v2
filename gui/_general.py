@@ -49,7 +49,7 @@ class GeneralTab:
         for realm in gl.realms:
             if 0 > realm.ruler or realm.ruler >= gn:
                 continue
-            ruler_name = "{0:2}.{1}".format( realm.num, gl.generals[realm.ruler].name)        
+            ruler_name = " {0:3}. {1}".format( realm.num, gl.generals[realm.ruler].name)        
             filters.append(ruler_name)
         
         self.realm_filter['values'] = filters
@@ -394,6 +394,9 @@ class GeneralTab:
             self.realm_num = int(values[0]) # 세력 넘버
             filters.append("세력전체")
 
+        if -1 == self.realm_num:
+            filters.append("도시전체")
+
         listup=[]
         for i, city in enumerate(gl.cities):
             if self.realm_num != -1 and city.realm != self.realm_num:
@@ -407,7 +410,7 @@ class GeneralTab:
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
             if general.city in listup:
-                self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+                self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
          
     def city_selected(self, event):
         selected = self.city_filter.get()
@@ -430,7 +433,7 @@ class GeneralTab:
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
             if general.city in listup:
-                self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+                self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
 
     def build_listup(self, parent, nr, nc):
 
