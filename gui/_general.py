@@ -1,11 +1,15 @@
+import re
+
 import tkinter as tk
 from tkinter import ttk
 
 import globals as gl
+from . import _city
 from . import _realm
-from . import _realm
+from . import _popup
 
-
+from . import char_basic as basic
+from . import gui
 
 class GeneralTab:
 
@@ -15,6 +19,10 @@ class GeneralTab:
 
     _width10 = 328
     _width11 = 320
+
+    realm_num = -1
+    city_num = -1    
+
 
     skills=[]
     skillv=[]
@@ -28,17 +36,48 @@ class GeneralTab:
     captures=[]
     personalities=[]
 
-    def __init__(self, tab):        
+    def __init__(self, tab):
         self.rootframe = tk.Frame(tab)
         self.rootframe.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
-        self.build_tab_general(self.rootframe)
+        self.build_tab_general(self.rootframe, 0, 0)
         return
+    
+    def listup_generals(self):
+        gn = len(gl.generals)
+        filters = []
+        filters.append("세력전체")
+        for realm in gl.realms:
+            if 0 > realm.ruler or realm.ruler >= gn:
+                continue
+            ruler_name = "{0:2}.{1}".format( realm.num, gl.generals[realm.ruler].name)        
+            filters.append(ruler_name)
+        
+        self.realm_filter['values'] = filters
+        self.realm_filter.set("세력전체")
+
+        self.city_filter.set("도시전체")
+
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+
+        if _popup.ItemPopup._instance is not None:
+            print("listup_items")
+            _popup.ItemPopup._instance.frame_item.listup_items()
 
     def general_selected(self, index, value):
         #print(f"선택된 항목 처리: {value}")
-        selected = gl.generals[index]
-        if selected.name != value:
-            print(f"잘못된 정보입니다: {index}, {value}")
+        gn = len(gl.generals)
+
+        values = [p for p in re.split(r'[ .,]', value) if p]
+        
+        _num = int(values[0])
+        if 0 > _num or _num >= gn:
+            print(f"잘못된 정보입니다: {index}, {value}, {_num}")
+
+        selected = gl.generals[_num]
+        if selected.name != values[1]:
+            print(f"잘못된 정보입니다: {index}, {value}, {values}")
             return
         self.name0.delete(0, tk.END)
         self.name0.insert(0, selected.name0)
@@ -346,25 +385,94 @@ class GeneralTab:
         self.colleague.grid(row=2, column=4, padx=(2,0))
         tk.Button(frame_affil, text="표시", borderwidth=0, highlightthickness=0).grid(row=2, column=5)
 
-    def build_tab_general(self, parent):
+    def realm_selected(self, event):
+        selected = self.realm_filter.get()
+        values = [p for p in re.split(r'[ .,]', selected) if p]        
+        filters = []
+        self.realm_num = -1
+        if '세력전체' != values[0]:
+            self.realm_num = int(values[0]) # 세력 넘버
+            filters.append("세력전체")
+
+        listup=[]
+        for i, city in enumerate(gl.cities):
+            if self.realm_num != -1 and city.realm != self.realm_num:
+                continue
+            filters.append('{0:2}.{1}'.format(city.num,city.name))
+            listup.append(city.num)
+
+        self.city_filter['values'] = filters
+        self.city_filter.set("세력전체")
+
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            if general.city in listup:
+                self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+         
+    def city_selected(self, event):
+        selected = self.city_filter.get()
+        values = [p for p in re.split(r'[ .,]', selected) if p]        
+        filters = []
+        self.city_num = -1
+        if '세력전체' != values[0] and '도시전체' != values[0]:
+            self.city_num = int(values[0]) # 세력 넘버
+            filters.append("세력전체")
+
+        listup=[]
+        for i, city in enumerate(gl.cities):
+            if self.realm_num != -1 and city.realm != self.realm_num:
+                continue
+            if self.city_num != -1 and city.num != self.city_num:
+                continue            
+            filters.append('{0:2}.{1}'.format(city.num,city.name))
+            listup.append(city.num)                    
+
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            if general.city in listup:
+                self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+
+    def build_listup(self, parent, nr, nc):
+
+        gn = len(gl.generals)
+
+        realm_filters=[]
+        self.realm_filter = ttk.Combobox(parent, values=realm_filters, width=10, )
+        self.realm_filter.pack(side="top", fill="y")
+        self.realm_filter.bind("<<ComboboxSelected>>", self.realm_selected)
+
+        city_filters=[]
+        city_filters.append("도시전체")
+        for i, name in enumerate(gl._cityNames_):
+            city_filters.append('{0:2}.{1}'.format(i,name))
+        self.city_filter = ttk.Combobox(parent, values=city_filters, width=10, )
+        self.city_filter.pack(side="top", fill="y", pady=2)  
+        self.city_filter.bind("<<ComboboxSelected>>", self.city_selected)
+
+        # Scrollbar 연결
+        scrollbar = tk.Scrollbar(parent, orient="vertical")
+        scrollbar.pack(side="right", fill="y", pady=4)
+
+        self.lb_generals = tk.Listbox(parent, height=28, width=10, highlightthickness=0, relief="flat")
+        self.lb_generals.pack(side="left", pady=8, fill="both", expand=True)
+        self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
+        scrollbar.config(command=self.lb_generals.yview)
+        self.lb_generals.config(yscrollcommand=scrollbar.set)        
+
+    def build_tab_general(self, parent, nr, nc):
+
+        self.frame_general = tk.LabelFrame(parent, text="", width= (108+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_general.grid(row=nr, column=nc, rowspan=2, padx=(4,0))
+        self.frame_general.grid_propagate(False)  # 크기 고정
+
         # 좌측 장수 리스트
-        self.frame_0 = tk.LabelFrame(parent, text="", width=100, height=self._height0,)
+        self.frame_0 = tk.LabelFrame(self.frame_general, text="", width=100, height=self._height0,)
         self.frame_0.grid(row=0, column=0, padx=(4,0))
         self.frame_0.grid_propagate(False)  # 크기 고정
 
-        # Scrollbar 연결
-        scrollbar = tk.Scrollbar(self.frame_0, orient="vertical")
-        scrollbar.pack(side="right", fill="y")
+        self.build_listup(self.frame_0, 0, 0)
 
-        self.lb_generals = tk.Listbox(self.frame_0, height=33, width=10,  highlightthickness=0,relief="flat")
-        self.lb_generals.pack(side="left", fill="both", expand=True)
-        self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
-        scrollbar.config(command=self.lb_generals.yview)
-        self.lb_generals.config(yscrollcommand=scrollbar.set)
-        for general in gl.generals:
-            self.lb_generals.insert(tk.END, " {0}".format(general.name))
-
-        self.frame_1 = tk.LabelFrame(parent, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_1 = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
         self.frame_1.grid(row=0, column=1, padx=(4,0))
         self.frame_1.grid_propagate(False)  # 크기 고정
 
@@ -376,13 +484,38 @@ class GeneralTab:
         self.build_skills(self.frame_1, 4, 0) # 특기
         self.build_equips(self.frame_1, 5, 0) # 장비
 
-
-        self.frame_2 = tk.LabelFrame(parent, text="", width=self._width10, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_2 = tk.LabelFrame(self.frame_general, text="", width=self._width10, height=self._height0, borderwidth=0, highlightthickness=0)
         self.frame_2.grid(row=0, column=2, padx=(4,0))
         self.frame_2.grid_propagate(False)  # 크기 고정
 
         self.build_personalities(self.frame_2, 0, 0) # 개성
         self.build_experiences(self.frame_2, 3, 0) # 경험치
 
+        self.listup_generals()
+        self.popup_frame = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
+
         # 설정 버튼
-        tk.Button(self.frame_2, text="설 정", width=10).grid(row=4, column=0)
+        #tk.Button(self.frame_2, text="설 정", width=10, command=lambda: self.show_realm_popup() ).grid(row=6, column=0)
+
+    def close_popup(self):
+        print("close_popup")
+        _popup.ItemPopup._instance = None
+
+    def show_popup(self):
+        print("show_popup")
+        #if _popup.RealmPopup._instance is None or not _popup.RealmPopup._instance.winfo_exists():
+        #    _popup.RealmPopup._instance = _popup.RealmPopup(self.popup_frame)
+        #else:
+        #    _popup.RealmPopup._instance.lift()
+
+        #if _popup.CityPopup._instance is None or not _popup.CityPopup._instance.winfo_exists():
+        #    _popup.CityPopup._instance = _popup.CityPopup(self.popup_frame)
+        #else:
+        #    _popup.CityPopup._instance.lift()
+
+        if _popup.ItemPopup._instance is None or not _popup.ItemPopup._instance.winfo_exists():
+            _popup.ItemPopup._instance = _popup.ItemPopup(self.popup_frame, self.close_popup)
+            #print("set itemPopup: ",_popup.ItemPopup._instance)
+        else:
+            _popup.ItemPopup._instance.lift()
+    

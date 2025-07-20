@@ -4,9 +4,12 @@ import re
 import copy
 import struct
 
+import tkinter as tk
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import globals as gl
+
 from globals import ActionMenu
 
 from datas.general import General, GeneralStruct
@@ -15,6 +18,9 @@ from datas.item import ItemState, ItemStateStruct
 from datas.realm import RealmState, RealmStateStruct
 
 from utils.decode import __decrypt
+
+from gui.gui import GeneralEditorApp, _app, _root
+import gui._popup as _popup
 
 # 1. 폴더 경로 설정
 #_saves = "./saves"
@@ -144,12 +150,13 @@ def open_file(fname):
 
 
         gn = len(gl.generals)
+        rn = len(gl.realms)
         cn = len(gl.cities)
         hero = gl.generals[gl._hero]
         gl._home = hero.city
         home = gl.cities[gl._home]
 
-        print(f"\nLoad '{fname}' Completed.. {cn}:{gn}")
+        print(f"\nLoad '{fname}' Completed.. {rn}:{cn}:{gn}")
         print("{0}년 {1}월: {2} / {3}".format( gl._year,gl._month, hero.name, home.details2()))
 
     except FileNotFoundError:
@@ -167,7 +174,34 @@ def load_file(needs=True, **args):
     if( 0 >= len(fname) ):
         print("파일이름이 없습니다.")
         return
-    open_file(fname)    
+    open_file(fname)
+
+
+    _app.generalTab.listup_generals()
+
+    # itempopup = _popup.ItemPopup._instance
+    # if itempopup is not None:
+    #     itempopup.frame_item.listup_items()
+    
+    # _app.generalTab.lb_generals.delete(0, tk.END)
+    # for i, general in enumerate (gl.generals):
+    #     _app.generalTab.lb_generals.insert(tk.END, general.name)
+
+    # _app.itemTab.lb_items.delete(0, tk.END)
+    # for i, item in enumerate (gl.items):
+    #     _app.itemTab.lb_items.insert(tk.END, item.name)
+
+    # gn = len(gl.generals)
+    # _app.itemTab.realmTab.lb_realms.delete(0, tk.END)
+    # for i, realm in enumerate (gl.realms):        
+    #     if 0 > realm.ruler or realm.ruler >= gn:
+    #         continue
+    #     ruler_name = "{0:4}. {1}".format( realm.num, gl.generals[realm.ruler].name)
+    #     _app.itemTab.realmTab.lb_realms.insert(tk.END, ruler_name)
+
+    # _app.itemTab.cityTab.lb_cities.delete(0, tk.END)
+    # for i, city in enumerate (gl.cities):
+    #     _app.itemTab.cityTab.lb_cities.insert(tk.END, city.name)
 
 
 def save_file(**args):

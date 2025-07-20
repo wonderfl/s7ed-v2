@@ -3,7 +3,6 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-
 import globals as gl
 
 class RealmTab:
@@ -18,10 +17,23 @@ class RealmTab:
         self.rootframe.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         self.build_tab_realm(self.rootframe, nr, nc)
 
+    def listup_realms(self):
+        gn = len(gl.generals)        
+        self.lb_realms.delete(0, tk.END)
+        for realm in gl.realms:
+            if 0 > realm.ruler or realm.ruler >= gn:
+                continue
+            ruler_name = "{0:2}. {1}".format( realm.num, gl.generals[realm.ruler].name)
+            self.lb_realms.insert(tk.END, ruler_name)
+
     def realm_selected(self, index, value):
-        values = [p for p in re.split(r'[ .,]', value) if p]
-        _num = int(values[0])
         rn = len(gl.realms)
+        values = [p for p in re.split(r'[ .,]', value) if p]
+        if( 2>len(values)):
+            print(f"잘못된 세력 정보입니다: {index}[ {values} ], 전체 세력: {rn}")
+            return
+        
+        _num = int(values[0])
         if 0 > _num or _num >= rn:
             print(f"잘못된 세력 정보입니다: {index}[ {values[0]}, {values[1]} ], 전체 세력: {rn}")
             return
@@ -83,12 +95,13 @@ class RealmTab:
         self.staff_num.grid(row=2, column=2, padx=(4,0))
 
     def build_tab_realm(self, parent, nr, nc):
-        self.frame_realm = tk.LabelFrame(parent, text="", width=self._width00+120, height=self._height0, borderwidth=0, highlightthickness=0, )
+        print("build tab")
+        self.frame_realm = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_realm.grid(row=nr, column=nc, padx=(4,0))
         self.frame_realm.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
-        self.frame_20 = tk.LabelFrame(self.frame_realm, text="", width=100, height=self._height0-8, )
+        self.frame_20 = tk.LabelFrame(self.frame_realm, text="", width=80, height=self._height0-8, )
         self.frame_20.grid(row=0, column=0, padx=(4,0))
         self.frame_20.grid_propagate(False)  # 크기 고정
 
@@ -97,7 +110,7 @@ class RealmTab:
         scrollbar.pack(side="right", fill="y")
 
         listbox_height = int((self._height0-8)/16)
-        self.lb_realms = tk.Listbox(self.frame_20, height=listbox_height, width=12, highlightthickness=0, relief="flat")
+        self.lb_realms = tk.Listbox(self.frame_20, height=listbox_height, width=10, highlightthickness=0, relief="flat")
         self.lb_realms.pack(side="left", fill="both", expand=True)
         self.lb_realms.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_realms.yview)
@@ -115,7 +128,5 @@ class RealmTab:
 
         self.build_basic(frame_1, 0, 0)
 
-    
-
-        
+        print("build realm")
         
