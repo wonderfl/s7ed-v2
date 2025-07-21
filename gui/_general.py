@@ -47,12 +47,13 @@ class GeneralTab:
         gn = len(gl.generals)
         filters = []
         filters.append("세력전체")
+        filters.append("세력없음")
         for realm in gl.realms:
             if 0 > realm.ruler or realm.ruler >= gn:
                 continue
             ruler_name = " {0:3}. {1}".format( realm.num, gl.generals[realm.ruler].name)        
             filters.append(ruler_name)
-        filters.append("255. 없음")
+        
         
         self.realm_filter['values'] = filters
         self.realm_filter.set("세력전체")
@@ -405,10 +406,13 @@ class GeneralTab:
         filters = []
         self.realm_num = -1
         if '세력전체' != values[0]:
-            self.realm_num = int(values[0]) # 세력 넘버
-            filters.append("세력전체")
+            if '세력없음' == values[0]:
+                self.realm_num = 255
+            else:
+                self.realm_num = int(values[0]) # 세력 넘버
+                filters.append("세력전체")
 
-        if -1 == self.realm_num:
+        if -1 == self.realm_num or 255 == self.realm_num:
             filters.append("도시전체")
 
         listup=[]
@@ -421,7 +425,7 @@ class GeneralTab:
 
         self.city_filter['values'] = filters
         self.city_filter.set("세력전체")
-        if -1 == self.realm_num:
+        if -1 == self.realm_num or 255 == self.realm_num:
             self.city_filter.set("도시전체")        
 
         #print('filter: {}, {}'.format(self.realm_num, self.city_num))

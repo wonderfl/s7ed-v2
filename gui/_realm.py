@@ -114,12 +114,6 @@ class RealmTab:
         self.lb_realms.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_realms.yview)
         self.lb_realms.config(yscrollcommand=scrollbar.set)
-        gn = len(gl.generals)
-        for realm in gl.realms:
-            if 0 > realm.ruler or realm.ruler >= gn:
-                continue
-            ruler_name = " {0:2}. {1}".format( realm.num, gl.generals[realm.ruler].name)
-            self.lb_realms.insert(tk.END, ruler_name)
 
         frame_1 = tk.LabelFrame(self.frame_realm, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
         frame_1.grid(row=0, column=1, padx=(4,0), sticky='sw')
@@ -127,3 +121,4 @@ class RealmTab:
 
         self.build_basic(frame_1, 0, 0)
         
+        self.listup_realms()

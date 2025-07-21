@@ -29,14 +29,40 @@ class ItemTab:
         self.cityTab = _city.CityTab(self.rootframe, 1, 0)
 
         self.build_tab_item(self.rootframe, 0, 1)
+        
 
     def listup_items(self):
+
         self.realmTab.listup_realms()
         self.cityTab.listup_cities()
 
+
+        gn = len(gl.generals)
+        owners=[]
+        #owners.append("전체")
+        #owners.append("주인없음")
+        ownerset=set()
+        
         self.lb_items.delete(0, tk.END)
         for item in gl.items:
             self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
+            if 0 <= item.owner and item.owner < gn:                
+                owner = gl.generals[item.owner]
+                if owner.num in ownerset:
+                    continue                
+                ownerset.add(owner.num)
+                owners.append(' {0:3}. {1}'.format(owner.num, owner.name))
+        
+        filter = []
+        filter.append("주인전체")
+        filter.append("주인없음")
+        for owner in sorted(owners):
+            filter.append(owner)
+
+        self.owner_filter["values"] = filter
+        self.owner_filter.set("주인전체")
+
+
 
     def owner_selected(self, event):
         selected = self.owner_filter.get()
@@ -217,27 +243,3 @@ class ItemTab:
         self.build_skills(self.frame_01, 1, 0) # 특기
 
         self.listup_items() # 특기
-
-    def listup_items(self):
-        gn = len(gl.generals)
-        owners=[]
-        #owners.append("전체")
-        #owners.append("주인없음")
-        ownerset=set()
-        for item in gl.items:
-            self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
-            if 0 <= item.owner and item.owner < gn:                
-                owner = gl.generals[item.owner]
-                if owner.num in ownerset:
-                    continue                
-                ownerset.add(owner.num)
-                owners.append(' {0:3}. {1}'.format(owner.num, owner.name))
-        
-        filter = []
-        filter.append("주인전체")
-        filter.append("주인없음")
-        for owner in sorted(owners):
-            filter.append(owner)
-
-        self.owner_filter["values"] = filter
-        self.owner_filter.set("주인전체")

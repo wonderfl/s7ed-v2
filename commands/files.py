@@ -175,34 +175,8 @@ def load_file(needs=True, **args):
         print("파일이름이 없습니다.")
         return
     open_file(fname)
-
-
-    _app.generalTab.listup_generals()
-
-    # itempopup = _popup.ItemPopup._instance
-    # if itempopup is not None:
-    #     itempopup.frame_item.listup_items()
     
-    # _app.generalTab.lb_generals.delete(0, tk.END)
-    # for i, general in enumerate (gl.generals):
-    #     _app.generalTab.lb_generals.insert(tk.END, general.name)
-
-    # _app.itemTab.lb_items.delete(0, tk.END)
-    # for i, item in enumerate (gl.items):
-    #     _app.itemTab.lb_items.insert(tk.END, item.name)
-
-    # gn = len(gl.generals)
-    # _app.itemTab.realmTab.lb_realms.delete(0, tk.END)
-    # for i, realm in enumerate (gl.realms):        
-    #     if 0 > realm.ruler or realm.ruler >= gn:
-    #         continue
-    #     ruler_name = "{0:4}. {1}".format( realm.num, gl.generals[realm.ruler].name)
-    #     _app.itemTab.realmTab.lb_realms.insert(tk.END, ruler_name)
-
-    # _app.itemTab.cityTab.lb_cities.delete(0, tk.END)
-    # for i, city in enumerate (gl.cities):
-    #     _app.itemTab.cityTab.lb_cities.insert(tk.END, city.name)
-
+    _app.generalTab.listup_generals()
 
 def save_file(**args):
     fname = input(f"'Save' 파일이름: {gl._load}")
