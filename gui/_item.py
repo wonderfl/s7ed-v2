@@ -2,6 +2,7 @@ import re
 
 import tkinter as tk
 from tkinter import ttk
+import tkinter.font as tkfont
 
 import globals as gl
 
@@ -11,11 +12,11 @@ from . import _city
 
 
 class ItemTab:
-    _width00 = 248
-    _width01 = 248
+    _width00 = 264
+    _width01 = 264
 
-    _height0 = 356
-    _height1 = 340
+    _height0 = 376
+    _height1 = 360
 
     skills=[]
     skillv=[]
@@ -111,21 +112,21 @@ class ItemTab:
             self.item_selected(index, value)
 
     def build_skills(self, parent, nr, nc):
-        print("build_skills")
-        self.frame_skills = tk.LabelFrame(parent, text="아이템 특기", width=self._width01, height=184)
+        self.frame_skills = tk.LabelFrame(parent, text="아이템 특기", width=self._width01, height=156)
         self.frame_skills.grid(row=nr, column=nc, pady=(8,0) )
         self.frame_skills.grid_propagate(False)  # 크기 고정
 
-        self.frame_b1 = tk.LabelFrame(self.frame_skills, text="", width=self._width01-4, height=160, borderwidth=0, highlightthickness=0)
+        self.frame_b1 = tk.LabelFrame(self.frame_skills, text="", width=self._width01-4, height=124, borderwidth=0, highlightthickness=0)
         self.frame_b1.grid(row=0, column=0, pady=(4, 0))
-        self.frame_b1.grid_propagate(False)  # 크기 고정        
+        self.frame_b1.grid_propagate(False)  # 크기 고정
 
         self.skills.clear()
         self.skillv.clear()
+        smallfont = tkfont.Font(family="맑은 고딕", size=8)
         for i, name in enumerate(gl._propNames_):
             var = tk.IntVar()
-            checked = tk.Checkbutton(self.frame_b1, text=name, width=5, height=0, variable=var, highlightthickness=0, borderwidth=0,  )
-            checked.grid(row=i//4, column=i%4, sticky="w", pady=0,ipady=0)
+            checked = tk.Checkbutton(self.frame_b1, text=name, font=smallfont, variable=var, width=6, height=0, highlightthickness=0, borderwidth=0,  )
+            checked.grid(row=i//4, column=i%4, sticky="w", padx=(4,0),pady=0,ipady=0)
             self.skills.append(checked)
             self.skillv.append(var)
 
@@ -173,7 +174,7 @@ class ItemTab:
 
 
     def build_tab_item(self, parent, nr, nc):
-        self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+120, height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+132, height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_item.grid(row=nr, column=nc, rowspan=2, padx=(8,0), pady=4, sticky="nsew",)
         self.frame_item.grid_propagate(False)  # 크기 고정
 
@@ -187,16 +188,16 @@ class ItemTab:
         scrollbar.pack(side="right", fill="y")
 
         scr_height = int((self._height0)/16)
-        self.lb_items = tk.Listbox(self.frame_00, height=scr_height, width=12, highlightthickness=0, relief="flat")
+        self.lb_items = tk.Listbox(self.frame_00, height=scr_height, width=14, highlightthickness=0, relief="flat")
         self.lb_items.pack(side="left", fill="both", expand=True)
         self.lb_items.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_items.yview)
         self.lb_items.config(yscrollcommand=scrollbar.set)
         for item in gl.items:
-            self.lb_items.insert(tk.END, "{0:2}.{1}".format(item.num, item.name))
+            self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
 
         self.frame_01 = tk.LabelFrame(self.frame_item, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
-        self.frame_01.grid(row=0, column=1, padx=(4,0))
+        self.frame_01.grid(row=0, column=1, sticky='nw',padx=(4,0))
         self.frame_01.grid_propagate(False)  # 크기 고정
         
         self.build_basic(self.frame_01, 0, 0) # 기본 설정

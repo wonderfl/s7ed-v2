@@ -2,6 +2,7 @@ import re
 
 import tkinter as tk
 from tkinter import ttk
+import tkinter.font as tkfont
 
 import globals as gl
 from . import _city
@@ -15,7 +16,7 @@ class GeneralTab:
 
     _width00 = 276
     _width01 = 272
-    _height0 = 524
+    _height0 = 512
 
     _width10 = 328
     _width11 = 320
@@ -60,7 +61,7 @@ class GeneralTab:
 
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
-            self.lb_generals.insert(tk.END, "{0:3}.{1}".format(general.num, general.name))
+            self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
 
         if _popup.ItemPopup._instance is not None:
             print("listup_items")
@@ -260,24 +261,36 @@ class GeneralTab:
             tk.Radiobutton(frame_traits, text=label, variable=self.traitv, value=i, width=6, height=1, highlightthickness=0, borderwidth=0).grid(row=i//4, column=i%4)                
 
     def build_skills(self, parent, nr, nc):
-        frame_skills = tk.LabelFrame(parent, text="무장 특기", width=self._width01, height=172)
+        frame_skills = tk.LabelFrame(parent, text="무장 특기", width=self._width01, height=152)
         frame_skills.grid(row=nr, column=nc, pady=(4,0) )
         frame_skills.grid_propagate(False)  # 크기 고정
+
+        frame_skill_box = tk.LabelFrame(frame_skills, text="", width=self._width01-4, height=124, borderwidth=0, highlightthickness=0)
+        frame_skill_box.grid(row=0, column=0, pady=(4, 0))
+        frame_skill_box.grid_propagate(False)  # 크기 고정        
+        
+        smallfont = tkfont.Font(family="맑은 고딕", size=8)
         for i, name in enumerate(gl._propNames_):
             var = tk.IntVar()
-            checked = tk.Checkbutton(frame_skills, text=name, width=6, height=1, highlightthickness=0, borderwidth=0, variable=var )
-            checked.grid(row=i//4, column=i%4, sticky="w", pady=0,ipady=0)
+            checked = tk.Checkbutton(frame_skill_box, text=name, font=smallfont, variable=var, anchor="w", width=6, height=1, highlightthickness=0, borderwidth=0 )
+            checked.grid(row=i//4, column=i%4, sticky="w", padx=(8,0),pady=0,ipady=0)
             self.skills.append(checked)
             self.skillv.append(var)
 
     def build_equips(self, parent, nr, nc):        
-        frame_equip = tk.LabelFrame(self.frame_1, text="무장 장비", width=self._width01, height=100)
+        frame_equip = tk.LabelFrame(self.frame_1, text="무장 장비", width=self._width01, height=92)
         frame_equip.grid(row=nr, column=nc, rowspan=2, pady=(4,0) )
         frame_equip.grid_propagate(False)  # 크기 고정
+        
+        frame_equip_box = tk.LabelFrame(frame_equip, text="", width=self._width01-4, height=68, borderwidth=0, highlightthickness=0)
+        frame_equip_box.grid(row=0, column=0, pady=(4, 0))
+        frame_equip_box.grid_propagate(False)  # 크기 고정        
+
         equips = ["궁", "등갑", "기마", "마갑", "철갑", "노", "연노", "정란", "벽력거", "화포", "코끼리", "목수", "몽충","누선",]
+        smallfont = tkfont.Font(family="맑은 고딕", size=8)
         for i, equip in enumerate(equips):            
             var = tk.IntVar()
-            checked = tk.Checkbutton(frame_equip, text=equip, width=5, height=1, highlightthickness=0, borderwidth=0, anchor="w",variable=var )
+            checked = tk.Checkbutton(frame_equip_box, text=equip, font=smallfont, variable=var, anchor="w", width=6, height=1, highlightthickness=0, borderwidth=0 )
             checked.grid(row=i//4, column=i%4, sticky="w", padx=(8,0),pady=0,ipady=0)
             self.equips.append(checked)
             self.equipv.append(var)
@@ -418,6 +431,10 @@ class GeneralTab:
                 self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
                 continue
 
+            if 255 == self.realm_num and 255 == general.realm:
+                self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
+                continue
+
             if -1 != self.realm_num:
                 if general.realm == self.realm_num and general.city in listup:
                     self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
@@ -454,7 +471,7 @@ class GeneralTab:
         gn = len(gl.generals)
 
         realm_filters=[]
-        self.realm_filter = ttk.Combobox(parent, values=realm_filters, width=10, )
+        self.realm_filter = ttk.Combobox(parent, values=realm_filters, width=12, )
         self.realm_filter.pack(side="top", fill="y")
         self.realm_filter.bind("<<ComboboxSelected>>", self.realm_selected)
 
@@ -462,7 +479,7 @@ class GeneralTab:
         city_filters.append("도시전체")
         for i, name in enumerate(gl._cityNames_):
             city_filters.append('{0:2}.{1}'.format(i,name))
-        self.city_filter = ttk.Combobox(parent, values=city_filters, width=10, )
+        self.city_filter = ttk.Combobox(parent, values=city_filters, width=12, )
         self.city_filter.pack(side="top", fill="y", pady=2)  
         self.city_filter.bind("<<ComboboxSelected>>", self.city_selected)
 
@@ -474,7 +491,7 @@ class GeneralTab:
         scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
         scrollbar.pack(side="right", fill="y", pady=2)
 
-        self.lb_generals = tk.Listbox(self.frame_listup, height=28, width=10, highlightthickness=0, relief="flat")
+        self.lb_generals = tk.Listbox(self.frame_listup, height=27, width=12, highlightthickness=0, relief="flat")
         self.lb_generals.pack(side="left", pady=2, fill="both", expand=True)
         self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_generals.yview)
@@ -482,7 +499,7 @@ class GeneralTab:
 
     def build_tab_general(self, parent, nr, nc):
 
-        self.frame_general = tk.LabelFrame(parent, text="", width= (108+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_general = tk.LabelFrame(parent, text="", width= (120+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_general.grid(row=nr, column=nc, rowspan=2, padx=(4,0))
         self.frame_general.grid_propagate(False)  # 크기 고정
 

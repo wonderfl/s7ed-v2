@@ -9,8 +9,8 @@ class RealmTab:
     _width00 = 160
     _width01 = 156
 
-    _height0 = 96
-    _height1 = 88
+    _height0 = 108
+    _height1 = 100
 
     def __init__(self, tab, nr, nc):
         self.rootframe = tab
@@ -72,15 +72,15 @@ class RealmTab:
 
     def build_basic(self, parent, nr, nc):
         # 기본 설정
-        frame_basic = tk.LabelFrame(parent, text="세력 기본 설정", width=self._width01, height=self._height1)
+        frame_basic = tk.LabelFrame(parent, text="세력 기본 설정", width=self._width01, height=self._height1-0)
         frame_basic.grid(row=nr, column=nc, )
         frame_basic.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(8,0))
+        tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(8,0), pady=(8,0))
         self.realm_num = tk.Label(frame_basic, text="", width=5, anchor="e" )
-        self.realm_num.grid(row=0, column=1, padx=(8,0))
+        self.realm_num.grid(row=0, column=1, padx=(8,0), pady=(8,0))
         self.realm_name = tk.Entry(frame_basic, width=6 )
-        self.realm_name.grid(row=0, column=2, padx=(4,0))
+        self.realm_name.grid(row=0, column=2, padx=(4,0), pady=(8,0))
 
         tk.Label(frame_basic, text="주군:", width=4, anchor="e" ).grid(row=1, column=0, padx=(8,0))
         self.ruler_name = tk.Label(frame_basic, text="-", width=5, anchor="e" )
@@ -95,7 +95,6 @@ class RealmTab:
         self.staff_num.grid(row=2, column=2, padx=(4,0))
 
     def build_tab_realm(self, parent, nr, nc):
-        print("build tab")
         self.frame_realm = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_realm.grid(row=nr, column=nc, padx=(4,0))
         self.frame_realm.grid_propagate(False)  # 크기 고정
@@ -119,14 +118,12 @@ class RealmTab:
         for realm in gl.realms:
             if 0 > realm.ruler or realm.ruler >= gn:
                 continue
-            ruler_name = "{0:2}. {1}".format( realm.num, gl.generals[realm.ruler].name)
+            ruler_name = " {0:2}. {1}".format( realm.num, gl.generals[realm.ruler].name)
             self.lb_realms.insert(tk.END, ruler_name)
 
         frame_1 = tk.LabelFrame(self.frame_realm, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
-        frame_1.grid(row=0, column=1, padx=(4,0))
+        frame_1.grid(row=0, column=1, padx=(4,0), sticky='sw')
         frame_1.grid_propagate(False)  # 크기 고정
 
         self.build_basic(frame_1, 0, 0)
-
-        print("build realm")
         
