@@ -20,23 +20,27 @@ GeneralStruct = struct.Struct('< I HHHH HHH HH HHHHH H HHHHHH 6s6s6s 12s B BB BB
                                # 0 1234 567 89 01234 5 678901  2 3 4   5 6 78 90123456 78 9012 3 4567 8 901 234567890123456789012345678901234567890123456789
 class General:
     def __init__(self, num, raw_data):
-        unpacked = GeneralStruct.unpack(raw_data)
+        self.unpack = GeneralStruct.unpack(raw_data)
+        self.unpacked = list(self.unpack)
+        
+        self.get_unpacked(num)        
 
-        properties  = unpacked[0]
-        faceno  = unpacked[1]
-        appearance = unpacked[2]        
-        birthyear = unpacked[3]
+    def get_unpacked(self, num):
+        properties  = self.unpacked[0]
+        faceno  = self.unpacked[1]
+        appearance = self.unpacked[2]        
+        birthyear = self.unpacked[3]
         years = gl._year- birthyear
-        employment = unpacked[4]
+        employment = self.unpacked[4]
 
-        achieve = unpacked[5]
-        fame = unpacked[6]
-        soldiers = unpacked[7]
+        achieve = self.unpacked[5]
+        fame = self.unpacked[6]
+        soldiers = self.unpacked[7]
         
-        family = unpacked[8]
-        parent = unpacked[9]
+        family = self.unpacked[8]
+        parent = self.unpacked[9]
         
-        value0 = unpacked[10]
+        value0 = self.unpacked[10]
         #.야망: 0123 1100
         #.의리: 4567 1111
         #.성별: 89 00
@@ -48,7 +52,7 @@ class General:
         self.valour   = gl.bit16from(value0, 2, 3)
         self.composed = gl.bit16from(value0, 5, 3)
 
-        value1 = unpacked[11]
+        value1 = self.unpacked[11]
         #.특성: 0123 0011 3 매력, 
         #.건강: 4567 0000
         #.성장: 89AB 0010 
@@ -58,7 +62,7 @@ class General:
         self.growth   = gl.bit16from(value1, 0, 4)
         self.lifespan = gl.bit16from(value1, 4, 4)        
 
-        value2 = unpacked[12]
+        value2 = self.unpacked[12]
         #.인물: 0123 0000
         #.전략: 4567 0011
         #.행동: 89AB 0000
@@ -68,59 +72,59 @@ class General:
         self.turned     = gl.bit16from(value2, 0, 1)
         self.opposite   = gl.bit16from(value2, 4, 4)
 
-        value3 = unpacked[13]
-        value4 = unpacked[14]
+        value3 = self.unpacked[13]
+        value4 = self.unpacked[14]
 
-        colleague = unpacked[15]
-        equips = unpacked[16]
+        colleague = self.unpacked[15]
+        equips = self.unpacked[16]
 
-        actions = unpacked[20]
+        actions = self.unpacked[20]
 
 
-        name0 = unpacked[22]
-        name1 = unpacked[23]
-        name2 = unpacked[24]
+        name0 = self.unpacked[22]
+        name1 = self.unpacked[23]
+        name2 = self.unpacked[24]
         
-        state = unpacked[26]
-        realm = unpacked[27]
-        city = unpacked[28]
+        state = self.unpacked[26]
+        realm = self.unpacked[27]
+        city = self.unpacked[28]
 
-        str0 = unpacked[29]
-        int0 = unpacked[30]
-        pol0 = unpacked[31]
-        chr0 = unpacked[32]
+        str0 = self.unpacked[29]
+        int0 = self.unpacked[30]
+        pol0 = self.unpacked[31]
+        chr0 = self.unpacked[32]
 
-        str1 = unpacked[33]
-        int1 = unpacked[34]
-        pol1 = unpacked[35]
-        chr1 = unpacked[36]
+        str1 = self.unpacked[33]
+        int1 = self.unpacked[34]
+        pol1 = self.unpacked[35]
+        chr1 = self.unpacked[36]
 
-        loyalty = unpacked[37]
-        title = unpacked[38]
-        rank = unpacked[39]
+        loyalty = self.unpacked[37]
+        title = self.unpacked[38]
+        rank = self.unpacked[39]
         
-        salary = unpacked[40] # 봉록
-        training = unpacked[41] # 훈련
-        relation = unpacked[43] # 상성
+        salary = self.unpacked[40] # 봉록
+        training = self.unpacked[41] # 훈련
+        relation = self.unpacked[43] # 상성
 
-        item = unpacked[48] # 아이템        
+        item = self.unpacked[48] # 아이템        
         
-        capture_ruler = unpacked[21] # 포획 군주
+        capture_ruler = self.unpacked[21] # 포획 군주
 
-        ambush_cnt = unpacked[44] # 매복 횟수        
-        ambush_realm = unpacked[45] # 매복 세력
-        operate_cnt = unpacked[46] # 작전 횟수
-        operate_realm = unpacked[47] # 작전 세력
-        capture_cnt = unpacked[49] # 포획 횟수
+        ambush_cnt = self.unpacked[44] # 매복 횟수        
+        ambush_realm = self.unpacked[45] # 매복 세력
+        operate_cnt = self.unpacked[46] # 작전 횟수
+        operate_realm = self.unpacked[47] # 작전 세력
+        capture_cnt = self.unpacked[49] # 포획 횟수
 
-        wins1 = unpacked[50] # 무술대회 우승
-        wins2 = unpacked[51] # 한시대회 우승
+        wins1 = self.unpacked[50] # 무술대회 우승
+        wins2 = self.unpacked[51] # 한시대회 우승
 
         self.name0 = name0.split(b'\x00')[0].decode("euc-kr", errors="ignore")
         self.name1 = name1.split(b'\x00')[0].decode("euc-kr", errors="ignore")
         self.name2 = name2.split(b'\x00')[0].decode("euc-kr", errors="ignore")
         
-        self.num = num        
+        self.num = num
         self.name = self.name0 + self.name1
         
         #self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
@@ -187,7 +191,34 @@ class General:
         self.operate_cnt = operate_cnt # 작전 횟수
         
         self.wins1 = wins1
-        self.wins2 = wins2
+        self.wins2 = wins2               
+
+    def get_turns(self):
+        value = gl.get_bits(self.unpacked[12], 15, 1)
+        return value
+    
+    def set_turns(self, value):
+        data = self.unpacked[12]
+        self.unpacked[12] = gl.set_bits(data, value, 15, 1)
+        return self.unpacked[12]
+
+    def to_bytes(self):
+        values = []
+        for key, val in vars(self).items():
+            values.append(val)
+        return struct.pack( GeneralStruct, *values)
+    
+    def to_keys(self):
+        keys = []
+        for key, val in vars(self).items():
+            keys.append(key)
+        return keys
+    
+    def to_values(self):
+        values = []
+        for key, val in vars(self).items():
+            values.append(val)
+        return values    
     
     def properties(self):
         #return "[{0}]".format(format(self.props, '032b'))

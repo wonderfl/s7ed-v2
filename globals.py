@@ -10,6 +10,15 @@ def bit16from2(value: int, start: int, length: int) -> int:
 def bit32from(value: int, start: int, length: int) -> int:
     return (value >> (start+1 - length)) & ((1 << length) - 1)
 
+def get_bits(data: int, pos: int, width: int) -> int:
+    return (data >> pos) & ((1 << width) - 1)
+
+def set_bits(data: int, value: int, pos: int, width: int) -> int:
+    mask = ((1 << width) - 1) << pos
+    data &= ~mask        # 기존 자리 0으로 지움
+    data |= (value << pos) & mask
+    return data
+
 _cityNames_ = [
     '낙랑', '양평', '북평', ' 계 ', '남피', ' 업 ', '평원', '북해', '성양', '진양',
     '상당', '하비', '소패', '복양', '진류', '허창', ' 초 ', '여남', '하내', '낙양',

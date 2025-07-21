@@ -1,4 +1,4 @@
-__str = \
+_dec_str = \
 "41 5C 19 E3 F0 3C EE 43 76 FE F1 A7 45 D9 C8 2A \
  CB C9 DC 8E 1B 59 5D 18 A1 08 82 F6 23 6B DB A6 \
  FD 1E 51 12 F3 4F EF E7 A5 E8 4B D6 7C 68 FF 56 \
@@ -16,8 +16,8 @@ __str = \
  63 73 C7 D2 38 8B 6F 52 33 88 3D 1F C6 10 7A 2B \
  D4 87 25 E6 9E DF B2 D7 DE 71 BF 7B 60 DD BE CD"
 
-__list = __str.split()
-__exch = bytes(int(h, 16) for h in __list)
+_dec_code = _dec_str.split()
+_decoding = bytes(int(h, 16) for h in _dec_code)
 
-def __decrypt(data: bytes ) -> bytes:
-    return bytes( __exch[b] for b in data)
+def _decrypt_data(data: bytes ) -> bytes:
+    return bytes( _decoding[b] for b in data)

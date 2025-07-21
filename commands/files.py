@@ -17,7 +17,8 @@ from datas.city import CityState, CityStateStruct
 from datas.item import ItemState, ItemStateStruct
 from datas.realm import RealmState, RealmStateStruct
 
-from utils.decode import __decrypt
+from utils.encode import _encrypt_data 
+from utils.decode import _decrypt_data
 
 from gui.gui import GeneralEditorApp, _app, _root
 import gui._popup as _popup
@@ -79,7 +80,7 @@ def open_file(fname):
             for i in range(620): # 620명 기준
                 f.seek(gl.generals_offset + i * GeneralStruct.size)
                 chunk = f.read(GeneralStruct.size)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
 
                 general = General(i,decoded)
                 _generals.append(general)
@@ -87,7 +88,7 @@ def open_file(fname):
             for i in range(72): # 72개 아이템 기준
                 f.seek(gl.items_offset + i * ItemStateStruct.size)
                 chunk = f.read(ItemStateStruct.size)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
 
                 item = ItemState(decoded)
                 _items.append(item)
@@ -95,7 +96,7 @@ def open_file(fname):
             for i in range(54): # 54개 도시 기준
                 f.seek(gl.realm_offset + i * RealmStateStruct.size)
                 chunk = f.read(RealmStateStruct.size)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
 
                 realm = RealmState(i, decoded)
                 _realms.append(realm)
@@ -104,20 +105,20 @@ def open_file(fname):
                 #print('읽을도시:{0}'.format(i))
                 f.seek(gl.cities_offset + i * CityStateStruct.size)
                 chunk = f.read(CityStateStruct.size)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
 
                 city = CityState(i, gl._cityNames_[i], decoded)
                 _cities.append(city)
 
             f.seek(gl.hero_golds_offset)
             chunk = f.read(2)
-            decoded = __decrypt(chunk)
+            decoded = _decrypt_data(chunk)
             gl.hero_golds = struct.unpack('<H', decoded)[0]
 
             for i in range(620): # 620명 기준
                 f.seek(gl.hero_relations_offset + i * 2)
                 chunk = f.read(2)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
 
                 _closeness = struct.unpack('<H', decoded)[0]
                 _relations.append(_closeness)
@@ -125,7 +126,7 @@ def open_file(fname):
             for i in range(54): # 54 도시 민심
                 f.seek(gl.hero_sentiments_offset + i)
                 chunk = f.read(1)
-                decoded = __decrypt(chunk)
+                decoded = _decrypt_data(chunk)
                 
                 _sentiment = struct.unpack('<B', decoded)[0]
                 _sentiments.append(_sentiment)
@@ -174,35 +175,47 @@ def load_file(needs=True, **args):
     if( 0 >= len(fname) ):
         print("파일이름이 없습니다.")
         return
-    open_file(fname)
-    
+    open_file(fname)    
     _app.generalTab.listup_generals()
 
-def save_file(**args):
+def save_data(**args):
     fname = input(f"'Save' 파일이름: {gl._load}")
     if not fname:
-        fname = gl._load
-    return
+        fname = gl._load    
+
+def test_save_file(fname):
+    general = gl.generals[0]
+    #print(general.to_keys(), )    
+
+    #values = []
+    #for value in general.unpacked:
+    #    values.append(value)
+
+    for i, general in enumerate (gl.generals): # 620명 기준
+        
+        values = general.unpacked
+
+        packed = GeneralStruct.pack(*values)
+        encoded = _encrypt_data(packed)
+
+        decoded = _decrypt_data(encoded)
+        general = General(i,decoded)
+
+        print(general)            
+
+def save_file(fname):
 
     try:
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
-        with open(fname, "rb") as f:
-            for i in range(620): # 620명 기준
-                f.seek(generals_offset + i * GeneralStruct.size)
-                chunk = f.read(GeneralStruct.size)
-                decoded = __decrypt(chunk)
+        with open(fname, "r+b") as f:
+            for i, general in enumerate (gl.generals): # 620명 기준
+                f.seek(gl.generals_offset + i * GeneralStruct.size)
+                values = general.unpacked
+                packed = GeneralStruct.pack(*values)
+                encoded = _encrypt_data(packed)
+                saved = f.write(encoded)
 
-                general = General(i,decoded)
-                generals.append(general)
-
-            for i in range(54): # 54개 도시 기준
-                f.seek(cities_offset + i * CityStateStruct.size)
-                chunk = f.read(CityStateStruct.size)
-                decoded = __decrypt(chunk)
-
-                city = CityState(i, _CITY_[i], decoded)
-                cities.append(city)
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")
         return None    

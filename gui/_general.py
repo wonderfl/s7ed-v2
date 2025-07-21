@@ -12,6 +12,8 @@ from . import _popup
 from . import char_basic as basic
 from . import gui
 
+from commands import files
+
 class GeneralTab:
 
     _width00 = 276
@@ -533,11 +535,56 @@ class GeneralTab:
         self.build_personalities(self.frame_2, 0, 0) # 개성
         self.build_experiences(self.frame_2, 3, 0) # 경험치
 
+        # 설정 버튼
+        #tk.Button(self.frame_2, text="설 정", width=10, command=lambda: self.show_realm_popup() ).grid(row=6, column=0)
+
         self.listup_generals()
         self.popup_frame = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
 
-        # 설정 버튼
-        #tk.Button(self.frame_2, text="설 정", width=10, command=lambda: self.show_realm_popup() ).grid(row=6, column=0)
+        ### for test..
+        self.frame_test = tk.LabelFrame(self.frame_2, text="", width=self._width10-8, height=48, )#borderwidth=0, highlightthickness=0)
+        self.frame_test.grid(row=4, column=0, padx=(4,0))
+        self.frame_test.grid_propagate(False)  # 크기 고정
+
+        tk.Button(self.frame_test, text="Test Save", width=10, height=1, command=lambda: self.test_file() ).grid(row=0, column=0)
+        tk.Button(self.frame_test, text="Release Turn", width=10, height=1, command=lambda: self.release_turn() ).grid(row=0, column=1)
+        tk.Button(self.frame_test, text="Release All", width=10, height=1, command=lambda: self.release_turns() ).grid(row=0, column=2)
+
+    def test_file(self):
+        files.test_save_file('data.txt')
+
+    def release_turn(self):
+        indices = self.lb_generals.curselection()
+        if indices:
+            gn = len(gl.generals)
+            item = self.lb_generals.get(indices[0])
+            values = [p for p in re.split(r'[ .,]', item) if p]
+
+            _num = int(values[0])
+            if 0 <= _num and _num < gn:
+                selected = gl.generals[_num]
+                value0 = selected.unpacked[12]
+                value1 = selected.set_turns(0)
+                selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
+                value2 = selected.unpacked[12]
+                print("{0}[ {1:x}, {2:x}, {3:x} ]".format(selected.name, value0,value1,value2))
+                #value0 = selected.unpacked[12]
+                #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
+
+    def release_turns(self):
+        gn = len(gl.generals)        
+        items = list(self.lb_generals.get(0, tk.END))
+        for item in items:
+            values = [p for p in re.split(r'[ .,]', item) if p]
+
+            _num = int(values[0])
+            if 0 > _num or _num >= gn:
+                continue
+            selected = gl.generals[_num]
+            res = selected.set_turns(0)
+            selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
+            selected.actions = 200
+            selected.unpacked[20] = selected.actions
 
     def close_popup(self):
         print("close_popup")

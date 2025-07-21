@@ -61,12 +61,16 @@ def open_file():
         _app.status.config(text="로딩 완료: {0}를 불러왔습니다.".format(filepath))
 
 def save_file():
-    filepath = filedialog.asksaveasfilename(defaultextension=".txt",
-                                             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+    filepath = filedialog.asksaveasfilename(defaultextension=".s7",
+                                             filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")])
+    file.save_file(filepath)
     #if filepath:
     #    with open(filepath, "w", encoding="utf-8") as file:
     #        file.write(text.get("1.0", tk.END))
     #    messagebox.showinfo("저장 완료", f"{filepath}에 저장되었습니다.")
+
+def export_file():
+    file.test_save_file('export.csv')
 
 def info_open():
     _app.generalTab.show_popup()
@@ -81,10 +85,15 @@ def app():
 
     # 메뉴 바 생성
     menu_bar = tk.Menu(_root)
+
     file_menu = tk.Menu(menu_bar, tearoff=0)
     file_menu.add_command(label="열기", command=open_file)
     file_menu.add_command(label="저장", command=save_file)
     file_menu.add_separator()
+    
+    file_menu.add_command(label="Export", command=export_file)
+    file_menu.add_separator()    
+    
     file_menu.add_command(label="종료", command=_root.quit)
 
     info_menu = tk.Menu(menu_bar, tearoff=0, )
