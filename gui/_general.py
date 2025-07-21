@@ -424,7 +424,7 @@ class GeneralTab:
         if -1 == self.realm_num:
             self.city_filter.set("도시전체")        
 
-        print('filter: {}, {}'.format(self.realm_num, self.city_num))
+        #print('filter: {}, {}'.format(self.realm_num, self.city_num))
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
             if -1 == self.realm_num and -1 == self.city_num:
@@ -457,7 +457,7 @@ class GeneralTab:
             filters.append('{0:3}. {1}'.format(city.num,city.name))
             listup.append(city.num)                    
 
-        print('filter: {}, {}'.format(self.realm_num, self.city_num))
+        #print('filter: {}, {}'.format(self.realm_num, self.city_num))
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
             if self.realm_num != -1 and self.realm_num != general.realm:

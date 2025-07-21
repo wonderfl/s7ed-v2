@@ -12,18 +12,18 @@ from . import _city
 
 
 class ItemTab:
-    _width00 = 264
+    _width00 = 268
     _width01 = 264
 
-    _height0 = 376
-    _height1 = 360
+    _height0 = 368
+    _height1 = 268
 
     skills=[]
     skillv=[]
 
     def __init__(self, tab):
         self.rootframe = tk.Frame(tab)
-        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
         self.realmTab = _realm.RealmTab(self.rootframe, 0, 0)
         self.cityTab = _city.CityTab(self.rootframe, 1, 0)
@@ -36,20 +36,26 @@ class ItemTab:
 
         self.lb_items.delete(0, tk.END)
         for item in gl.items:
-            self.lb_items.insert(tk.END, "{0:2}.{1}".format(item.num, item.name))
+            self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
 
-        # self.skills.clear()
-        # self.skillv.clear()
-        # for i, name in enumerate(gl._propNames_):
-        #     var = tk.IntVar()
-        #     checked = tk.Checkbutton(self.frame_skills, text=name, width=6, height=1, highlightthickness=0, borderwidth=0, variable=var )
-        #     checked.grid(row=i//4, column=i%4, sticky="w", pady=0,ipady=0)
-        #     self.skills.append(checked)
-        #     self.skillv.append(var)            
+    def owner_selected(self, event):
+        selected = self.owner_filter.get()
+        values = [p for p in re.split(r'[ .,]', selected) if p]        
+        filters = []
+        self.owner_num = -1
+        if '주인전체' != values[0]:
+            if '주인없음' == values[0]:
+                self.owner_num = 65535
+            else:
+                self.owner_num = int(values[0])
+
+        self.lb_items.delete(0, tk.END)
+        for item in gl.items:
+            if -1 == self.owner_num or (-1 != self.owner_num and  self.owner_num == item.owner):
+                self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
 
     def item_selected(self, index, value):
         item_max = len(gl.items)        
-        selected = gl.items[index]
         values = [p for p in re.split(r'[.,]', value) if p]
         if( 2>len(values)):
             print(f"잘못된 아이템 정보입니다: {index}[ {values} ], 전체 세력: {item_max}")
@@ -58,9 +64,10 @@ class ItemTab:
         if 0 > _num or _num >= item_max:
             print(f"잘못된 아아템 정보입니다: {index}[ {values[0]}, {values[1]} ], 전체 아이템: {item_max}")
             return
-        _name = values[1]
+        _name = values[1].strip()
+        selected = gl.items[_num]
         if selected.name != _name:
-            print(f"잘못된 아이템 정보입니다: {index}, {value}, {selected.name}")
+            print(f"잘못된 아이템 정보입니다: {index}, {value}, :{_name}, {selected.name},")
             return
         
         owner = gl.generals[selected.owner] if 0 <= selected.owner and selected.owner < len(gl.generals) else None
@@ -174,34 +181,63 @@ class ItemTab:
 
 
     def build_tab_item(self, parent, nr, nc):
-        self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+132, height=self._height0, borderwidth=0, highlightthickness=0, )
-        self.frame_item.grid(row=nr, column=nc, rowspan=2, padx=(8,0), pady=4, sticky="nsew",)
+        self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+136, height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_item.grid(row=nr, column=nc, rowspan=2, padx=(8,0), pady=(8,0), sticky="nsew",)
         self.frame_item.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
-        self.frame_00 = tk.LabelFrame(self.frame_item, text="", width=100, height=self._height0-8,)
-        self.frame_00.grid(row=0, column=0, padx=(4,0))
+        self.frame_00 = tk.LabelFrame(self.frame_item, text="", width=100, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_00.grid(row=0, column=0, padx=(4,0), pady=0,)
         self.frame_00.grid_propagate(False)  # 크기 고정
-
-        # Scrollbar 연결
-        scrollbar = tk.Scrollbar(self.frame_00, orient="vertical")
-        scrollbar.pack(side="right", fill="y")
-
-        scr_height = int((self._height0)/16)
-        self.lb_items = tk.Listbox(self.frame_00, height=scr_height, width=14, highlightthickness=0, relief="flat")
-        self.lb_items.pack(side="left", fill="both", expand=True)
-        self.lb_items.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
-        scrollbar.config(command=self.lb_items.yview)
-        self.lb_items.config(yscrollcommand=scrollbar.set)
-        for item in gl.items:
-            self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
 
         self.frame_01 = tk.LabelFrame(self.frame_item, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
         self.frame_01.grid(row=0, column=1, sticky='nw',padx=(4,0))
         self.frame_01.grid_propagate(False)  # 크기 고정
+
+        owner_filters=[]
+        self.owner_filter = ttk.Combobox(self.frame_00, values=owner_filters, width=14, )
+        self.owner_filter.pack(side="top", fill="y")
+        self.owner_filter.bind("<<ComboboxSelected>>", self.owner_selected)
+
+        self.frame_listup = tk.LabelFrame(self.frame_00, text="", width=self._width00+136, height=self._height0, )# borderwidth=0, highlightthickness=0, )
+        self.frame_listup.pack(side="top", pady=4, fill="y")        
+
+        # Scrollbar 연결
+        scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
+        scrollbar.pack(side="right", fill="y")
+
+        scr_height = int((self._height0-16)/16)
+        self.lb_items = tk.Listbox(self.frame_listup, height=scr_height, width=14, highlightthickness=0, relief="flat")
+        self.lb_items.pack(side="left", pady=0, fill="both", expand=True)
+        self.lb_items.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
+        scrollbar.config(command=self.lb_items.yview)
+        self.lb_items.config(yscrollcommand=scrollbar.set)
         
         self.build_basic(self.frame_01, 0, 0) # 기본 설정
         self.build_skills(self.frame_01, 1, 0) # 특기
 
+        self.listup_items() # 특기
 
-    
+    def listup_items(self):
+        gn = len(gl.generals)
+        owners=[]
+        #owners.append("전체")
+        #owners.append("주인없음")
+        ownerset=set()
+        for item in gl.items:
+            self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
+            if 0 <= item.owner and item.owner < gn:                
+                owner = gl.generals[item.owner]
+                if owner.num in ownerset:
+                    continue                
+                ownerset.add(owner.num)
+                owners.append(' {0:3}. {1}'.format(owner.num, owner.name))
+        
+        filter = []
+        filter.append("주인전체")
+        filter.append("주인없음")
+        for owner in sorted(owners):
+            filter.append(owner)
+
+        self.owner_filter["values"] = filter
+        self.owner_filter.set("주인전체")

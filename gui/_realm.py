@@ -14,7 +14,7 @@ class RealmTab:
 
     def __init__(self, tab, nr, nc):
         self.rootframe = tab
-        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
         self.build_tab_realm(self.rootframe, nr, nc)
 
     def listup_realms(self):
@@ -96,7 +96,7 @@ class RealmTab:
 
     def build_tab_realm(self, parent, nr, nc):
         self.frame_realm = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0, )
-        self.frame_realm.grid(row=nr, column=nc, padx=(4,0))
+        self.frame_realm.grid(row=nr, column=nc, padx=(4,0), pady=(8,0))
         self.frame_realm.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트

@@ -59,7 +59,7 @@ class ItemPopup(tk.Toplevel):
         self.title("세력/도시/아이템 리스트")
 
         self.rootframe = tk.LabelFrame(self,  borderwidth=0, highlightthickness=0, )
-        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=4, pady=4)
+        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
         self.frame_item = _item.ItemTab(self.rootframe)
 

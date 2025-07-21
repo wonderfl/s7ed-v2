@@ -16,15 +16,28 @@ class CityTab:
 
     def __init__(self, tab, nr, nc):
         self.rootframe = tab
-        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.rootframe.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
         
         self.entries.clear()
         self.build_tab_city(self.rootframe, nr, nc)
 
     def listup_cities(self):
+        gn = len(gl.generals)
+        filters = []
+        filters.append("세력전체")
+        for realm in gl.realms:
+            if 0 > realm.ruler or realm.ruler >= gn:
+                continue
+            ruler_name = " {0:3}. {1}".format( realm.num, gl.generals[realm.ruler].name)        
+            filters.append(ruler_name)
+        filters.append("255. 없음")
+        
+        self.realm_filter['values'] = filters
+        self.realm_filter.set("세력전체")
+
         self.lb_cities.delete(0, tk.END)
         for city in gl.cities:
-            self.lb_cities.insert(tk.END, "{0:2}.{1}".format(city.num, city.name))
+            self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
 
     def city_selected(self, index, value):
         cn = len(gl.cities)
@@ -43,11 +56,12 @@ class CityTab:
             return
         _name = values[1]
 
-        city_name = gl.cities[index].name.strip()
+        city_name = gl.cities[_num].name.strip()
         if city_name != _name:
             print(f"잘못된 도시 정보입니다: {index}:{value}, {city_name}")
             return
-        city = gl.cities[index]
+        
+        city = gl.cities[_num]
         gn = len(gl.generals)
 
         realm_name = '없음'
@@ -58,9 +72,9 @@ class CityTab:
                 realm_name = gl.generals[realm.ruler].name
         self.realm_name.config(text=realm_name)
         
-        realm_num = '{0}'.format(city.realm if rn > city.realm else ' -')
-        self.realm_num.delete(0, tk.END)
-        self.realm_num.insert(0, realm_num)
+        realm_namenum = '{0}'.format(city.realm if rn > city.realm else ' -')
+        self.realm_namenum.delete(0, tk.END)
+        self.realm_namenum.insert(0, realm_namenum)
         
         gov_name = '  - '
         if 0 <= city.governor and city.governor < gn:
@@ -92,31 +106,29 @@ class CityTab:
 
     def realm_selected(self, event):
         selected = self.realm_filter.get()
-        values = [p for p in re.split(r'[ .,]', selected) if p]        
-        filters = []
+        values = [p for p in re.split(r'[ .,]', selected) if p]
+
         self.realm_num = -1
         if '세력전체' != values[0]:
             self.realm_num = int(values[0]) # 세력 넘버
-            filters.append("세력전체")
+            
 
-        if -1 == self.realm_num:
-            filters.append("도시전체")
-
-        print('filter: {0}, '.format(self.realm_num))
+        #print('filter: {0}, '.format(self.realm_num))
         self.lb_cities.delete(0, tk.END)
         for city in gl.cities:
-            self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
+            if -1 == self.realm_num or ( -1 != self.realm_num and self.realm_num == city.realm):
+                self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
 
     def build_basic(self, parent, nr, nc):
-        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-0)
+        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-2)
         frame_basic.grid(row=nr, column=nc, )
         frame_basic.grid_propagate(False)  # 크기 고정
 
         tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(4,0))
         self.realm_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
         self.realm_name.grid(row=0, column=1, padx=0)
-        self.realm_num = tk.Entry(frame_basic, width=6 )
-        self.realm_num.grid(row=0, column=2, padx=0)
+        self.realm_namenum = tk.Entry(frame_basic, width=6 )
+        self.realm_namenum.grid(row=0, column=2, padx=0)
 
 
         self.entries.clear()
@@ -182,39 +194,41 @@ class CityTab:
 
     def build_tab_city(self, parent, nr, nc):
         self.frame_city = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0 )
-        self.frame_city.grid(row=nr, column=nc, padx=(4,0), pady=(4,0))
+        self.frame_city.grid(row=nr, column=nc, padx=(4,0), pady=(16,0))
         self.frame_city.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
-        self.frame_0 = tk.LabelFrame(self.frame_city, text="", width=80, height=self._height0, )# borderwidth=0, highlightthickness=0)
+        self.frame_0 = tk.LabelFrame(self.frame_city, text="", width=80, height=self._height0, borderwidth=0, highlightthickness=0)
         self.frame_0.grid(row=0, column=0, padx=(4,0))
         self.frame_0.grid_propagate(False)  # 크기 고정
 
-        self.frame_1 = tk.LabelFrame(self.frame_city, text="", width=self._width00, height=self._height1, )# borderwidth=0, highlightthickness=0)
+        self.frame_1 = tk.LabelFrame(self.frame_city, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
         self.frame_1.grid(row=0, column=1, padx=(4,0), sticky='sw')
-        self.frame_1.grid_propagate(False)  # 크기 고정        
+        self.frame_1.grid_propagate(False)  # 크기 고정
 
         realm_filters=[]
-        self.realm_filter = ttk.Combobox(self.frame_0, values=realm_filters, width=9, )
+        self.realm_filter = ttk.Combobox(self.frame_0, values=realm_filters, width=10, )
         self.realm_filter.pack(side="top", fill="y")
         self.realm_filter.bind("<<ComboboxSelected>>", self.realm_selected)
 
         # 좌측 장수 리스트
         self.frame_listup = tk.LabelFrame(self.frame_0, text="", width=100, height=self._height0-8, )#borderwidth=0, highlightthickness=0)
-        self.frame_listup.pack(side="top", pady=8, fill="y")        
+        self.frame_listup.pack(side="top", pady=4, fill="y")
 
         # Scrollbar 연결
         scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
         scrollbar.pack(side="right", fill="y")
 
-        listbox_height = int((self._height0-16)/16)
-        self.lb_cities = tk.Listbox(self.frame_listup, height=listbox_height, width=9, highlightthickness=0, relief="flat")
+        listbox_height = int((self._height0-32)/16)
+        self.lb_cities = tk.Listbox(self.frame_listup, height=listbox_height, width=10, highlightthickness=0, relief="flat")
         self.lb_cities.pack(side="left", pady=0, fill="both", expand=True)
         self.lb_cities.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_cities.yview)
         self.lb_cities.config(yscrollcommand=scrollbar.set)
-        for city in gl.cities:
-            self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
         
+        #for city in gl.cities:
+        #    self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))        
 
         self.build_basic(self.frame_1, 0, 0) # 기본 설정
+
+        self.listup_cities()
