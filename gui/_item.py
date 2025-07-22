@@ -23,6 +23,9 @@ class ItemTab:
     skills=[]
     skillv=[]
 
+    entry_vars = {}
+    entry_ids = {}    
+
     def __init__(self, tab):
         self.rootframe = tk.Frame(tab)
         self.rootframe.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
@@ -236,6 +239,17 @@ class ItemTab:
     def save_player(self):
         print("save player..")
 
+
+
+    def on_enter(self, event):
+        entry = event.widget
+        key = self.entry_ids[entry]
+        try:
+            value = int(self.entry_vars[key].get())
+            print("on_enter: {0}[{1}]".format(key, value))
+        except ValueError:
+             print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
+
     def build_player(self, parent, nr, nc):
         frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=96, )# borderwidth=0, highlightthickness=0)
         frame_player.grid(row=nr, column=nc, pady=0 )
@@ -265,8 +279,18 @@ class ItemTab:
         self.player_name.grid(row=0, column=1, padx=(4,0), pady=0)        
 
         tk.Label(frame_b2, text="소지금", width=8, anchor="e").grid(row=0, column=2, padx=0, pady=0)
-        self.current_gold = tk.Entry(frame_b2, width=9,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+
+        var_gold = tk.StringVar()
+        self.current_gold = tk.Entry(frame_b2, width=9,  textvariable=var_gold ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_gold.grid(row=0, column=3, padx=(4,0), pady=0)
+        self.current_gold.bind("<Return>", self.on_enter)
+
+        
+        self.entry_vars["소지금"] = var_gold
+        self.entry_ids[self.current_gold] = "소지금"
+
+
+
 
         frame1 = tk.LabelFrame(frame_b2, width=76, height=26, )#highlightbackground="black", highlightthickness=0)
         frame1.grid(row=0, column=4, padx=(32,0), pady=(0,0),)
