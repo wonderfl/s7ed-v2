@@ -6,8 +6,8 @@ from tkinter import ttk
 import globals as gl
 
 class RealmTab:
-    _width00 = 160
-    _width01 = 156
+    _width00 = 176
+    _width01 = 172
 
     _height0 = 108
     _height1 = 100

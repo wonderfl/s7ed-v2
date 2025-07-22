@@ -1,4 +1,41 @@
-_enc_str = \
+_enc1_str = \
+"D4 12 37 40 1E A6 EE C4 1F 81 89 02 29 00 51 35 \
+ 21 27 65 1B 5C 0C 90 19 B2 E1 C0 06 FA 9B 4A 0A \
+ D1 E3 D3 6F 4E E4 2E 9D 45 DE 32 10 FB 09 A7 78 \
+ E9 72 3B C7 D2 43 BA 66 05 44 99 41 73 C2 85 24 \
+ 03 14 C3 A3 71 C6 7A DF F4 86 DD BF 08 53 EF 5B \
+ 6A 77 9C D7 56 3D 5A 46 F7 4C AF 7E 5F 28 B6 6B \
+ A4 EA 58 D5 B7 30 BC CB 38 F3 A9 60 8A DB 7D B5 \
+ E5 D8 62 AB 8D CF FC 0B 31 80 AC 57 B9 26 79 7B \
+ E7 B0 33 34 C9 0F 8F 13 16 2C 70 76 97 D9 6E 63 \
+ 91 CE AD 04 42 B4 A2 50 D0 7F BD 52 E8 87 67 DC \
+ 55 15 A5 25 01 61 95 C8 1D 4B F6 C5 E2 FF 83 1C \
+ 17 A8 EC 39 98 F0 5E 9E 23 F8 0D 8C 9A F1 FD D6 \
+ F5 AA F9 3F 54 ED 88 48 96 47 9F B8 EB 6C C1 3A \
+ 18 22 69 74 3C AE 2B 36 6D 3E 8B 59 68 2F FE 64 \
+ CC A0 DA 20 49 BB 75 8E 5D 07 4F E0 E6 2D 84 CA \
+ 93 CD 7C F2 92 94 B1 2A 11 A1 BE B3 1A 4D 0E 82 "
+
+_enc2_str = \
+"49 02 11 52 2B E1 D7 44 6C A2 EA F6 A7 5E DC 2F \
+ 81 3E 1D C1 E4 91 77 36 86 88 F3 8C C0 7F CA 53 \
+ B1 43 68 71 0E B5 3D 10 C8 C3 23 14 25 4C E2 5B \
+ 17 BE 18 90 57 D4 16 B8 C2 98 87 03 F1 D3 4F 4A \
+ 33 55 1F 2A 9F BF 1E 47 7E 74 56 ED CB 30 EB 5C \
+ 84 48 1C 1B 93 B7 C7 F4 D8 A3 B6 2E A4 FE D1 E5 \
+ F9 62 01 BB 45 AD 15 EE F2 BA E7 AA 38 05 F0 63 \
+ 2C DD 70 F8 FC 99 B9 20 31 21 95 0D 92 C5 EF A1 \
+ 89 7D 32 79 C6 8A AE 09 CC 4B 6B 29 E8 0A CD 3C \
+ 59 6F 34 24 5A 00 A6 AC DE BD 6E 5F F7 0B EC 9D \
+ 8D D6 64 DB 78 67 65 A0 8F FA 2D A8 DA 35 96 9E \
+ 66 A9 06 E9 72 CE 75 0C 83 04 73 12 27 61 82 42 \
+ BC 94 B2 22 5D 7B 41 9A F5 4D 8E 19 6D 1A A5 B4 \
+ 9C C9 26 D2 58 40 D9 D0 3B 97 7C E3 DF 28 37 60 \
+ 6A 4E 3A 46 13 9B 7A C4 B3 80 54 69 FD 3F 50 E0 \
+ AB FF 08 B0 07 D5 51 85 39 E6 0F 76 CF 8B FB AF "
+
+
+_enc3_str = \
 "C7 BE 8F 82 CC CB D3 3B 19 73 8E 83 B3 BA 39 BB \
  ED 43 23 A0 A7 B9 7C 32 17 02 A2 14 81 86 21 EB \
  59 C9 80 1C 55 F2 4F BC C5 DA 0F EF 90 63 60 52 \
@@ -16,8 +53,34 @@ _enc_str = \
  DD AF 47 03 AB 5F F3 27 29 69 4A 3A 53 65 06 26 \
  04 0A CD 24 DC 33 1B 6E A1 D7 9B 66 96 20 09 2E "
 
-_enc_code = _enc_str.split()
-_encoding = bytes(int(h, 16) for h in _enc_code)
+_enc4_str = \
+"12 20 0C DB 75 6A 8C 7B 95 DA 4A F2 DE E4 70 B7 \
+ 4E 81 45 3E 4B F9 25 68 22 90 07 97 3D E8 D8 34 \
+ 83 FB 96 17 02 A6 89 3A 32 8F F0 9A 52 7A B8 F8 \
+ 0E 5E 2E AB 77 DF 5D A4 82 A0 B1 FD D2 13 CB BA \
+ C0 A1 63 01 AC B3 D1 4F 38 CD 46 05 A8 C5 EF 39 \
+ C6 A2 FE 03 67 86 8E 30 C9 92 1F 53 18 E7 43 FF \
+ 91 62 57 7D AF E5 21 8B 6D 59 A9 E1 0B FA 55 73 \
+ B6 CF D3 D6 85 1A 41 BD A7 A5 50 D0 15 48 04 11 \
+ FC 10 0D 84 DD E2 72 61 A3 60 BC 08 88 7C 28 78 \
+ 23 0A 8A 69 98 16 79 CC 3F 49 87 7F 4D 74 2A 1D \
+ F7 9C F6 65 BF C3 9D 00 37 E9 2F 06 AD 2C 94 B0 \
+ 29 51 EA 14 B2 E0 64 BE 26 B4 19 F3 54 3B AE 33 \
+ CA 1E 93 6E 35 6C 5A DC C4 0F 47 6F 9F CE 42 D4 \
+ F4 E6 ED 2D C2 5B 66 4C 99 B5 2B EE C1 56 1C E3 \
+ D9 71 BB 6B EC 5C 27 76 7E F5 B9 C8 9B D7 09 8D \
+ 44 58 1B 24 80 D5 31 36 3C EB 40 C7 F1 AA 5F 9E "
 
-def _encrypt_data(data: bytes ) -> bytes:
-    return bytes( _encoding[b] for b in data)
+_enc1_code = _enc1_str.split()
+_enc2_code = _enc2_str.split()
+_enc3_code = _enc3_str.split()
+_enc4_code = _enc4_str.split()
+
+_encod1 = bytes(int(h, 16) for h in _enc1_code)
+_encod2 = bytes(int(h, 16) for h in _enc2_code)
+_encod3 = bytes(int(h, 16) for h in _enc3_code)
+_encod4 = bytes(int(h, 16) for h in _enc4_code)
+_encodes = [_encod1,_encod2,_encod3,_encod4]
+
+def _encrypt_data(s4, data: bytes ) -> bytes:
+    return bytes( _encodes[s4][b] for b in data)

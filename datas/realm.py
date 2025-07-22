@@ -17,15 +17,19 @@ from globals import generals, cities
 RealmStateStruct = struct.Struct('<HH 6s 2s2s2s2s 8s 54s 54s HH 30s ')  # 총 168 bytes
 class RealmState:
     def __init__(self, num, raw_data):
-        unpacked = RealmStateStruct.unpack(raw_data)
+        self.unpack = RealmStateStruct.unpack(raw_data)
+        self.unpacked = list(self.unpack)
+      
+        self.get_unpacked(num)
 
-        ruler = unpacked[0]    
-        staff = unpacked[1]
+    def get_unpacked(self, num):
+        ruler = self.unpacked[0]    
+        staff = self.unpacked[1]
         
-        name0 = unpacked[3]
-        name1 = unpacked[4]
-        name2 = unpacked[5]
-        name3 = unpacked[6]
+        name0 = self.unpacked[3]
+        name1 = self.unpacked[4]
+        name2 = self.unpacked[5]
+        name3 = self.unpacked[6]
 
         self.num = num
         self.ruler = ruler

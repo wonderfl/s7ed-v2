@@ -69,7 +69,18 @@ _load = "saves/D_Save01.s7"
 _year = 189
 _month = 3
 
-current_year_offset = 0x00000019
+_scene = ''
+_name = ''
+
+savetime_offset = 0x0000001E # 저장시간( 년,월,일, 시,분,초)
+
+scene_num_offset = 0x0000001A #2byte
+
+game_year_offset = 0x0000001C #2byte
+game_month_offset = 0x0000004C #1byte
+
+player_name_offset = 0x0000002A
+player_state_offset = 0x0000004D #1byte 군주,태수,군사,일반..
 
 generals = []
 generals_offset = 0x0000009C  # 장수 데이터 시작 위치 예시

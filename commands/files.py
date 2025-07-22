@@ -71,16 +71,28 @@ def open_file(fname):
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
         with open(fname, "rb") as f:
-            f.seek(gl.current_year_offset )
+            f.seek(gl.game_year_offset )
             val0 = f.read(2)
-            val1 = f.read(2)
-            gl._month = int.from_bytes(val0, 'big')
-            gl._year = int.from_bytes(val1,'big')
+            gl._year = int.from_bytes(val0,'little')
 
+            f.seek(gl.game_month_offset )
+            val1 = f.read(1)
+            gl._month = int.from_bytes(val1, 'little')            
+            
+            f.seek(gl.player_name_offset)
+            _name = f.read(8)
+            gl._name = _name.decode('euc-kr')
+            print(gl._name)
+
+            f.seek(gl.scene_num_offset)
+            _num = f.read(1)
+            gl._scene = int.from_bytes(_num)
+
+            s4 = (gl._scene - 1) % 4
             for i in range(620): # 620명 기준
                 f.seek(gl.generals_offset + i * GeneralStruct.size)
                 chunk = f.read(GeneralStruct.size)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
 
                 general = General(i,decoded)
                 _generals.append(general)
@@ -88,7 +100,7 @@ def open_file(fname):
             for i in range(72): # 72개 아이템 기준
                 f.seek(gl.items_offset + i * ItemStateStruct.size)
                 chunk = f.read(ItemStateStruct.size)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
 
                 item = ItemState(decoded)
                 _items.append(item)
@@ -96,7 +108,7 @@ def open_file(fname):
             for i in range(54): # 54개 도시 기준
                 f.seek(gl.realm_offset + i * RealmStateStruct.size)
                 chunk = f.read(RealmStateStruct.size)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
 
                 realm = RealmState(i, decoded)
                 _realms.append(realm)
@@ -105,20 +117,37 @@ def open_file(fname):
                 #print('읽을도시:{0}'.format(i))
                 f.seek(gl.cities_offset + i * CityStateStruct.size)
                 chunk = f.read(CityStateStruct.size)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
 
                 city = CityState(i, gl._cityNames_[i], decoded)
                 _cities.append(city)
 
             f.seek(gl.hero_golds_offset)
             chunk = f.read(2)
-            decoded = _decrypt_data(chunk)
+            decoded = _decrypt_data(s4, chunk)
             gl.hero_golds = struct.unpack('<H', decoded)[0]
+
+            chunk = f.read(2) # ??
+            chunk = f.read(2)
+            decoded = _decrypt_data(s4, chunk)
+
+            _num = struct.unpack('<H', decoded)[0] # general player
+            if 0 > _num or _num >= len(_generals):
+                print("save data error: wrong player num.. \nnum: {0}, gn:{1}".format( _num, len(_generals)))
+                return
+            
+            gl._name = gl._name.rstrip('\x00')
+            general = _generals[_num]
+            if general.name != gl._name:
+                print("save data error: wrong player name.\n [{0}!={1}]".format( gl._name, general.name))
+                return
+
+
 
             for i in range(620): # 620명 기준
                 f.seek(gl.hero_relations_offset + i * 2)
                 chunk = f.read(2)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
 
                 _closeness = struct.unpack('<H', decoded)[0]
                 _relations.append(_closeness)
@@ -126,7 +155,7 @@ def open_file(fname):
             for i in range(54): # 54 도시 민심
                 f.seek(gl.hero_sentiments_offset + i)
                 chunk = f.read(1)
-                decoded = _decrypt_data(chunk)
+                decoded = _decrypt_data(s4, chunk)
                 
                 _sentiment = struct.unpack('<B', decoded)[0]
                 _sentiments.append(_sentiment)
@@ -153,12 +182,13 @@ def open_file(fname):
         gn = len(gl.generals)
         rn = len(gl.realms)
         cn = len(gl.cities)
-        hero = gl.generals[gl._hero]
-        gl._home = hero.city
-        home = gl.cities[gl._home]
+
+        #hero = gl.generals[gl._hero]
+        #gl._home = hero.city
+        #home = gl.cities[gl._home]
 
         print(f"\nLoad '{fname}' Completed.. {rn}:{cn}:{gn}")
-        print("{0}년 {1}월: {2} / {3}".format( gl._year,gl._month, hero.name, home.details2()))
+        #print("{0}년 {1}월: {2} / {3}".format( gl._year,gl._month, hero.name, home.details2()))
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
@@ -183,38 +213,73 @@ def save_data(**args):
     if not fname:
         fname = gl._load    
 
-def test_save_file(fname):
-    general = gl.generals[0]
-    #print(general.to_keys(), )    
-
-    #values = []
-    #for value in general.unpacked:
-    #    values.append(value)
-
+def test_save_generals(fname):
+    s4 = (gl._scene - 1) % 4
     for i, general in enumerate (gl.generals): # 620명 기준
-        
         values = general.unpacked
-
         packed = GeneralStruct.pack(*values)
-        encoded = _encrypt_data(packed)
+        encoded = _encrypt_data(s4, packed)
 
-        decoded = _decrypt_data(encoded)
-        general = General(i,decoded)
+        decoded = _decrypt_data(s4, encoded)
+        _general = General(i,decoded)
+        print(_general)
 
-        print(general)            
+def test_save_items(fname):
+    s4 = (gl._scene - 1) % 4
+    for i, item in enumerate (gl.items): # 620명 기준
+        values = item.unpacked
+        packed = ItemStateStruct.pack(*values)
+        encoded = _encrypt_data(s4, packed)
+
+        decoded = _decrypt_data(s4, encoded)
+        _item = ItemState(decoded)
+        print(_item)        
+
+def test_save_cities(fname):
+    s4 = (gl._scene - 1) % 4
+    for i, city in enumerate (gl.cities): # 620명 기준
+        values = city.unpacked
+        packed = CityStateStruct.pack(*values)
+        encoded = _encrypt_data(s4, packed)
+
+        decoded = _decrypt_data(s4, encoded)
+        _city = CityState(i, gl._cityNames_[i], decoded)
+        print(_city)
 
 def save_file(fname):
 
     try:
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
+        s4 = (gl._scene - 1) % 4
         with open(fname, "r+b") as f:
             for i, general in enumerate (gl.generals): # 620명 기준
                 f.seek(gl.generals_offset + i * GeneralStruct.size)
                 values = general.unpacked
                 packed = GeneralStruct.pack(*values)
-                encoded = _encrypt_data(packed)
+                encoded = _encrypt_data(s4, packed)
                 saved = f.write(encoded)
+
+            for i, item in enumerate (gl.items): # 620명 기준
+                f.seek(gl.items_offset + i * ItemStateStruct.size)
+                values = item.unpacked
+                packed = ItemStateStruct.pack(*values)
+                encoded = _encrypt_data(s4, packed)
+                saved = f.write(encoded)
+
+            for i, city in enumerate (gl.cities): # 620명 기준
+                f.seek(gl.cities_offset + i * CityStateStruct.size)
+                values = city.unpacked
+                packed = CityStateStruct.pack(*values)
+                encoded = _encrypt_data(s4, packed)
+                saved = f.write(encoded)
+            
+            values = struct.pack('<H', gl.hero_golds)
+            encoded = _encrypt_data(s4, values)
+
+            f.seek(gl.hero_golds_offset)
+            saved = f.write(encoded)
+
 
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")

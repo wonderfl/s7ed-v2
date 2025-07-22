@@ -18,10 +18,11 @@ class GeneralTab:
 
     _width00 = 276
     _width01 = 272
-    _height0 = 512
 
     _width10 = 328
     _width11 = 320
+
+    _height0 = 500
 
     realm_num = -1
     city_num = -1    
@@ -362,18 +363,18 @@ class GeneralTab:
         self.strategy.grid(row=4, column=5, columnspan=2, sticky="we",padx=2)
 
     def build_experiences(self, parent, nr, nc):
-        frame_exp = tk.LabelFrame(parent, text="", width=self._width11, height=180, borderwidth=0, highlightthickness=0) #borderwidth=0, highlightthickness=0
+        frame_exp = tk.LabelFrame(parent, text="", width=self._width11, height=144, borderwidth=0, highlightthickness=0, )
         frame_exp.grid(row=3, column=0, )
         frame_exp.grid_propagate(False)  # 크기 고정        
 
         # 단련 경험
-        frame_exp1 = tk.LabelFrame(frame_exp, text="무장 경험", width=self._width11, height=44, )
+        frame_exp1 = tk.LabelFrame(frame_exp, text="무장 경험", width=self._width11-4, height=44, )
         frame_exp1.grid(row=0, column=0, pady=(4,0) )
         frame_exp1.grid_propagate(False)  # 크기 고정
         self.append_entries(frame_exp1, self.trains, ["무력", "지력", "정치", "매력"])
 
         # 소속
-        frame_affil = tk.LabelFrame(frame_exp, text="무장 소속", width=self._width11, height=88)
+        frame_affil = tk.LabelFrame(frame_exp, text="무장 소속", width=self._width11-4, height=88)
         frame_affil.grid(row=1, column=0, pady=(4,0) )
         frame_affil.grid_propagate(False)  # 크기 고정
 
@@ -478,7 +479,7 @@ class GeneralTab:
 
         realm_filters=[]
         self.realm_filter = ttk.Combobox(parent, values=realm_filters, width=12, )
-        self.realm_filter.pack(side="top", fill="y")
+        self.realm_filter.pack(side="top", fill="y", pady=(8,0))
         self.realm_filter.bind("<<ComboboxSelected>>", self.realm_selected)
 
         city_filters=[]
@@ -486,18 +487,19 @@ class GeneralTab:
         for i, name in enumerate(gl._cityNames_):
             city_filters.append('{0:2}.{1}'.format(i,name))
         self.city_filter = ttk.Combobox(parent, values=city_filters, width=12, )
-        self.city_filter.pack(side="top", fill="y", pady=2)  
+        self.city_filter.pack(side="top", fill="y", pady=(2,8))  
         self.city_filter.bind("<<ComboboxSelected>>", self.city_selected)
 
         # 좌측 장수 리스트
-        self.frame_listup = tk.LabelFrame(parent, text="", width=100, height=self._height0, ) #borderwidth=0, highlightthickness=0)
-        self.frame_listup.pack(side="top", pady=4, fill="y")
+        self.frame_listup = tk.LabelFrame(parent, text="", width=100, height=self._height0-48, ) #borderwidth=0, highlightthickness=0)
+        self.frame_listup.pack(side="top", pady=0, fill="y")
 
         # Scrollbar 연결
         scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
         scrollbar.pack(side="right", fill="y", pady=2)
 
-        self.lb_generals = tk.Listbox(self.frame_listup, height=27, width=12, highlightthickness=0, relief="flat")
+        str_height = int((self._height0-72)/16)
+        self.lb_generals = tk.Listbox(self.frame_listup, width=12, height=str_height, highlightthickness=0, relief="flat")
         self.lb_generals.pack(side="left", pady=2, fill="both", expand=True)
         self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_generals.yview)
@@ -505,18 +507,18 @@ class GeneralTab:
 
     def build_tab_general(self, parent, nr, nc):
 
-        self.frame_general = tk.LabelFrame(parent, text="", width= (120+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_general = tk.LabelFrame(parent, text="", width= (128+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_general.grid(row=nr, column=nc, rowspan=2, padx=(4,0))
         self.frame_general.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
-        self.frame_0 = tk.LabelFrame(self.frame_general, text="", width=100, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_0 = tk.LabelFrame(self.frame_general, text="", width=100, height=self._height0-4, borderwidth=0, highlightthickness=0)
         self.frame_0.grid(row=0, column=0, padx=(4,0))
         self.frame_0.grid_propagate(False)  # 크기 고정
 
         self.build_listup(self.frame_0, 0, 0)
 
-        self.frame_1 = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_1 = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0-4, borderwidth=0, highlightthickness=0)
         self.frame_1.grid(row=0, column=1, padx=(4,0))
         self.frame_1.grid_propagate(False)  # 크기 고정
 
@@ -528,7 +530,7 @@ class GeneralTab:
         self.build_skills(self.frame_1, 4, 0) # 특기
         self.build_equips(self.frame_1, 5, 0) # 장비
 
-        self.frame_2 = tk.LabelFrame(self.frame_general, text="", width=self._width10, height=self._height0, borderwidth=0, highlightthickness=0)
+        self.frame_2 = tk.LabelFrame(self.frame_general, text="", width=self._width10, height=self._height0-4, borderwidth=0, highlightthickness=0)
         self.frame_2.grid(row=0, column=2, padx=(4,0))
         self.frame_2.grid_propagate(False)  # 크기 고정
 
@@ -542,18 +544,40 @@ class GeneralTab:
         self.popup_frame = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
 
         ### for test..
-        self.frame_test = tk.LabelFrame(self.frame_2, text="", width=self._width10-8, height=48, )#borderwidth=0, highlightthickness=0)
-        self.frame_test.grid(row=4, column=0, padx=(4,0))
+        self.frame_test = tk.LabelFrame(self.frame_2, text="", width=self._width11, height=64, borderwidth=0, highlightthickness=0)
+        self.frame_test.grid(row=4, column=0, padx=(0,0), pady=4)
         self.frame_test.grid_propagate(False)  # 크기 고정
 
-        tk.Button(self.frame_test, text="Test Save", width=10, height=1, command=lambda: self.test_file() ).grid(row=0, column=0)
-        tk.Button(self.frame_test, text="Release Turn", width=10, height=1, command=lambda: self.release_turn() ).grid(row=0, column=1)
-        tk.Button(self.frame_test, text="Release All", width=10, height=1, command=lambda: self.release_turns() ).grid(row=0, column=2)
+        test1 = tk.LabelFrame(self.frame_test, text="", width=102, height=54, )#borderwidth=0, highlightthickness=0)
+        test1.grid(row=0, column=1, rowspan=2,  padx=(4,0))
+        test1.grid_propagate(False)  # 크기 고정
+        tk.Button(test1, text="Test Save", width=12, height=2, relief="flat", bd=0,
+                  command=lambda: self.test_file()).grid(row=0, column=0)        
+
+        test2 = tk.LabelFrame(self.frame_test, text="", width=102, height=27, )#borderwidth=0, highlightthickness=0)
+        test2.grid(row=0, column=0, padx=(0,0))
+        test2.grid_propagate(False)  # 크기 고정
+        tk.Button(test2, text="Reset Turn", width=12, height=1, relief="flat", bd=0,
+                  command=lambda: self.reset_turn() ).grid(row=0, column=0)
+
+        test3 = tk.LabelFrame(self.frame_test, text="", width=102, height=27, )#borderwidth=0, highlightthickness=0)
+        test3.grid(row=1, column=0, padx=(0,0))
+        test3.grid_propagate(False)  # 크기 고정
+        tk.Button(test3, text="Reset List", width=12, height=1, relief="flat", bd=0,
+                  command=lambda: self.reset_list() ).grid(row=0, column=0)
+        
+        test4 = tk.LabelFrame(self.frame_test, text="", width=102, height=54, )#borderwidth=0, highlightthickness=0)
+        test4.grid(row=0, column=2, rowspan=2, padx=(4,0))
+        test4.grid_propagate(False)  # 크기 고정
+        tk.Button(test4, text="City/Item", width=12, height=2, relief="flat", bd=0,
+                  command=lambda: self.show_popup() ).grid(row=0, column=0)        
 
     def test_file(self):
-        files.test_save_file('data.txt')
+        print("tset_file..")
+        #files.test_save_file('data.txt')
+        files.test_save_generals('save generals')
 
-    def release_turn(self):
+    def reset_turn(self):
         indices = self.lb_generals.curselection()
         if indices:
             gn = len(gl.generals)
@@ -563,16 +587,28 @@ class GeneralTab:
             _num = int(values[0])
             if 0 <= _num and _num < gn:
                 selected = gl.generals[_num]
+
                 value0 = selected.unpacked[12]
-                value1 = selected.set_turns(0)
+                value1 = selected.unpacked[20]                
+
+                selected.set_turns(0)
                 selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
+                selected.unpacked[20] = 200
+                selected.actions = selected.unpacked[20]
+                if 0 < selected.unpacked[7]:        # 병사
+                    selected.unpacked[41] = 100     # 훈련
+                    selected.training = selected.unpacked[41]
+
                 value2 = selected.unpacked[12]
-                print("{0}[ {1:x}, {2:x}, {3:x} ]".format(selected.name, value0,value1,value2))
+                value3 = selected.unpacked[20]
+
+                print("{0} [{1:X},{2:X}] => [{3:X},{4:X}]".format(selected.name, value0, value1, value2, value3))
                 #value0 = selected.unpacked[12]
                 #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
 
-    def release_turns(self):
-        gn = len(gl.generals)        
+    def reset_list(self):
+        gn = len(gl.generals)
+        count = 0
         items = list(self.lb_generals.get(0, tk.END))
         for item in items:
             values = [p for p in re.split(r'[ .,]', item) if p]
@@ -581,10 +617,25 @@ class GeneralTab:
             if 0 > _num or _num >= gn:
                 continue
             selected = gl.generals[_num]
-            res = selected.set_turns(0)
+
+            value0 = selected.unpacked[12]
+            value1 = selected.unpacked[20]
+                        
+            selected.set_turns(0)
             selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
-            selected.actions = 200
-            selected.unpacked[20] = selected.actions
+            selected.unpacked[20] = 200
+            selected.actions = selected.unpacked[20]
+            #selected.unpacked[37] = 100            # 충성
+            if 0 < selected.unpacked[7]:            # 병사
+                selected.unpacked[41] = 100         # 훈련
+                selected.training = selected.unpacked[41]
+            
+            value2 = selected.unpacked[12]
+            value3 = selected.unpacked[20]
+            count = count + 1
+            print("{0:3}. {1}[{2:3}][ {3:4X},{4:4X} => {5:4X},{6:4X} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3))
+            
+        print('release: {0} / {1}'.format(count, len(items)))
 
     def close_popup(self):
         print("close_popup")

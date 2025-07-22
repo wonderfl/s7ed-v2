@@ -19,24 +19,30 @@ import globals  as gl
 CityStateStruct = struct.Struct('<III HH HHHH HHH HHH BBBBBB 22s')  # 총 64 bytes
 class CityState:
     def __init__(self, num, name, raw_data):
-        unpacked = CityStateStruct.unpack(raw_data)
+        self.unpack = CityStateStruct.unpack(raw_data)
+        self.unpacked = list(self.unpack)
+        
+        self.get_unpacked(num, name)
+
+    def get_unpacked(self, num, name):
         self.num = num
         self.name = name
 
-        golds  = unpacked[0]
-        foods  = unpacked[1]
-        governor = unpacked[3]
-        peoples = unpacked[4]
+        golds  = self.unpacked[0]
+        foods  = self.unpacked[1]
+        governor = self.unpacked[3]
+        peoples = self.unpacked[4]
         
-        devs = unpacked[5]
-        devmax = unpacked[6]
-        shops = unpacked[7]
-        shopmax = unpacked[8]
+        devs = self.unpacked[5]
+        devmax = self.unpacked[6]
+        shops = self.unpacked[7]
+        shopmax = self.unpacked[8]
 
-        secu = unpacked[9]
-        defs = unpacked[10]
-        tech = unpacked[11]
-        realm = unpacked[15]
+        secu = self.unpacked[9]
+        defs = self.unpacked[10]
+        tech = self.unpacked[11]
+
+        realm = self.unpacked[15]
 
         self.golds = golds
         self.foods = foods
@@ -51,6 +57,7 @@ class CityState:
         self.secu = secu
         self.defs = defs
         self.tech = tech
+        
         self.realm = realm
 
 

@@ -4,13 +4,14 @@ import tkinter as tk
 from tkinter import ttk
 
 import globals as gl
+from commands import files
 
 class CityTab:
-    _width00 = 160
-    _width01 = 156
+    _width00 = 176
+    _width01 = 172
 
     _height0 = 268
-    _height1 = 256
+    _height1 = 264
 
     entries = []
 
@@ -72,9 +73,9 @@ class CityTab:
                 realm_name = gl.generals[realm.ruler].name
         self.realm_name.config(text=realm_name)
         
-        realm_namenum = '{0}'.format(city.realm if rn > city.realm else ' -')
-        self.realm_namenum.delete(0, tk.END)
-        self.realm_namenum.insert(0, realm_namenum)
+        #realm_namenum = '{0}'.format(city.realm if rn > city.realm else ' -')
+        #self.realm_namenum.delete(0, tk.END)
+        #self.realm_namenum.insert(0, realm_namenum)
         
         gov_name = '  - '
         if 0 <= city.governor and city.governor < gn:
@@ -84,7 +85,7 @@ class CityTab:
 
         self.city_gov_name.config(text='{0}'.format(gov_name))
         values = [
-            city.governor, city.golds, city.foods, city.peoples*100, 
+            city.golds, city.foods, city.peoples*100, 
             city.devs, city.devmax, city.shops, city.shopmax,
             city.secu, city.defs, city.tech,  gl.sentiments[city.num]
         ]
@@ -121,16 +122,29 @@ class CityTab:
             if -1 == self.realm_num or ( -1 != self.realm_num and self.realm_num == city.realm):
                 self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
 
+    def save_city(self):
+        print("save city..")
+        files.test_save_cities('save cities')
+
     def build_basic(self, parent, nr, nc):
-        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-2)
+        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-4)
         frame_basic.grid(row=nr, column=nc, )
         frame_basic.grid_propagate(False)  # 크기 고정
 
         tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(4,0))
         self.realm_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
         self.realm_name.grid(row=0, column=1, padx=0)
-        self.realm_namenum = tk.Entry(frame_basic, width=6 )
-        self.realm_namenum.grid(row=0, column=2, padx=0)
+
+        #tk.Button(frame_basic, text="SaveCity", width=6, height=1, relief="flat", command=lambda: self.save_city() ).grid(row=0, column=2, padx=(4,0))
+        frame1 = tk.LabelFrame(frame_basic, width=64, height=27, )#highlightbackground="black", highlightthickness=0)
+        frame1.grid(row=0, column=2, padx=(8,0), pady=(0,0),)
+        frame1.grid_propagate(False)
+        tk.Button( frame1, text="Save City", relief="flat", bd=0,   # 내부 border 제거
+                    command=lambda: self.save_city(), ).grid(row=0, column=0, padx=(2,0))        
+
+        #         
+        #self.realm_namenum = tk.Entry(frame_basic, width=6 )
+        #self.realm_namenum.grid(row=0, column=2, padx=0)
 
 
         self.entries.clear()
@@ -138,9 +152,9 @@ class CityTab:
         tk.Label(frame_basic, text="태수:", width=4, anchor="e" ).grid(row=1, column=0, padx=(4,0))
         self.city_gov_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
         self.city_gov_name.grid(row=1, column=1, padx=0)
-        self.city_gov_num = tk.Entry(frame_basic, width=6 )
-        self.city_gov_num.grid(row=1, column=2, padx=0)
-        self.entries.append(self.city_gov_num)
+        #self.city_gov_num = tk.Entry(frame_basic, width=6 )
+        #self.city_gov_num.grid(row=1, column=2, padx=0)
+        #self.entries.append(self.city_gov_num)
 
         tk.Label(frame_basic, text="  금:", width=4, anchor="e" ).grid(row=2, column=0, padx=(4,0))
         self.city_golds = tk.Entry(frame_basic, width=7 )
@@ -161,7 +175,7 @@ class CityTab:
         self.city_devs = tk.Entry(frame_basic, width=7 )
         self.city_devs.grid(row=5, column=1, padx=0)
         self.entries.append(self.city_devs)
-        self.city_devmax = tk.Entry(frame_basic, width=6 )
+        self.city_devmax = tk.Entry(frame_basic, width=8 )
         self.city_devmax.grid(row=5, column=2, padx=0)
         self.entries.append(self.city_devmax)
 
@@ -169,7 +183,7 @@ class CityTab:
         self.city_shops = tk.Entry(frame_basic, width=7 )
         self.city_shops.grid(row=6, column=1, padx=0)
         self.entries.append(self.city_shops)
-        self.city_shopmax = tk.Entry(frame_basic, width=6 )
+        self.city_shopmax = tk.Entry(frame_basic, width=8 )
         self.city_shopmax.grid(row=6, column=2, padx=0)
         self.entries.append(self.city_shopmax)
 
@@ -196,7 +210,7 @@ class CityTab:
 
     def build_tab_city(self, parent, nr, nc):
         self.frame_city = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0 )
-        self.frame_city.grid(row=nr, column=nc, padx=(4,0), pady=(16,0))
+        self.frame_city.grid(row=nr, column=nc, padx=(4,0), pady=(0,0))
         self.frame_city.grid_propagate(False)  # 크기 고정
 
         # 좌측 장수 리스트
