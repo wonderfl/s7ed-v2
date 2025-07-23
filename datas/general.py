@@ -60,7 +60,7 @@ class General:
         self.job      = gl.bit16from(value1, 8, 4)
         self.injury   = gl.bit16from(value1,12, 4)
         self.growth   = gl.bit16from(value1, 0, 4)
-        self.lifespan = gl.bit16from(value1, 4, 4)        
+        self.lifespan = gl.bit16from(value1, 4, 4)
 
         value2 = self.unpacked[12]
         #.인물: 0123 0000

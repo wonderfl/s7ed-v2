@@ -142,8 +142,6 @@ def open_file(fname):
                 print("save data error: wrong player name.\n [{0}!={1}]".format( gl._name, general.name))
                 return
 
-
-
             for i in range(620): # 620명 기준
                 f.seek(gl.hero_relations_offset + i * 2)
                 chunk = f.read(2)
@@ -233,7 +231,70 @@ def test_save_items(fname):
 
         decoded = _decrypt_data(s4, encoded)
         _item = ItemState(decoded)
-        print(_item)        
+        print(_item)
+
+def test_save_general_selected(fname, general, save=False):
+    if general is None:
+        print("error: general None..")
+        return False
+    print(general)
+       
+    s4 = (gl._scene - 1) % 4
+    
+    values = general.unpacked
+    packed = GeneralStruct.pack(*values)
+    encoded = _encrypt_data(s4, packed)
+    
+    decoded = _decrypt_data(s4, encoded)
+    _general = General(general.num, decoded)
+
+    if general.name != _general.name:
+        print("error: not match decode..")
+        return False
+    
+    print("save: {0}".format(fname))
+    print(_general)
+
+    if False == save:
+        return False
+    
+    with open(fname, "r+b") as f:
+        f.seek(gl.generals_offset + general.num * GeneralStruct.size)
+        values = general.unpacked
+        packed = GeneralStruct.pack(*values)
+        encoded = _encrypt_data(s4, packed)
+        saved = f.write(encoded)
+
+    return True        
+
+def test_save_item_selected(fname, item, save=False):
+    s4 = (gl._scene - 1) % 4
+    
+    values = item.unpacked
+    packed = ItemStateStruct.pack(*values)
+    encoded = _encrypt_data(s4, packed)
+    
+    decoded = _decrypt_data(s4, encoded)
+    _item = ItemState(decoded)
+
+    if item.name != _item.name:
+        print("error: not match decode..")
+        return False
+    
+    print("save: {0}".format(fname))
+    print(_item)
+
+    if False == save:
+        return False
+    
+    with open(fname, "r+b") as f:
+        f.seek(gl.items_offset + item.num * ItemStateStruct.size)
+        values = item.unpacked
+        packed = ItemStateStruct.pack(*values)
+        encoded = _encrypt_data(s4, packed)
+        saved = f.write(encoded)
+
+    return True
 
 def test_save_cities(fname):
     s4 = (gl._scene - 1) % 4
@@ -280,6 +341,7 @@ def save_file(fname):
             f.seek(gl.hero_golds_offset)
             saved = f.write(encoded)
 
+        print(f"\nSave '{fname}' Completed.. {s4}")
 
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")

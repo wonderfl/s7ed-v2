@@ -25,6 +25,8 @@ class ItemTab:
 
     entry_vars = {}
     entry_ids = {}    
+    
+    item_selected = None
 
     def __init__(self, tab):
         self.rootframe = tk.Frame(tab)
@@ -34,10 +36,14 @@ class ItemTab:
         self.cityTab = _city.CityTab(self.rootframe, 1, 0)
 
         self.build_player(self.rootframe, 0, 1)
-        self.build_tab_item(self.rootframe, 1, 1)        
+        self.build_tab_item(self.rootframe, 1, 1)
+        
+        self.item_selected = None
 
     def listup_items(self):
         print('{0}, {1}'.format(gl._scene, gl._name))
+        
+        self.item_selected = None
         self.current_scene.delete(0, tk.END)
         self.current_scene.insert(0, '{0}'.format(gl._scene))
 
@@ -73,15 +79,17 @@ class ItemTab:
         filter = []
         filter.append("주인전체")
         filter.append("주인없음")
+        filter.append("판매중")
         for owner in sorted(owners):
             filter.append(owner)
 
         self.owner_filter["values"] = filter
         self.owner_filter.set("주인전체")
 
+    def on_selected_owner(self, event):
+        
+        self.item_selected = None
 
-
-    def owner_selected(self, event):
         selected = self.owner_filter.get()
         values = [p for p in re.split(r'[ .,]', selected) if p]        
         filters = []
@@ -89,15 +97,22 @@ class ItemTab:
         if '주인전체' != values[0]:
             if '주인없음' == values[0]:
                 self.owner_num = 65535
+            elif '판매중' == values[0]:
+                self.owner_num = -2
             else:
                 self.owner_num = int(values[0])
 
         self.lb_items.delete(0, tk.END)
         for item in gl.items:
+            if -2 == self.owner_num and 3 == item.market:
+                self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
+                continue
+
             if -1 == self.owner_num or (-1 != self.owner_num and  self.owner_num == item.owner):
                 self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
 
-    def item_selected(self, index, value):
+    def on_selected_item(self, index, value):
+        self.item_selected = None
         item_max = len(gl.items)        
         values = [p for p in re.split(r'[.,]', value) if p]
         if( 2>len(values)):
@@ -108,11 +123,13 @@ class ItemTab:
             print(f"잘못된 아아템 정보입니다: {index}[ {values[0]}, {values[1]} ], 전체 아이템: {item_max}")
             return
         _name = values[1].strip()
+
         selected = gl.items[_num]
         if selected.name != _name:
             print(f"잘못된 아이템 정보입니다: {index}, {value}, :{_name}, {selected.name},")
             return
         
+        self.item_selected = selected
         owner = gl.generals[selected.owner] if 0 <= selected.owner and selected.owner < len(gl.generals) else None
         self.ownernum.config(text='{0}'.format('-'))
         self.ownername.delete(0, tk.END)
@@ -120,7 +137,7 @@ class ItemTab:
             self.ownernum.config(text='{0}'.format(owner.num))
             self.ownername.insert(0, owner.name)
         else:
-            self.ownername.insert(0, '주인 없음')
+            self.ownername.insert(0, '주인없음')
 
         #self.itemnum.config(text='{0:3}.'.format(selected.num))
         #self.itemname.delete(0, tk.END)
@@ -159,7 +176,19 @@ class ItemTab:
         if selection:
             index = selection[0]
             value = widget.get(index).strip()
-            self.item_selected(index, value)
+            self.on_selected_item(index, value)
+
+    def on_check_skills(self, pos):
+        if self.item_selected is None:
+            return
+        value = self.skillv[pos].get()
+        data0 = self.item_selected.u00
+        data1 = gl.set_bits(data0, value, pos, 1)
+
+        self.item_selected
+        print('{0}[{1}]: {2:2}[ {3}, {4} ] '.format(self.item_selected.num, self.item_selected.name, pos, format(data0, '032b'), format(data1, '032b')))
+        self.item_selected.u00 = data1
+        self.item_selected.unpacked[0] = data1
 
     def build_skills(self, parent, nr, nc):
         self.frame_skills = tk.LabelFrame(parent, text="아이템 특기", width=self._width01, height=156)
@@ -175,14 +204,18 @@ class ItemTab:
         smallfont = tkfont.Font(family="맑은 고딕", size=8)
         for i, name in enumerate(gl._propNames_):
             var = tk.IntVar()
-            checked = tk.Checkbutton(self.frame_b1, text=name, font=smallfont, variable=var, width=6, height=0, highlightthickness=0, borderwidth=0,  )
+            checked = tk.Checkbutton(self.frame_b1, text=name, font=smallfont, variable=var, width=6, height=0, 
+                                     highlightthickness=0, borderwidth=0, 
+                                     command=lambda i=i: self.on_check_skills(i))
             checked.grid(row=i//4, column=i%4, sticky="w", padx=(4,0),pady=0,ipady=0)
             self.skills.append(checked)
             self.skillv.append(var)
             
     def save_item(self):
         print("save item..")
-        files.test_save_items('save items')
+        #files.test_save_items('save items')
+        files.test_save_item_selected( gl._loading_file, self.item_selected, True)
+
 
     def build_basic(self, parent, nr, nc):
         self.frame_basic = tk.LabelFrame(parent, text="아이템 기본 설정", width=self._width01, height=104)
@@ -231,6 +264,7 @@ class ItemTab:
         tk.Label(self.frame_b2, text="매매", width=6, anchor="e").grid(row=0, column=2, padx=0)
         self.market = tk.Entry(self.frame_b2, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.market.grid(row=0, column=3, padx=(4,0))
+        self.market.bind("<Return>", self.on_enter_market)
 
         tk.Label(self.frame_b2, text="가격", width=6, anchor="e").grid(row=1, column=2, padx=0)
         self.itemprice = tk.Entry(self.frame_b2, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
@@ -239,14 +273,30 @@ class ItemTab:
     def save_player(self):
         print("save player..")
 
-
+    def on_enter_market(self, event):
+        entri = event.widget
+        value0 = entri.get()
+        try:
+            value1 = int(value0)
+            if value1 not in (0, 1, 3):
+                print("error: out of range {0}".format(value1))
+                return
+            self.item_selected.market = value1
+            self.item_selected.unpacked[2] = value1
+            print("on_enter_market: {0}".format(value1))
+        except ValueError:
+             print(f"[{value0}] 숫자 아님: ")
 
     def on_enter(self, event):
         entry = event.widget
         key = self.entry_ids[entry]
         try:
             value = int(self.entry_vars[key].get())
-            print("on_enter: {0}[{1}]".format(key, value))
+            if 0 > value or value > 60000:
+                print("error: out of range {0}[{1}]".format(key, value))
+                return
+            gl.hero_golds = value
+            print("on_enter: {0}[{1}]".format(key, value))            
         except ValueError:
              print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
 
@@ -285,11 +335,8 @@ class ItemTab:
         self.current_gold.grid(row=0, column=3, padx=(4,0), pady=0)
         self.current_gold.bind("<Return>", self.on_enter)
 
-        
         self.entry_vars["소지금"] = var_gold
         self.entry_ids[self.current_gold] = "소지금"
-
-
 
 
         frame1 = tk.LabelFrame(frame_b2, width=76, height=26, )#highlightbackground="black", highlightthickness=0)
@@ -310,7 +357,7 @@ class ItemTab:
         owner_filters=[]
         self.owner_filter = ttk.Combobox(self.frame_00, values=owner_filters, width=14, )
         self.owner_filter.pack(side="top", fill="y")
-        self.owner_filter.bind("<<ComboboxSelected>>", self.owner_selected)
+        self.owner_filter.bind("<<ComboboxSelected>>", self.on_selected_owner)
 
         # 좌측 장수 리스트
         self.frame_listup = tk.LabelFrame(self.frame_00, text="", width=self._width00+136, height=self._height0, )# borderwidth=0, highlightthickness=0, )

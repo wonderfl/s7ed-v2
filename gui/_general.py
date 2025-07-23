@@ -46,7 +46,9 @@ class GeneralTab:
         self.build_tab_general(self.rootframe, 0, 0)
         return
     
-    def listup_generals(self):
+    def listup_generals(self):        
+        self.general_selected = None
+
         gn = len(gl.generals)
         filters = []
         filters.append("세력전체")
@@ -71,20 +73,25 @@ class GeneralTab:
             print("listup_items")
             _popup.ItemPopup._instance.frame_item.listup_items()
 
-    def general_selected(self, index, value):
+    def on_selected_general(self, index, value):
         #print(f"선택된 항목 처리: {value}")
-        gn = len(gl.generals)
+        self.general_selected = None
 
+        gn = len(gl.generals)
         values = [p for p in re.split(r'[ .,]', value) if p]
         
         _num = int(values[0])
         if 0 > _num or _num >= gn:
             print(f"잘못된 정보입니다: {index}, {value}, {_num}")
+            return
 
         selected = gl.generals[_num]
         if selected.name != values[1]:
-            print(f"잘못된 정보입니다: {index}, {value}, {values}")
+            print(f"잘못된 이름입니다: {index}, {value}, {values}")
             return
+        
+        self.general_selected = selected
+
         self.name0.delete(0, tk.END)
         self.name0.insert(0, selected.name0)
         self.name1.delete(0, tk.END)        
@@ -121,19 +128,19 @@ class GeneralTab:
         trains=[selected.str1,selected.int1,selected.pol1,selected.chr1]
         for i, exp in enumerate(trains):
             self.trains[i].delete(0, tk.END)
-            self.trains[i].insert(0, exp)            
+            self.trains[i].insert(0, exp)
 
         relation = gl.relations[selected.num] if 0 <= selected.num and selected.num < len(gl.generals) else 0
         #relation = relation if relation < 100 else 100
         #fields = ["탄생","등장","사관","수명", "성장","상성","야망","의리", "용맹","냉정","명성","공적", "봉록","행동력","병사","훈련", "충성","아이템"]
-        personalities=[
+        self.personalities_value=[
             selected.birthyear, selected.appearance, selected.employment, selected.lifespan,
             selected.growth, selected.relation, selected.ambition, selected.fidelity,
             selected.valour, selected.composed, selected.fame, selected.achieve,
             selected.salary, selected.actions, selected.soldier, selected.training,
             selected.loyalty, selected.item, relation
         ]
-        for i, value in enumerate(personalities):
+        for i, value in enumerate(self.personalities_value):
             self.personalities[i].delete(0, tk.END)
             self.personalities[i].insert(0, value)
 
@@ -169,7 +176,7 @@ class GeneralTab:
             value = widget.get(index).strip()
             #print(f"[선택] {index}: {value}")
             # 선택시 호출할 함수
-            self.general_selected(index, value)
+            self.on_selected_general(index, value)
 
     def entry_row(self, frame, labels, width=4):
         for i, text in enumerate(labels):
@@ -253,7 +260,32 @@ class GeneralTab:
         frame_stats.grid(row=nr, column=nc, pady=(4,0) )
         frame_stats.grid_propagate(False)  # 크기 고정
 
-        self.append_entries(frame_stats, self.stats, ["무력", "지력", "정치", "매력"],  width=4)
+        self.append_entries(frame_stats, self.stats, ["무력", "지력", "정치", "매력"], width=4)
+        for i, entri in enumerate(self.stats):
+            entri.bind("<Return>", lambda event, i=i: self.on_enter_stats(event, i))  # Enter 키 입력 시 호출
+
+    def on_enter_stats(self, event, num):
+
+        if self.general_selected is None:
+            return
+        if 0 > num or num > 3:
+            return
+        
+        ix = 29 + num
+        value0 = self.stats[num].get()
+        
+        print('stats: {0}, {1}'.format(num, value0))
+        try:
+            value1 = int(value0)            
+            self.general_selected.unpacked[ix] = value1
+            
+            self.general_selected.str = self.general_selected.unpacked[29]
+            self.general_selected.int = self.general_selected.unpacked[30]
+            self.general_selected.pol = self.general_selected.unpacked[31]
+            self.general_selected.chr = self.general_selected.unpacked[32]
+
+        except:
+            print('error: {0}, {1}'.format(num, value0))
 
     def build_traits(self, parent, nr, nc):
         frame_traits = tk.LabelFrame(parent, text="무장 특성", width=self._width01, height=64)
@@ -299,6 +331,30 @@ class GeneralTab:
             self.equips.append(checked)
             self.equipv.append(var)
 
+    def on_enter_personality(self, event, num):        
+        print("enter personality: ", num)
+        if self.general_selected is None:
+            return
+        
+        value0 = self.personalities[num].get()
+        try:
+            value1 = int(value0)
+            if 3 == num: # 수명
+                self.general_selected.lifespan = value1
+                data = self.general_selected.unpacked[11]                
+                value0 = gl.set_bits(data, value1, 8, 4)
+                #value1 = gl.bit16from(value0, 4, 4)
+                #print("수명: {0}, {1}".format( format(value0, '016b'), value1))
+                self.general_selected.unpacked[11] = value0
+
+            if 16 == num: # 충성
+                self.general_selected.loyalty = value1
+                self.general_selected.unpacked[37] = value1
+
+        except:
+            print("error: on_enter", num, value0)
+
+
     def build_personalities(self, parent, nr, nc):        
         frame_personality = tk.LabelFrame(parent, text="무장 개성", width=self._width11, height=260)
         frame_personality.grid(row=0, column=0, pady=(4,0) )
@@ -311,8 +367,9 @@ class GeneralTab:
         fields = ["탄생","등장","사관","수명", "성장","상성","야망","의리", "용맹","냉정","명성","공적", "봉록","행동력","병사","훈련", "충성","아이템","친밀"]
         for i, field in enumerate(fields):
             tk.Label(frame_r1, text=field).grid(row=i//4, column=(i%4)*2, padx=(4,0), pady=0)
-            entri = tk.Entry(frame_r1, width=5,)
+            entri = tk.Entry(frame_r1, width=5, )
             entri.grid(row=i//4, column=(i%4)*2 +1, pady=0)
+            entri.bind("<Return>", lambda event, i=i: self.on_enter_personality(event, i))  # Enter 키 입력 시 호출            
             self.personalities.append(entri)
 
         frame_r2 = tk.LabelFrame(frame_personality, text="", width=self._width11-4, height=30, borderwidth=0, highlightthickness=0)
@@ -362,6 +419,33 @@ class GeneralTab:
         self.strategy = ttk.Combobox(frame_r4, values=gl._strategies_, width=8, )
         self.strategy.grid(row=4, column=5, columnspan=2, sticky="we",padx=2)
 
+    def on_enter_realm(self, event):
+        print("enter realm..")
+        if self.general_selected is None:
+            return
+        
+        entri = event.widget
+        try:
+            value = int(entri.get())
+            if 0 > value or value > 255:
+                print("error: overflow.. ", value)
+                return
+            self.general_selected.realm = value
+            self.general_selected.unpacked[27] = value
+        except:
+            print("error:..")
+        
+    def on_combo_state_selected(self, event):
+        selected_index = self.state.current()  # 선택된 항목의 인덱스
+        selected_value = self.state.get()      # 선택된 텍스트
+
+        print(f"{selected_index}: {selected_value}")        
+
+        #state = self.unpacked[26]
+        self.general_selected.state = selected_index
+        self.general_selected.unpacked[26] = selected_index
+
+
     def build_experiences(self, parent, nr, nc):
         frame_exp = tk.LabelFrame(parent, text="", width=self._width11, height=144, borderwidth=0, highlightthickness=0, )
         frame_exp.grid(row=3, column=0, )
@@ -381,6 +465,7 @@ class GeneralTab:
         tk.Label(frame_affil, text="세력").grid(row=0, column=0)
         self.realm = tk.Entry(frame_affil, width=5)
         self.realm.grid(row=0, column=1)
+        self.realm.bind("<Return>", self.on_enter_realm)  # Enter 키 입력 시 호출            
         tk.Button(frame_affil, text="표시",borderwidth=0, highlightthickness=0).grid(row=0, column=2)
 
         tk.Label(frame_affil, text="도시").grid(row=0, column=3, padx=(16,0))
@@ -397,6 +482,7 @@ class GeneralTab:
         tk.Label(frame_affil, text="신분").grid(row=2, column=0,)
         self.state = ttk.Combobox(frame_affil, values=gl._stateNames2, width=8, )
         self.state.grid(row=2, column=1, columnspan=2, padx=(3,0))
+        self.state.bind("<<ComboboxSelected>>", self.on_combo_state_selected)
         
         tk.Label(frame_affil, text="동료").grid(row=2, column=3, padx=(16,0))
         self.colleague = tk.Entry(frame_affil, width=6)
@@ -404,8 +490,10 @@ class GeneralTab:
         tk.Button(frame_affil, text="표시", borderwidth=0, highlightthickness=0).grid(row=2, column=5)
 
     def realm_selected(self, event):
+        self.general_selected = None
+
         selected = self.realm_filter.get()
-        values = [p for p in re.split(r'[ .,]', selected) if p]        
+        values = [p for p in re.split(r'[ .,]', selected) if p]
         filters = []
         self.realm_num = -1
         if '세력전체' != values[0]:
@@ -447,6 +535,7 @@ class GeneralTab:
                     self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
          
     def city_selected(self, event):
+        self.general_selected = None
         selected = self.city_filter.get()
         values = [p for p in re.split(r'[ .,]', selected) if p]        
         filters = []
@@ -475,6 +564,7 @@ class GeneralTab:
 
     def build_listup(self, parent, nr, nc):
 
+        self.general_selected = None
         gn = len(gl.generals)
 
         realm_filters=[]
@@ -548,29 +638,32 @@ class GeneralTab:
         self.frame_test.grid(row=4, column=0, padx=(0,0), pady=4)
         self.frame_test.grid_propagate(False)  # 크기 고정
 
-        test1 = tk.LabelFrame(self.frame_test, text="", width=102, height=54, )#borderwidth=0, highlightthickness=0)
-        test1.grid(row=0, column=1, rowspan=2,  padx=(4,0))
+        test1 = tk.LabelFrame(self.frame_test, text="", width=98, height=30, )#borderwidth=0, highlightthickness=0)
+        test1.grid(row=0, column=0, padx=(0,0))
         test1.grid_propagate(False)  # 크기 고정
-        tk.Button(test1, text="Test Save", width=12, height=2, relief="flat", bd=0,
-                  command=lambda: self.test_file()).grid(row=0, column=0)        
-
-        test2 = tk.LabelFrame(self.frame_test, text="", width=102, height=27, )#borderwidth=0, highlightthickness=0)
-        test2.grid(row=0, column=0, padx=(0,0))
-        test2.grid_propagate(False)  # 크기 고정
-        tk.Button(test2, text="Reset Turn", width=12, height=1, relief="flat", bd=0,
+        tk.Button(test1, text="Reset Turn", width=12, height=1, relief="flat", #bd=0,
                   command=lambda: self.reset_turn() ).grid(row=0, column=0)
 
-        test3 = tk.LabelFrame(self.frame_test, text="", width=102, height=27, )#borderwidth=0, highlightthickness=0)
-        test3.grid(row=1, column=0, padx=(0,0))
-        test3.grid_propagate(False)  # 크기 고정
-        tk.Button(test3, text="Reset List", width=12, height=1, relief="flat", bd=0,
+        test2 = tk.LabelFrame(self.frame_test, text="", width=98, height=30, )#borderwidth=0, highlightthickness=0)
+        test2.grid(row=1, column=0, padx=(0,0), pady=(2,0))
+        test2.grid_propagate(False)  # 크기 고정
+        tk.Button(test2, text="Reset List", width=12, height=1, relief="flat", #bd=0,
                   command=lambda: self.reset_list() ).grid(row=0, column=0)
         
-        test4 = tk.LabelFrame(self.frame_test, text="", width=102, height=54, )#borderwidth=0, highlightthickness=0)
+        test3 = tk.LabelFrame(self.frame_test, text="", width=98, height=45, )#borderwidth=0, highlightthickness=0)
+        test3.grid(row=0, column=1, rowspan=2,  padx=(4,0))
+        test3.grid_propagate(False)  # 크기 고정
+        tk.Button(test3, text="Test Save", width=12, height=2, relief="flat", #bd=0,
+                  command=lambda: self.save_general_selected()).grid(row=0, column=0)
+        
+        test4 = tk.LabelFrame(self.frame_test, text="", width=98, height=45, )#borderwidth=0, highlightthickness=0)
         test4.grid(row=0, column=2, rowspan=2, padx=(4,0))
         test4.grid_propagate(False)  # 크기 고정
-        tk.Button(test4, text="City/Item", width=12, height=2, relief="flat", bd=0,
+        tk.Button(test4, text="City/Item", width=12, height=2, relief="flat", #bd=0,
                   command=lambda: self.show_popup() ).grid(row=0, column=0)        
+
+    def save_general_selected(self):
+        files.test_save_general_selected(gl._loading_file, self.general_selected, True)
 
     def test_file(self):
         print("tset_file..")
@@ -607,6 +700,12 @@ class GeneralTab:
                 #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
 
     def reset_list(self):
+        _realm = self.realm_filter.get()
+        _city = self.city_filter.get()
+        if _realm =='세력전체' and _city == '도시전체':
+            print("세력이나, 도시를 선택해주세요..")
+            return
+        
         gn = len(gl.generals)
         count = 0
         items = list(self.lb_generals.get(0, tk.END))
