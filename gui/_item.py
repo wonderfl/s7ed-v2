@@ -260,6 +260,7 @@ class ItemTab:
         
         self.itemstats = tk.Entry(self.frame_b2, width=8,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.itemstats.grid(row=1, column=1, padx=(4,0))
+        self.itemstats.bind("<Return>", self.on_enter_stats)
 
         tk.Label(self.frame_b2, text="매매", width=6, anchor="e").grid(row=0, column=2, padx=0)
         self.market = tk.Entry(self.frame_b2, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
@@ -273,6 +274,20 @@ class ItemTab:
     def save_player(self):
         print("save player..")
 
+    def on_enter_stats(self, event):
+        entri = event.widget
+        value0 = entri.get()
+        try:
+            if self.item_selected.item_type in (0,2,3,9,10,11):
+                print("error: not type {0}, {1}".format(self.item_selected.item_type, value0))
+                return
+            value1 = int(value0)
+            self.item_selected.stats = value1
+            self.item_selected.unpacked[7] = value1
+            print("on_enter_stats: {0}".format(value1))
+        except ValueError:
+             print(f"error: stats [{value0}]")
+
     def on_enter_market(self, event):
         entri = event.widget
         value0 = entri.get()
@@ -285,7 +300,7 @@ class ItemTab:
             self.item_selected.unpacked[2] = value1
             print("on_enter_market: {0}".format(value1))
         except ValueError:
-             print(f"[{value0}] 숫자 아님: ")
+             print(f"error: market [{value0}]")
 
     def on_enter(self, event):
         entry = event.widget

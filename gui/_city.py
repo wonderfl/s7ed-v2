@@ -23,6 +23,7 @@ class CityTab:
         self.build_tab_city(self.rootframe, nr, nc)
 
     def listup_cities(self):
+        self.city_selected = None
         gn = len(gl.generals)
         filters = []
         filters.append("세력전체")
@@ -40,7 +41,8 @@ class CityTab:
         for city in gl.cities:
             self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
 
-    def city_selected(self, index, value):
+    def on_city_selected(self, index, value):
+        self.city_selected = None
         cn = len(gl.cities)
         if 0 > index or index >= cn:
             print(f"찾을 수 없는 도시 정보입니다: {index}:{value}.")
@@ -63,8 +65,9 @@ class CityTab:
             return
         
         city = gl.cities[_num]
+        self.city_selected = city
+        
         gn = len(gl.generals)
-
         realm_name = '없음'
         rn = len( gl.realms)
         if 0 <= city.realm and city.realm < rn:
@@ -102,10 +105,10 @@ class CityTab:
         if selection:
             index = selection[0]
             value = widget.get(index).strip()
-            #print(index, value)
-            self.city_selected(index, value)
+            self.on_city_selected(index, value)
 
-    def realm_selected(self, event):
+    def on_realm_selected(self, event):
+        self.city_selected = None
         selected = self.realm_filter.get()
         values = [p for p in re.split(r'[ .,]', selected) if p]
 
@@ -123,8 +126,60 @@ class CityTab:
                 self.lb_cities.insert(tk.END, " {0:2}. {1}".format(city.num, city.name))
 
     def save_city(self):
-        print("save city..")
-        files.test_save_cities('save cities')
+        if self.city_selected is None:
+            print("error: save city: None")
+            return
+        
+        print("save city: {0}".format(self.city_selected.name) )
+        files.test_save_city_selected(gl._loading_file, self.city_selected, True)
+
+    def on_enter_city(self, event, num):
+        #print("on_enter_city: {0}".format(num))
+        entri = event.widget
+        value0 = entri.get()
+        try:
+            value1 = int(value0)
+            if 0 == num:
+                self.city_selected.golds = value1
+                self.city_selected.unpacked[0] = value1
+            elif 1 == num:
+                self.city_selected.foods = value1
+                self.city_selected.unpacked[1] = value1
+            elif 2 == num:
+                self.city_selected.peoples = int(value1/100)
+                self.city_selected.unpacked[4] = self.city_selected.peoples
+            elif 3 == num:
+                self.city_selected.devs = value1
+                self.city_selected.unpacked[5] = value1
+            elif 4 == num:
+                self.city_selected.devmax = value1
+                self.city_selected.unpacked[6] = value1
+            elif 5 == num:
+                self.city_selected.shops = value1
+                self.city_selected.unpacked[7] = value1
+            elif 6 == num:
+                self.city_selected.shopmax = value1
+                self.city_selected.unpacked[8] = value1
+            elif 7 == num:
+                self.city_selected.secu = value1
+                self.city_selected.unpacked[9] = value1
+            elif 8 == num:
+                self.city_selected.defs = value1
+                self.city_selected.unpacked[10] = value1
+            elif 9 == num:
+                self.city_selected.tech = value1
+                self.city_selected.unpacked[11] = value1
+            elif 10 == num:
+                self.city_selected.city_sentiment = value1
+                gl.sentiments[self.city_selected.num] = value1
+
+        except ValueError:
+             print(f"error: {num} [{value0}]")
+
+        num1 = num+1
+        if num1 >= len(self.entries):
+            num1 = 0
+        self.entries[num1].focus_set()
 
     def build_basic(self, parent, nr, nc):
         frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-4)
@@ -175,6 +230,7 @@ class CityTab:
         self.city_devs = tk.Entry(frame_basic, width=7 )
         self.city_devs.grid(row=5, column=1, padx=0)
         self.entries.append(self.city_devs)
+
         self.city_devmax = tk.Entry(frame_basic, width=8 )
         self.city_devmax.grid(row=5, column=2, padx=0)
         self.entries.append(self.city_devmax)
@@ -183,6 +239,7 @@ class CityTab:
         self.city_shops = tk.Entry(frame_basic, width=7 )
         self.city_shops.grid(row=6, column=1, padx=0)
         self.entries.append(self.city_shops)
+
         self.city_shopmax = tk.Entry(frame_basic, width=8 )
         self.city_shopmax.grid(row=6, column=2, padx=0)
         self.entries.append(self.city_shopmax)
@@ -207,6 +264,9 @@ class CityTab:
         self.city_sentiment.grid(row=10, column=1, padx=0)
         self.entries.append(self.city_sentiment)
 
+        for i, entri in enumerate(self.entries):
+            entri.bind("<Return>", lambda event, i=i: self.on_enter_city(event,i))
+
 
     def build_tab_city(self, parent, nr, nc):
         self.frame_city = tk.LabelFrame(parent, text="", width=self._width00+100, height=self._height0, borderwidth=0, highlightthickness=0 )
@@ -225,7 +285,7 @@ class CityTab:
         realm_filters=[]
         self.realm_filter = ttk.Combobox(self.frame_0, values=realm_filters, width=10, )
         self.realm_filter.pack(side="top", fill="y")
-        self.realm_filter.bind("<<ComboboxSelected>>", self.realm_selected)
+        self.realm_filter.bind("<<ComboboxSelected>>", self.on_realm_selected)
 
         # 좌측 장수 리스트
         self.frame_listup = tk.LabelFrame(self.frame_0, text="", width=100, height=self._height0-8, )#borderwidth=0, highlightthickness=0)

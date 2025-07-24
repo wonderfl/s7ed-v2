@@ -70,6 +70,22 @@ class GeneralEditorApp:
         self.search_window.attributes('-toolwindow', True)
         self.search_window.title("이름으로 검색")
         #self.search_window.geometry("160x50")
+        self.root.update_idletasks()  # geometry 정보 갱신
+        px = self.root.winfo_x()
+        py = self.root.winfo_y()
+        pw = self.root.winfo_width()
+        ph = self.root.winfo_height()
+
+        # 팝업 크기
+        popup_width = 200
+        popup_height = 100
+
+        # 중앙 위치 계산 (부모 창 안에서)
+        x = px + (pw - popup_width) // 4
+        y = py + (ph - popup_height) // 4
+
+        self.search_window.geometry(f"+{x}+{y}")
+        self.search_window.bind("<Escape>", lambda event: self.search_window.destroy())
 
         frame1 = tk.LabelFrame(self.search_window, text="", width=176, height=32, )
         frame1.grid(row=0, column=0, padx=8, pady=4)

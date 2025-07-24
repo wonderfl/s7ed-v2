@@ -237,8 +237,7 @@ def test_save_general_selected(fname, general, save=False):
     if general is None:
         print("error: general None..")
         return False
-    print(general)
-       
+    
     s4 = (gl._scene - 1) % 4
     
     values = general.unpacked
@@ -247,14 +246,12 @@ def test_save_general_selected(fname, general, save=False):
     
     decoded = _decrypt_data(s4, encoded)
     _general = General(general.num, decoded)
-
     if general.name != _general.name:
         print("error: not match decode..")
         return False
     
     print("save: {0}".format(fname))
-    print(_general)
-
+    print(general)
     if False == save:
         return False
     
@@ -265,9 +262,18 @@ def test_save_general_selected(fname, general, save=False):
         encoded = _encrypt_data(s4, packed)
         saved = f.write(encoded)
 
+        print("{0},{1}".format(general.num, gl.relations[general.num]))
+        values = struct.pack('<H', gl.relations[general.num])
+        encoded = _encrypt_data(s4, values)
+        f.seek(gl.hero_relations_offset + 2 * general.num)
+        saved = f.write(encoded)        
+
     return True        
 
 def test_save_item_selected(fname, item, save=False):
+    if item is None:
+        print("error: item None..")
+        return False    
     s4 = (gl._scene - 1) % 4
     
     values = item.unpacked
@@ -282,8 +288,7 @@ def test_save_item_selected(fname, item, save=False):
         return False
     
     print("save: {0}".format(fname))
-    print(_item)
-
+    print(item)
     if False == save:
         return False
     
@@ -296,7 +301,42 @@ def test_save_item_selected(fname, item, save=False):
 
     return True
 
-def test_save_cities(fname):
+def test_save_city_selected(fname, city, save=False):
+    if city is None:
+        print("error: city None..")
+        return False
+    
+    values = city.unpacked
+    packed = CityStateStruct.pack(*values)
+
+    s4 = (gl._scene - 1) % 4
+    encoded = _encrypt_data(s4, packed)    
+    decoded = _decrypt_data(s4, encoded)
+    _city = CityState(city.num, city.name, decoded)
+
+    if city.peoples != _city.peoples:
+        print("error: not match decode..")
+        return False
+    
+    print(city)
+    if False == save:
+        return False
+    
+    with open(fname, "r+b") as f:
+        f.seek(gl.cities_offset + city.num * CityStateStruct.size)
+        values = city.unpacked
+        packed = CityStateStruct.pack(*values)
+        encoded = _encrypt_data(s4, packed)
+        saved = f.write(encoded)
+
+        values = struct.pack('<B', gl.sentiments[city.num])
+        encoded = _encrypt_data(s4, values)
+        f.seek(gl.hero_sentiments_offset + city.num)
+        saved = f.write(encoded)
+
+    print("save: {0}, {1}".format(fname, gl.sentiments[city.num]))
+
+def test_save_cities(fname):    
     s4 = (gl._scene - 1) % 4
     for i, city in enumerate (gl.cities): # 620명 기준
         values = city.unpacked
@@ -305,7 +345,7 @@ def test_save_cities(fname):
 
         decoded = _decrypt_data(s4, encoded)
         _city = CityState(i, gl._cityNames_[i], decoded)
-        print(_city)
+        print(_city)        
 
 def save_file(fname):
 

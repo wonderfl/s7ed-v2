@@ -110,8 +110,11 @@ class GeneralTab:
         self.family.delete(0, tk.END)
         self.family.insert(0, selected.family)
 
-        self.parents.delete(0, tk.END)
-        self.parents.insert(0, selected.parent)
+        self.parents.delete(0, tk.END)        
+        parent = selected.parent
+        if 65535 == parent:
+            parent = ' -'
+        self.parents.insert(0, parent)
 
         self.traitv.set(selected.job)        
         
@@ -188,7 +191,38 @@ class GeneralTab:
             tk.Label(frame, text=text).grid(row=0, column=i * 2)
             entry = tk.Entry(frame, width=width )
             entry.grid(row=0, column=i * 2 + 1)
-            entries.append(entry)
+            entries.append(entry)\
+            
+    def on_enter_num(self, event):
+        gn = len(gl.generals)        
+        value1 = self.num.get()
+        try:
+            num = int(value1)
+            if 0 > num or num >= gn:
+                print("overflow ", num)
+                return
+        except:
+            print('error: {0}'.format(value1))            
+            
+        #selected = gl.generals[num]
+        strkey = " {0:3}. ".format(num)
+
+        items = self.lb_generals.get(0, tk.END)
+        found = 0
+        for i, item in enumerate(items):
+            if strkey not in item:
+                continue
+            found = i
+            break
+        print("found:", found, strkey)
+
+        self.lb_generals.selection_clear(0, tk.END)   # 기존 선택 해제
+        self.lb_generals.selection_set(found)         # index 위치 선택
+        self.lb_generals.activate(found)              # 키보드 포커스 이동
+        self.lb_generals.see(found)                   # 해당 항목이 보이도록 스크롤
+        self.lb_generals.event_generate("<<ListboxSelect>>")
+        self.lb_generals.focus_set()
+
 
     def build_basic(self, parent, nr, nc):
         frame_basic = tk.LabelFrame(parent, text="무장 기본 설정", width=self._width01, height=72)
@@ -201,23 +235,30 @@ class GeneralTab:
 
         frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-4, height=24, borderwidth=0, highlightthickness=0)
         frame_b2.grid(row=1, column=0)
-        frame_b2.grid_propagate(False)  # 크기 고정                
+        frame_b2.grid_propagate(False)  # 크기 고정 
+
+
+        tk.Label(frame_b1, text="번호",).grid(row=0, column=0,)
+        entri0 = tk.Entry(frame_b1, width=4, )
+        entri0.grid(row=0, column=1, padx=(0,0))
+        entri0.bind("<Return>", lambda event: self.on_enter_num(event))  # Enter 키 입력 시 호출
+        self.num=entri0
 
         #entry_row(frame_b1, ["성", "명", "자"])
-        tk.Label(frame_b1, text="성").grid(row=0, column=0)
+        tk.Label(frame_b1, text="성").grid(row=0, column=2, padx=(8,0))
         self.name0 = tk.Entry(frame_b1, width=4 )
-        self.name0.grid(row=0, column=1)
+        self.name0.grid(row=0, column=3)
 
-        tk.Label(frame_b1, text="명").grid(row=0, column=2)
+        tk.Label(frame_b1, text="명").grid(row=0, column=4, padx=(8,0))
         self.name1 = tk.Entry(frame_b1, width=4 )
-        self.name1.grid(row=0, column=3)
+        self.name1.grid(row=0, column=5)
 
-        tk.Label(frame_b1, text="자").grid(row=0, column=4)
-        self.name2 = tk.Entry(frame_b1, width=4 )
-        self.name2.grid(row=0, column=5)
+        tk.Label(frame_b1, text="자").grid(row=0, column=6, padx=(8,0))
+        self.name2 = tk.Entry(frame_b1, width=6 )
+        self.name2.grid(row=0, column=7)
 
-        tk.Label(frame_b1, text="별명").grid(row=0, column=6)
-        tk.Entry(frame_b1, width=8 ).grid(row=0, column=7)                        
+        #tk.Label(frame_b1, text="별명").grid(row=0, column=8)
+        #tk.Entry(frame_b1, width=6 ).grid(row=0, column=11)
 
         tk.Label(frame_b2, text="얼굴").grid(row=1, column=0)
         self.face = tk.Entry(frame_b2, width=4)
@@ -238,21 +279,16 @@ class GeneralTab:
         frame_family.grid(row=nr, column=nc, pady=(4,0) )
         frame_family.grid_propagate(False)  # 크기 고정
 
-        entri0 = tk.Entry(frame_family, width=4, )
-        entri0.grid(row=0, column=0, padx=(4,0))
-        self.num=entri0
-        tk.Label(frame_family, text=".",).grid(row=0, column=1,)
-
-        tk.Label(frame_family, text="가문", width=4,).grid(row=0, column=2, padx=(2,0))
+        tk.Label(frame_family, text="가문", width=4,).grid(row=0, column=0, padx=(2,0))
         entri1 = tk.Entry(frame_family, width=4)
-        entri1.grid(row=0, column=3)
-        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=4)
+        entri1.grid(row=0, column=1)
+        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=2)
         self.family=entri1
 
-        tk.Label(frame_family, text="부모", width=4,).grid(row=0, column=5, padx=(4,0))
+        tk.Label(frame_family, text="부모", width=4,).grid(row=0, column=3, padx=(4,0))
         entri2 = tk.Entry(frame_family, width=5)
-        entri2.grid(row=0, column=6)
-        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=7)
+        entri2.grid(row=0, column=4)
+        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=5)
         self.parents=entri2
 
     def build_stats(self, parent, nr, nc):
@@ -335,24 +371,125 @@ class GeneralTab:
         print("enter personality: ", num)
         if self.general_selected is None:
             return
-        
+        next = num+1
+        if next >= len(self.personalities):
+            next = 0
+
         value0 = self.personalities[num].get()
         try:
             value1 = int(value0)
             if 3 == num: # 수명
-                self.general_selected.lifespan = value1
-                data = self.general_selected.unpacked[11]                
-                value0 = gl.set_bits(data, value1, 8, 4)
-                #value1 = gl.bit16from(value0, 4, 4)
-                #print("수명: {0}, {1}".format( format(value0, '016b'), value1))
-                self.general_selected.unpacked[11] = value0
+                if 15 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[11]
+                data1 = gl.set_bits(data0, value1, 8, 4)
+                value0 = gl.get_bits(data0, 8, 4)
+                print("수명: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.unpacked[11] = data1
+                self.general_selected.lifespan = value1                
 
-            if 16 == num: # 충성
+            elif 4 == num: # 성장
+                #.특성: 0123 0011 3 매력, 
+                #.건강: 4567 0000
+                #.성장: 89AB 0010 
+                #.수명: CDEF 0111 
+                if 2 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[11]
+                data1 = gl.set_bits(data0, value1, 12, 4)
+                value0 = gl.get_bits(data0, 12, 4)
+                print("수명: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.unpacked[11] = data1
+                self.general_selected.groth = value1
+
+            elif 5 == num: # 상성
+                if 150 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                self.general_selected.salary = value1
+                self.general_selected.unpacked[43] = value1
+
+            elif 6 == num: # 야망
+                if 15 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[10]
+                data1 = gl.set_bits(data0, value1, 4, 4)
+                value0 = gl.get_bits(data0, 4, 4)                
+                print("야망: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.ambition = value1
+                self.general_selected.unpacked[10] = data1
+
+            elif 7 == num: # 의리
+                if 15 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[10]
+                value0 = gl.get_bits(data0, 0, 4)
+                data1 = gl.set_bits(data0, value1, 0, 4)
+                print("의리: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.fidelity = value1
+                self.general_selected.unpacked[10] = data1
+
+            elif 8 == num: # 용맹
+                #.야망: 0123 1100
+                #.의리: 4567 1111
+                #.성별: 89 00
+                #.용맹: ABC 101
+                #.냉정: DEF 101
+                if 7 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[10]
+                data1 = gl.set_bits(data0, value1, 11, 3)
+                value0 = gl.get_bits(data0, 11, 3)                
+                print("용맹: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.valour = value1
+                self.general_selected.unpacked[10] = data1
+
+            elif 9 == num: # 냉정
+                if 7 < value1:
+                    print("error: overflow {0} {1}".format(num, value1))
+                    return
+                data0 = self.general_selected.unpacked[10]
+                data1 = gl.set_bits(data0, value1, 8, 3)
+                value0 = gl.get_bits(data0, 8, 3)
+                print("냉정: {0:2},{1:2}, [{2}, {3}]".format( value0, value1, format(data0, '016b'), format(data1, '016b'),))
+                self.general_selected.composed = value1
+                self.general_selected.unpacked[10] = data1
+
+            elif 10 == num: # 명성
+                self.general_selected.fame = value1
+                self.general_selected.unpacked[6] = value1
+            elif 11 == num: # 공적
+                self.general_selected.achieve = value1
+                self.general_selected.unpacked[5] = value1
+            elif 12 == num: # 봉록
+                self.general_selected.salary = value1
+                self.general_selected.unpacked[40] = value1
+            elif 13 == num: # 행동력
+                self.general_selected.actions = value1
+                self.general_selected.unpacked[20] = value1
+            elif 14 == num: # 병사
+                self.general_selected.soldier = value1
+                self.general_selected.unpacked[7] = value1
+            elif 15 == num: # 훈련
+                self.general_selected.training = value1
+                self.general_selected.unpacked[41] = value1
+            elif 16 == num: # 충성
                 self.general_selected.loyalty = value1
                 self.general_selected.unpacked[37] = value1
+            elif 18 == num: # 친밀                
+                gl.relations[self.general_selected.num] = value1
+            else:
+                print("??: on_enter", num, value0)
 
         except:
             print("error: on_enter", num, value0)
+        
+        self.personalities[next].focus_set()
 
 
     def build_personalities(self, parent, nr, nc):        
@@ -641,8 +778,10 @@ class GeneralTab:
         test1 = tk.LabelFrame(self.frame_test, text="", width=98, height=30, )#borderwidth=0, highlightthickness=0)
         test1.grid(row=0, column=0, padx=(0,0))
         test1.grid_propagate(False)  # 크기 고정
-        tk.Button(test1, text="Reset Turn", width=12, height=1, relief="flat", #bd=0,
-                  command=lambda: self.reset_turn() ).grid(row=0, column=0)
+        #tk.Button(test1, text="Reset Turn", width=12, height=1, relief="flat", #bd=0,
+        #          command=lambda: self.reset_turn() ).grid(row=0, column=0)
+        tk.Button(test1, text="Refill List", width=12, height=1, relief="flat", #bd=0,
+                  command=lambda: self.refill_list() ).grid(row=0, column=0)
 
         test2 = tk.LabelFrame(self.frame_test, text="", width=98, height=30, )#borderwidth=0, highlightthickness=0)
         test2.grid(row=1, column=0, padx=(0,0), pady=(2,0))
@@ -664,6 +803,7 @@ class GeneralTab:
 
     def save_general_selected(self):
         files.test_save_general_selected(gl._loading_file, self.general_selected, True)
+        self.lb_generals.focus_set()
 
     def test_file(self):
         print("tset_file..")
@@ -698,6 +838,50 @@ class GeneralTab:
                 print("{0} [{1:X},{2:X}] => [{3:X},{4:X}]".format(selected.name, value0, value1, value2, value3))
                 #value0 = selected.unpacked[12]
                 #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
+
+    def refill_list(self):
+        _realm = self.realm_filter.get()
+        _city = self.city_filter.get()
+        if _realm =='세력전체' and _city == '도시전체':
+            print("세력이나, 도시를 선택해주세요..")
+            return
+        
+        gn = len(gl.generals)
+        count = 0
+        items = list(self.lb_generals.get(0, tk.END))
+        for item in items:
+            values = [p for p in re.split(r'[ .,]', item) if p]
+
+            _num = int(values[0])
+            if 0 > _num or _num >= gn:
+                continue
+            selected = gl.generals[_num]
+
+            data0 = selected.unpacked[37] # 충성
+            data1 = selected.unpacked[11] # 건강, 성장,  수명
+
+            injury = gl.get_bits(data1, 0, 4)
+            value1 = gl.set_bits(data1, 0, 0, 4)
+            #selected.injury   = gl.bit16from(value2, 12, 4)            
+            #if 100 <= data0:
+            #    continue
+
+            value0 = data0 + 5
+            if 100 < value0:
+                value0 = 100
+            selected.unpacked[37] = value0
+            selected.loyalty = value0
+
+            if 0 >= selected.injury and 100 <= data0:
+                continue            
+            selected.unpacked[11] = value1
+            selected.injury = 0
+
+            count = count + 1
+            print("{0:3}. {1}[{2:3}, {3:3}]".format(count, selected.fixed, selected.num, value0) + 
+                  ("[ {0:2}, {1}, {2} ]".format( injury, format(data1, '016b'), format(value1, '016b')) if 0 < injury else "") )
+            
+        print('refill: {0:3} / {1}'.format(count, len(items)))                
 
     def reset_list(self):
         _realm = self.realm_filter.get()
