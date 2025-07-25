@@ -1,3 +1,4 @@
+import os
 import re
 
 import tkinter as tk
@@ -41,14 +42,14 @@ class ItemTab:
         self.item_selected = None
 
     def listup_items(self):
-        print('{0}, {1}'.format(gl._scene, gl._name))
+        print('{0}, {1}'.format(gl._scene, gl._player_name))
         
         self.item_selected = None
         self.current_scene.delete(0, tk.END)
         self.current_scene.insert(0, '{0}'.format(gl._scene))
 
         self.player_name.delete(0, tk.END)
-        self.player_name.insert(0, '{0}'.format(gl._name))
+        self.player_name.insert(0, '{0:3}. {1}'.format(gl._player_num, gl._player_name))
 
         self.current_year.delete(0, tk.END)
         self.current_year.insert(0, '{0:5}'.format(gl._year))
@@ -272,7 +273,15 @@ class ItemTab:
         self.itemprice.grid(row=1, column=3, padx=(4,0))
 
     def save_player(self):
-        print("save player..")
+        filename = gl._loading_file
+        if 0 >= len(filename):
+            print("error: file name empty..")
+            return
+        if False == os.path.exists(filename):
+            print("error: file not exist.. ", filename)
+            gl._loading_file = ''
+            return
+        files.save_player_gold(filename)
 
     def on_enter_stats(self, event):
         entri = event.widget
@@ -316,16 +325,17 @@ class ItemTab:
              print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
 
     def build_player(self, parent, nr, nc):
+        #frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=108, )# borderwidth=0, highlightthickness=0)
         frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=96, )# borderwidth=0, highlightthickness=0)
         frame_player.grid(row=nr, column=nc, pady=0 )
         frame_player.grid_propagate(False)  # 크기 고정
                 
-        frame_b1 = tk.LabelFrame(frame_player, text="", width=self._width00+100, height=26, borderwidth=0, highlightthickness=0)
+        frame_b1 = tk.LabelFrame(frame_player, text="", width=self._width00+108, height=50, borderwidth=0, highlightthickness=0)
         frame_b1.grid(row=0, column=0, sticky="nsew", pady=(8, 0))
         frame_b1.grid_propagate(False)  # 크기 고정
 
         tk.Label(frame_b1, text="시나리오", width=8, anchor="e").grid(row=0, column=0, padx=0, pady=0)
-        self.current_scene = tk.Entry(frame_b1, width=8,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.current_scene = tk.Entry(frame_b1, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_scene.grid(row=0, column=1, padx=(4,0), pady=0)
 
         tk.Label(frame_b1, text="게임날짜", width=8, anchor="e").grid(row=0, column=2, padx=0, pady=0)
@@ -334,32 +344,31 @@ class ItemTab:
         self.current_month = tk.Entry(frame_b1, width=4,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_month.grid(row=0, column=4, padx=(2,0), pady=0)
 
+        # frame_b2 = tk.LabelFrame(frame_player, text="", width=self._width00+108, height=28, )#borderwidth=0, highlightthickness=0)
+        # frame_b2.grid(row=1, column=0, sticky="nsew",)
+        # frame_b2.grid_propagate(False)  # 크기 고정  
 
-        frame_b2 = tk.LabelFrame(frame_player, text="", width=self._width00+100, height=26, borderwidth=0, highlightthickness=0)
-        frame_b2.grid(row=1, column=0, sticky="nsew",)
-        frame_b2.grid_propagate(False)  # 크기 고정  
+        tk.Label(frame_b1, text="이름", width=8, anchor="e").grid(row=1, column=0, padx=(0,0), pady=0)
+        self.player_name = tk.Entry(frame_b1, width=10, ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.player_name.grid(row=1, column=1, padx=(4,0), pady=0)        
 
-        tk.Label(frame_b2, text="이름", width=8, anchor="e").grid(row=0, column=0, padx=(0,0), pady=0)
-        self.player_name = tk.Entry(frame_b2, width=8, ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.player_name.grid(row=0, column=1, padx=(4,0), pady=0)        
-
-        tk.Label(frame_b2, text="소지금", width=8, anchor="e").grid(row=0, column=2, padx=0, pady=0)
+        tk.Label(frame_b1, text="소지금", width=8, anchor="e").grid(row=1, column=2, padx=0, pady=0)
 
         var_gold = tk.StringVar()
-        self.current_gold = tk.Entry(frame_b2, width=9,  textvariable=var_gold ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.current_gold.grid(row=0, column=3, padx=(4,0), pady=0)
+        self.current_gold = tk.Entry(frame_b1, width=9,  textvariable=var_gold ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.current_gold.grid(row=1, column=3, columnspan=2, padx=(4,0), pady=0)
         self.current_gold.bind("<Return>", self.on_enter)
 
         self.entry_vars["소지금"] = var_gold
         self.entry_ids[self.current_gold] = "소지금"
 
 
-        frame1 = tk.LabelFrame(frame_b2, width=76, height=26, )#highlightbackground="black", highlightthickness=0)
-        frame1.grid(row=0, column=4, padx=(32,0), pady=(0,0),)
+        frame1 = tk.LabelFrame(frame_b1, width=80, height=26, highlightbackground="black", highlightthickness=0)
+        frame1.grid(row=1, column=5, padx=(16,0), pady=(0,0),)
         frame1.grid_propagate(False)
-        tk.Button( frame1, text="Save Player", relief="flat", bd=0,   # 내부 border 제거
-                    command=lambda: self.save_player(), ).grid(row=0, column=0, padx=(4,0))
-
+        tk.Button( frame1, text="Save Gold", relief="flat", bd=0,   # 내부 border 제거
+                    command=lambda: self.save_player(), ).grid(row=0, column=0, padx=(8,0))
+        
     def build_tab_item(self, parent, nr, nc):
         self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+136, height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_item.grid(row=nr, column=nc, padx=(4,0), pady=(0,8), sticky="nsew",)

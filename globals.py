@@ -70,7 +70,8 @@ _year = 189
 _month = 3
 
 _scene = ''
-_name = ''
+_player_num = -1
+_player_name = ''
 _loading_file = ""
 
 savetime_offset = 0x0000001E # 저장시간( 년,월,일, 시,분,초)

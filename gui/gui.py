@@ -214,18 +214,29 @@ def app():
     menu_bar = tk.Menu(_root)
 
     file_menu = tk.Menu(menu_bar, tearoff=0, )
-    file_menu.add_command(label="open", command=open_file)
-    file_menu.add_command(label="save ", command=save_file)
-    file_menu.add_command(label="save as", command=save_as_file)    
+    file_menu.add_command(label="Open", command=open_file)
+    file_menu.add_command(label="Save ", command=save_file)
+    file_menu.add_command(label="Save as", command=save_as_file)    
 
     file_menu.add_separator()
-    file_menu.add_command(label="export", command=export_file)
+    file_menu.add_command(label="Export", command=export_file)
 
     file_menu.add_separator()
-    file_menu.add_command(label="exit", command=_root.quit)
+    file_menu.add_command(label="Exit", command=_root.quit)
 
     info_menu = tk.Menu(menu_bar, tearoff=0,)
     info_menu.add_command(label="etc", command=info_open)
+
+    add_menu = tk.Menu(menu_bar, tearoff=0,)
+    add_menu.add_command(label="충성 + 5", command=info_open)
+    add_menu.add_command(label="행동력 + 50", command=info_open)
+    add_menu.add_command(label="건강 +", command=info_open)
+    add_menu.add_command(label="친밀 + 10", command=info_open)
+
+    full_menu = tk.Menu(menu_bar, tearoff=0,)
+    full_menu.add_command(label="행동유무", command=info_open)
+    full_menu.add_command(label="행동력", command=info_open)
+    full_menu.add_command(label="훈련", command=info_open)
 
     help_menu = tk.Menu(menu_bar, tearoff=0)
     help_menu.add_command(label="help", command=open_help)
@@ -234,7 +245,9 @@ def app():
     menu_bar.add_cascade(label="File", menu=file_menu)
     menu_bar.add_cascade(label="Reload", command=reload_file)
     menu_bar.add_cascade(label="Save", command=save_file)
-    menu_bar.add_cascade(label="Info", command=info_open)
+    menu_bar.add_cascade(label="Add+", menu=add_menu)
+    menu_bar.add_cascade(label="Full", menu=full_menu)
+    menu_bar.add_cascade(label="City/Item", command=info_open)
     menu_bar.add_cascade(label="Help", menu=help_menu)
 
     _root.config(menu=menu_bar)

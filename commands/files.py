@@ -81,7 +81,9 @@ def open_file(fname):
             
             f.seek(gl.player_name_offset)
             _name = f.read(8)
-            gl._name = _name.decode('euc-kr')
+            _name = _name.decode('euc-kr')
+            _name = _name.rstrip('\x00')            
+            gl._name = _name
             print(gl._name)
 
             f.seek(gl.scene_num_offset)
@@ -135,12 +137,13 @@ def open_file(fname):
             if 0 > _num or _num >= len(_generals):
                 print("save data error: wrong player num.. \nnum: {0}, gn:{1}".format( _num, len(_generals)))
                 return
-            
-            gl._name = gl._name.rstrip('\x00')
             general = _generals[_num]
             if general.name != gl._name:
                 print("save data error: wrong player name.\n [{0}!={1}]".format( gl._name, general.name))
                 return
+            
+            gl._player_num = _num
+            gl._player_name = _name            
 
             for i in range(620): # 620명 기준
                 f.seek(gl.hero_relations_offset + i * 2)
@@ -345,7 +348,21 @@ def test_save_cities(fname):
 
         decoded = _decrypt_data(s4, encoded)
         _city = CityState(i, gl._cityNames_[i], decoded)
-        print(_city)        
+        print(_city)   
+
+def save_player_gold(fname):
+    try:
+        s4 = (gl._scene - 1) % 4    
+        with open(fname, "r+b") as f:
+            values = struct.pack('<H', gl.hero_golds)
+            encoded = _encrypt_data(s4, values)
+
+            f.seek(gl.hero_golds_offset)
+            saved = f.write(encoded)
+    except FileNotFoundError:
+        print("{0} 파일을 찾을 수 없습니다.".format(fname))
+        return None         
+
 
 def save_file(fname):
 
