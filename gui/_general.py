@@ -3,6 +3,7 @@ import re
 import tkinter as tk
 from tkinter import ttk
 import tkinter.font as tkfont
+from PIL import Image, ImageTk
 
 import globals as gl
 from . import _city
@@ -16,17 +17,19 @@ from commands import files
 
 class GeneralTab:
 
-    _width00 = 276
-    _width01 = 272
+    _width00 = 284
+    _width01 = 280
 
     _width10 = 328
     _width11 = 320
 
-    _height0 = 500
+    _height0 = 520
 
     realm_num = -1
-    city_num = -1    
+    city_num = -1
 
+    image_height = 100
+    image_width = int(image_height*0.8)
 
     skills=[]
     skillv=[]
@@ -69,36 +72,20 @@ class GeneralTab:
         for general in gl.generals:
             self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
 
+        _num = gl._player_num
+
         self.lb_generals.focus_set()
-        self.lb_generals.selection_clear(0, tk.END)     # 기존 선택 해제
-        self.lb_generals.selection_set(0)               # index 위치 선택
-        self.lb_generals.activate(0)                    # 키보드 포커스 이동
-        self.lb_generals.see(0)                         # 해당 항목이 보이도록 스크롤
+        self.lb_generals.selection_clear(_num, tk.END)     # 기존 선택 해제
+        self.lb_generals.selection_set(_num)               # index 위치 선택
+        self.lb_generals.activate(_num)                    # 키보드 포커스 이동
+        self.lb_generals.see(_num)                         # 해당 항목이 보이도록 스크롤
         self.lb_generals.event_generate("<<ListboxSelect>>")
 
         if _popup.ItemPopup._instance is not None:
             print("listup_items")
             _popup.ItemPopup._instance.frame_item.listup_items()
 
-    def on_selected_general(self, index, value):
-        #print(f"선택된 항목 처리: {value}")
-        self.general_selected = None
-
-        gn = len(gl.generals)
-        values = [p for p in re.split(r'[ .,]', value) if p]
-        
-        _num = int(values[0])
-        if 0 > _num or _num >= gn:
-            print(f"잘못된 정보입니다: {index}, {value}, {_num}")
-            return
-
-        selected = gl.generals[_num]
-        if selected.name != values[1]:
-            print(f"잘못된 이름입니다: {index}, {value}, {values}")
-            return
-        
-        self.general_selected = selected
-
+    def refresh_general(self, selected ):
         self.name0.delete(0, tk.END)
         self.name0.insert(0, selected.name0)
         self.name1.delete(0, tk.END)        
@@ -122,6 +109,20 @@ class GeneralTab:
         if 65535 == parent:
             parent = ' -'
         self.parents.insert(0, parent)
+
+        _png = 'gui/png/face{0:03}.png'.format(selected.faceno)
+
+        _image00 = Image.open(_png)  # 파일명 경로 지정  
+        _resized = _image00.resize((self.image_width,self.image_height), Image.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(_resized)        
+
+        #face_label = tk.Label(frame_b0, width=96, height=120, )
+        #face_label.grid(row=0, column=0, padx=(4,4))
+        #canvas = tk.Canvas(self.frame_image, width=_resized.width, height=_resized.height)
+        #canvas.pack()
+        if self.image_created:
+            self.canvas.delete(self.image_created)
+        self.image_created = self.canvas.create_image(0, 0, anchor='nw', image=self.tk_image)
 
         self.traitv.set(selected.job)        
         
@@ -178,8 +179,28 @@ class GeneralTab:
         self.rank.set(gl._rankNames_[ selected.rank if 4 > selected.rank else 4])
 
         self.colleague.delete(0, tk.END)
-        self.colleague.insert(0, selected.colleague)        
+        self.colleague.insert(0, selected.colleague)          
 
+    def on_selected_general(self, index, value):
+        #print(f"선택된 항목 처리: {value}")
+        self.general_selected = None
+
+        gn = len(gl.generals)
+        values = [p for p in re.split(r'[ .,]', value) if p]
+        
+        _num = int(values[0])
+        if 0 > _num or _num >= gn:
+            print(f"잘못된 정보입니다: {index}, {value}, {_num}")
+            return
+
+        selected = gl.generals[_num]
+        if selected.name != values[1]:
+            print(f"잘못된 이름입니다: {index}, {value}, {values}")
+            return        
+        self.general_selected = selected
+
+        self.refresh_general(selected)
+        
     def on_selected(self, event):
         widget = event.widget
         selection = widget.curselection()
@@ -232,20 +253,93 @@ class GeneralTab:
         self.lb_generals.event_generate("<<ListboxSelect>>")
         self.lb_generals.focus_set()
 
+    def on_enter_family(self, event):
+        gn = len(gl.generals)        
+        value1 = self.family.get()
+        try:
+            num = int(value1)
+            if 0 > num or num >= gn:
+                print("overflow ", num)
+                return
+        except:
+            print('error: {0}'.format(value1))            
+            
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            if num != general.family:
+                continue
+            self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))            
+
+        #self.lb_generals.focus_set()
+        self.lb_generals.selection_clear(0, tk.END)     # 기존 선택 해제
+        self.lb_generals.selection_set(0)               # index 위치 선택
+        self.lb_generals.activate(0)                    # 키보드 포커스 이동
+        self.lb_generals.see(0)                         # 해당 항목이 보이도록 스크롤
+        self.lb_generals.event_generate("<<ListboxSelect>>")
+
+    def on_enter_name0(self, event):
+        gn = len(gl.generals)        
+        value1 = self.name0.get()
+
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            if value1 != general.name0:
+                continue
+            self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))            
+
+        #self.lb_generals.focus_set()
+        self.lb_generals.selection_clear(0, tk.END)     # 기존 선택 해제
+        self.lb_generals.selection_set(0)               # index 위치 선택
+        self.lb_generals.activate(0)                    # 키보드 포커스 이동
+        self.lb_generals.see(0)                         # 해당 항목이 보이도록 스크롤
+        self.lb_generals.event_generate("<<ListboxSelect>>")        
+
+    def on_enter_parent(self, event):
+        gn = len(gl.generals)        
+        value1 = self.parents.get()
+        try:
+            num = int(value1)
+            if num > 65535:
+                print("overflow ", num)
+                return
+        except:
+            print('error: {0}'.format(value1))            
+            
+        self.lb_generals.delete(0, tk.END)
+        for general in gl.generals:
+            if num != general.parent:
+                continue
+            self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))            
+
+        #self.lb_generals.focus_set()
+        self.lb_generals.selection_clear(0, tk.END)     # 기존 선택 해제
+        self.lb_generals.selection_set(0)               # index 위치 선택
+        self.lb_generals.activate(0)                    # 키보드 포커스 이동
+        self.lb_generals.see(0)                         # 해당 항목이 보이도록 스크롤
+        self.lb_generals.event_generate("<<ListboxSelect>>")                
+
 
     def build_basic(self, parent, nr, nc):
-        frame_basic = tk.LabelFrame(parent, text="무장 기본 설정", width=self._width01, height=72)
+        frame_basic = tk.LabelFrame(parent, text="무장 기본 설정", width=self._width01, height=self.image_height+38)
         frame_basic.grid(row=nr, column=nc, pady=(4,0) )
         frame_basic.grid_propagate(False)  # 크기 고정
+
+        frame_b0 = tk.LabelFrame(frame_basic, text="", )#borderwidth=0, highlightthickness=0)
+        frame_b0.grid(row=0, column=0, rowspan=3, ipadx=0,ipady=0, pady=(8,0))
+        frame_b0.grid_propagate(False)  # 크기 고정
+        self.frame_image = frame_b0
+
+        self.canvas = tk.Canvas(self.frame_image, width=self.image_width, height=self.image_height)
+        self.canvas.pack()
+        self.image_created = None
                 
-        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-4, height=24, borderwidth=0, highlightthickness=0)
-        frame_b1.grid(row=0, column=0)
+        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-96, height=64, borderwidth=0, highlightthickness=0)
+        frame_b1.grid(row=0, column=1, padx=(4,0))
         frame_b1.grid_propagate(False)  # 크기 고정        
 
-        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-4, height=24, borderwidth=0, highlightthickness=0)
-        frame_b2.grid(row=1, column=0)
+        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-96, height=30, borderwidth=0, highlightthickness=0)
+        frame_b2.grid(row=1, column=1, padx=(4,0), pady=(0,0))
         frame_b2.grid_propagate(False)  # 크기 고정 
-
 
         tk.Label(frame_b1, text="번호",).grid(row=0, column=0,)
         entri0 = tk.Entry(frame_b1, width=4, )
@@ -253,52 +347,68 @@ class GeneralTab:
         entri0.bind("<Return>", lambda event: self.on_enter_num(event))  # Enter 키 입력 시 호출
         self.num=entri0
 
+        tk.Label(frame_b1, text="얼굴").grid(row=0, column=2)
+        self.face = tk.Entry(frame_b1, width=4)
+        self.face.grid(row=0, column=3)        
+
+        tk.Label(frame_b1, text="가문", width=4,).grid(row=1, column=0, padx=(0,0))
+        entri1 = tk.Entry(frame_b1, width=4)
+        entri1.grid(row=1, column=1)
+        entri1.bind("<Return>", lambda event: self.on_enter_family(event))  # Enter 키 입력 시 호출
+        self.family=entri1
+
+        tk.Label(frame_b1, text="부모", width=4,).grid(row=1, column=2, padx=(0,0))
+        entri2 = tk.Entry(frame_b1, width=4)
+        entri2.grid(row=1, column=3)
+        entri2.bind("<Return>", lambda event: self.on_enter_parent(event))  # Enter 키 입력 시 호출
+        self.parents=entri2                                
+
         #entry_row(frame_b1, ["성", "명", "자"])
-        tk.Label(frame_b1, text="성").grid(row=0, column=2, padx=(8,0))
+        tk.Label(frame_b1, text="성").grid(row=2, column=0, padx=(8,0))
         self.name0 = tk.Entry(frame_b1, width=4 )
-        self.name0.grid(row=0, column=3)
+        self.name0.bind("<Return>", lambda event: self.on_enter_name0(event))  # Enter 키 입력 시 호출
+        self.name0.grid(row=2, column=1)
 
-        tk.Label(frame_b1, text="명").grid(row=0, column=4, padx=(8,0))
+        tk.Label(frame_b1, text="명").grid(row=2, column=2, padx=(8,0))
         self.name1 = tk.Entry(frame_b1, width=4 )
-        self.name1.grid(row=0, column=5)
+        self.name1.grid(row=2, column=3)
 
-        tk.Label(frame_b1, text="자").grid(row=0, column=6, padx=(8,0))
-        self.name2 = tk.Entry(frame_b1, width=6 )
-        self.name2.grid(row=0, column=7)
+        #tk.Label(frame_b1, text="자").grid(row=1, column=4, padx=(8,0))
+        self.name2 = tk.Entry(frame_b1, width=5 )
+        self.name2.grid(row=2, column=5, padx=(0,0))
+
 
         #tk.Label(frame_b1, text="별명").grid(row=0, column=8)
         #tk.Entry(frame_b1, width=6 ).grid(row=0, column=11)
 
-        tk.Label(frame_b2, text="얼굴").grid(row=1, column=0)
-        self.face = tk.Entry(frame_b2, width=4)
-        self.face.grid(row=1, column=1)
+        tk.Label(frame_b2, text="행동").grid(row=0, column=0)
+        self.turnv = tk.IntVar()
+        self.turned = tk.Checkbutton(frame_b2, text="", variable=self.turnv)
+        self.turned.grid(row=0, column=1, padx=(0,0))        
 
         self.genderv = tk.IntVar()
-        tk.Label(frame_b2, text="성별").grid(row=1, column=3)
-        tk.Radiobutton(frame_b2, text="남", variable=self.genderv, value=0).grid(row=1, column=4)
-        tk.Radiobutton(frame_b2, text="여", variable=self.genderv, value=1).grid(row=1, column=5)
+        tk.Label(frame_b2, text="성별").grid(row=0, column=2, padx=(2,0))
+        tk.Radiobutton(frame_b2, text="남", variable=self.genderv, value=0).grid(row=0, column=3)
+        tk.Radiobutton(frame_b2, text="여", variable=self.genderv, value=1).grid(row=0, column=4)
         
-        var = tk.IntVar()
-        self.turned = tk.Checkbutton(frame_b2, text="행동유무", variable=var)
-        self.turned.grid(row=1, column=7)
-        self.turnv = var
 
-    def build_family(self, parent, nr, nc):
-        frame_family = tk.LabelFrame(parent, text="무장 혈연", width=self._width01, height=44)
-        frame_family.grid(row=nr, column=nc, pady=(4,0) )
-        frame_family.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_family, text="가문", width=4,).grid(row=0, column=0, padx=(2,0))
-        entri1 = tk.Entry(frame_family, width=4)
-        entri1.grid(row=0, column=1)
-        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=2)
-        self.family=entri1
+    # def build_family(self, parent, nr, nc):
+    #     frame_family = tk.LabelFrame(parent, text="무장 혈연", width=self._width01, height=44)
+    #     frame_family.grid(row=nr, column=nc, pady=(4,0) )
+    #     frame_family.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_family, text="부모", width=4,).grid(row=0, column=3, padx=(4,0))
-        entri2 = tk.Entry(frame_family, width=5)
-        entri2.grid(row=0, column=4)
-        tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=5)
-        self.parents=entri2
+    #     tk.Label(frame_family, text="가문", width=4,).grid(row=0, column=0, padx=(2,0))
+    #     entri1 = tk.Entry(frame_family, width=4)
+    #     entri1.grid(row=0, column=1)
+    #     tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=2)
+    #     self.family=entri1
+
+    #     tk.Label(frame_family, text="부모", width=4,).grid(row=0, column=3, padx=(4,0))
+    #     entri2 = tk.Entry(frame_family, width=5)
+    #     entri2.grid(row=0, column=4)
+    #     tk.Button(frame_family, text="표시", width=3, borderwidth=0, highlightthickness=0).grid(row=0, column=5)
+    #     self.parents=entri2
 
     def build_stats(self, parent, nr, nc):
         frame_stats = tk.LabelFrame(parent, text="무장 능력", width=self._width01, height=44)
@@ -654,9 +764,62 @@ class GeneralTab:
         tk.Label(frame_r4, text="인물 경향").grid(row=4, column=0, sticky="e", padx=2)
         self.tendency = ttk.Combobox(frame_r4, values=gl._tendencies_, width=8, )
         self.tendency.grid(row=4, column=1, columnspan=2, sticky="we", padx=2)
+        self.tendency.bind("<<ComboboxSelected>>", self.on_selected_tendency)
+
         tk.Label(frame_r4, text="전략 경향").grid(row=4, column=4, sticky="e", padx=(16,0))
         self.strategy = ttk.Combobox(frame_r4, values=gl._strategies_, width=8, )
         self.strategy.grid(row=4, column=5, columnspan=2, sticky="we",padx=2)
+        self.strategy.bind("<<ComboboxSelected>>", self.on_selected_strategy)
+
+    #value2 = self.unpacked[12]
+    #.인물: 0123 0000
+    #.전략: 4567 0011
+    #.행동: 89AB 0000
+    #.???: CDEF 0000
+    #self.tendency   = gl.bit16from(value2, 8, 4) # 인물경향
+    #self.strategy   = gl.bit16from(value2,12, 4) # 전략경향
+    #self.turned     = gl.bit16from(value2, 0, 1)
+    #self.opposite   = gl.bit16from(value2, 4, 4)
+
+    def on_selected_tendency(self, sevent):
+        _index = self.tendency.current()  # 선택한 항목의 인덱스
+        _value = self.tendency.get()      # 선택한 항목의 값
+        print("on_selected_tendency[ {0}, {1} ]".format(_index, _value))
+        
+        if self.general_selected is None:
+            print("general is None")
+            return
+        _selected = self.general_selected
+
+        data0 = _selected.unpacked[12] # 인물, 전략, 행동, ??
+        tendency = _index
+        value = gl.get_bits(data0, 4, 4)
+        data1 = gl.set_bits(data0, tendency, 4, 4)
+        print("{0}[{1:3}][ {2:2}:{3:2}, {4} => {5} ]".format( _selected.fixed, _selected.num, 
+            value, tendency, format(data0, '016b'), format(data1,'016b')))
+
+        _selected.unpacked[12] = data1
+        _selected.tendency = tendency
+
+    def on_selected_strategy(self, sevent):
+        _index = self.strategy.current()  # 선택한 항목의 인덱스
+        _value = self.strategy.get()      # 선택한 항목의 값
+        print("on_selected_strategy[ {0}, {1} ]".format(_index, _value))
+        
+        if self.general_selected is None:
+            print("general is None")
+            return
+        _selected = self.general_selected
+
+        data0 = _selected.unpacked[12] # 인물, 전략, 행동, ??
+        strategy = _index
+        value = gl.get_bits(data0, 0, 4)
+        data1 = gl.set_bits(data0, strategy, 0, 4)
+        print("{0}[{1:3}][ {2:2}:{3:2}, {4} => {5} ]".format(_selected.fixed, _selected.num, 
+            value, strategy, format(data0, '016b'), format(data1,'016b')))
+
+        _selected.unpacked[12] = data1
+        _selected.strategy = strategy
 
     def on_enter_realm(self, event):
         print("enter realm..")
@@ -856,7 +1019,9 @@ class GeneralTab:
         scrollbar.pack(side="right", fill="y", pady=2)
 
         str_height = int((self._height0-72)/16)
-        self.lb_generals = tk.Listbox(self.frame_listup, width=12, height=str_height, highlightthickness=0, relief="flat")
+        self.lb_generals = tk.Listbox(self.frame_listup, selectmode=tk.EXTENDED,
+                                      width=12, height=str_height, 
+                                      highlightthickness=0, relief="flat")
         self.lb_generals.pack(side="left", pady=2, fill="both", expand=True)
         self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_generals.yview)
@@ -880,7 +1045,7 @@ class GeneralTab:
         self.frame_1.grid_propagate(False)  # 크기 고정
 
         self.build_basic(self.frame_1, 0, 0) # 기본 설정
-        self.build_family(self.frame_1, 1, 0) # 혈연
+        #self.build_family(self.frame_1, 1, 0) # 혈연
         self.build_traits(self.frame_1, 2, 0) # 특성
 
         self.build_stats(self.frame_1, 3, 0) # 능력치
@@ -969,99 +1134,128 @@ class GeneralTab:
                 #value0 = selected.unpacked[12]
                 #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
 
-    def refill_list(self):
-        _realm = self.realm_filter.get()
-        _city = self.city_filter.get()
-        if _realm =='세력전체' and _city == '도시전체':
-            print("세력이나, 도시를 선택해주세요..")
-            return
+    def refill_general(self, count, selected):
+        data0 = selected.unpacked[37] # 충성
+        data1 = selected.unpacked[11] # 건강, 성장,  수명
+        data2 = selected.unpacked[20] # 행동력
+        data3 = gl.relations[selected.num]
+
+        value0 = data0 + 5
+        if 96 <= value0:
+            value0 = selected.unpacked[37]
+        else:
+            selected.unpacked[37] = value0
+        selected.loyalty = value0
+
+        injury = gl.get_bits(data1, 0, 4)
+        if 0 < injury: # 아픈 경우
+            injury = injury - 1
+        value1 = gl.set_bits(data1, injury, 0, 4)
+        selected.unpacked[11] = value1
+        selected.injury = injury
+
+        value2 = data2 + 50
+        if 200 < value2:
+            value2 = 200
+        selected.unpacked[20] = value2
+        selected.actions = value2
+
+        value3 = data3 + 10
+        if 100 <= value3:
+            value3 = gl.relations[selected.num]
+        gl.relations[selected.num] = value3
+
+        if data0 == value0 and data1 == value1 and data2 == value2 and data3 == value3:
+            return False
         
+        print("{0:3}. {1}[{2:3}][ {3:3} {4:4x} {5:3} {6:3} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3) + 
+                ("[ {0:2}, {1}, {2} ]".format( injury, format(data1, '016b'), format(value1, '016b')) if data1 != value1 else "") )        
+        return True
+        
+
+    def refill_list(self):
+        # _realm = self.realm_filter.get()
+        # _city = self.city_filter.get()
+        # if _realm =='세력전체' and _city == '도시전체':
+        #     print("세력이나, 도시를 선택해주세요..")
+        #     return
+
         gn = len(gl.generals)
+        
         count = 0
-        items = list(self.lb_generals.get(0, tk.END))
-        for item in items:
+        #items = list(self.lb_generals.get(0, tk.END))
+        _realm = gl.generals[gl._player_num].realm
+        _indices = self.lb_generals.curselection()
+        _items = [self.lb_generals.get(i) for i in _indices]        
+        for item in _items:
             values = [p for p in re.split(r'[ .,]', item) if p]
+            
             _num = int(values[0])
             if 0 > _num or _num >= gn:
                 continue
+            
             selected = gl.generals[_num]
             if 255 == selected.realm:
                 continue
-            data0 = selected.unpacked[37] # 충성
-            data1 = selected.unpacked[11] # 건강, 성장,  수명
-            data2 = selected.unpacked[20] # 행동력
-            data3 = gl.relations[selected.num]
-
-            value0 = data0 + 5
-            if 96 <= value0:
-                value0 = selected.unpacked[37]
-            else:
-                selected.unpacked[37] = value0
-            selected.loyalty = value0
-
-            injury = gl.get_bits(data1, 0, 4)
-            if 0 < injury: # 아픈 경우
-                injury = injury - 1
-            value1 = gl.set_bits(data1, injury, 0, 4)
-            selected.unpacked[11] = value1
-            selected.injury = injury
-
-            value2 = data2 + 50
-            if 200 < value2:
-                value2 = 200
-            selected.unpacked[20] = value2
-            selected.actions = value2
-
-            value3 = data3 + 10
-            if 100 <= value3:
-                value3 = gl.relations[selected.num]
-            gl.relations[selected.num] = value3
-
-            if data0 == value0 and data1 == value1 and data2 == value2 and data3 == value3:
+            if _realm != selected.realm:
                 continue
-
+            if False == self.refill_general(count, selected):
+                continue
             count = count + 1
-            print("{0:3}. {1}[{2:3}][ {3:3} {4:4x} {5:3} {6:3} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3) + 
-                  ("[ {0:2}, {1}, {2} ]".format( injury, format(data1, '016b'), format(value1, '016b')) if data1 != value1 else "") )
             
-        print('refill: {0:3} / {1}'.format(count, len(items)))                
+        print('refill: {0:3} / {1}'.format(count, len(_items)))
+        self.refresh_general(self.general_selected)                
+
+    def reset_general(self, count, selected):
+        value0 = selected.unpacked[12]
+        value1 = selected.unpacked[20]
+                    
+        selected.set_turns(0)
+        selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
+        selected.unpacked[20] = 200
+        selected.actions = selected.unpacked[20]
+        #selected.unpacked[37] = 100            # 충성
+        if 0 < selected.unpacked[7]:            # 병사
+            selected.unpacked[41] = 100         # 훈련
+            selected.training = selected.unpacked[41]
+        
+        value2 = selected.unpacked[12]
+        value3 = selected.unpacked[20]
+        count = count + 1
+        print("{0:3}. {1}[{2:3}][ {3:4X},{4:4X} => {5:4X},{6:4X} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3))        
 
     def reset_list(self):
-        _realm = self.realm_filter.get()
-        _city = self.city_filter.get()
-        if _realm =='세력전체' and _city == '도시전체':
-            print("세력이나, 도시를 선택해주세요..")
-            return
+        # _realm = self.realm_filter.get()
+        # _city = self.city_filter.get()
+        # if _realm =='세력전체' and _city == '도시전체':
+        #     print("세력이나, 도시를 선택해주세요..")
+        #     return
         
         gn = len(gl.generals)
         count = 0
-        items = list(self.lb_generals.get(0, tk.END))
-        for item in items:
-            values = [p for p in re.split(r'[ .,]', item) if p]
 
+        #items = list(self.lb_generals.get(0, tk.END))
+        _realm = gl.generals[gl._player_num].realm
+        _indices = self.lb_generals.curselection()
+        _items = [self.lb_generals.get(i) for i in _indices]
+        for item in _items:
+            values = [p for p in re.split(r'[ .,]', item) if p]
+            
             _num = int(values[0])
             if 0 > _num or _num >= gn:
                 continue
-            selected = gl.generals[_num]
 
-            value0 = selected.unpacked[12]
-            value1 = selected.unpacked[20]
-                        
-            selected.set_turns(0)
-            selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
-            selected.unpacked[20] = 200
-            selected.actions = selected.unpacked[20]
-            #selected.unpacked[37] = 100            # 충성
-            if 0 < selected.unpacked[7]:            # 병사
-                selected.unpacked[41] = 100         # 훈련
-                selected.training = selected.unpacked[41]
-            
-            value2 = selected.unpacked[12]
-            value3 = selected.unpacked[20]
-            count = count + 1
-            print("{0:3}. {1}[{2:3}][ {3:4X},{4:4X} => {5:4X},{6:4X} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3))
-            
-        print('release: {0} / {1}'.format(count, len(items)))
+            selected = gl.generals[_num]
+            if 255 == selected.realm:
+                continue            
+            if _realm != selected.realm:
+                continue
+
+            count = count + 1            
+            self.reset_general(count, selected)
+
+        print('release: {0} / {1}'.format(count, len(_items)))
+        self.refresh_general(self.general_selected)
 
     def close_popup(self):
         print("close_popup")
