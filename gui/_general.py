@@ -977,12 +977,14 @@ class GeneralTab:
         for general in gl.generals:
             if -1 == self.city_num and (-1 != self.realm_num and self.realm_num != general.realm):
                 continue
-
             if -2 == self.city_num and (520 > general.num or (-1 != self.realm_num and self.realm_num != general.realm)):
-                continue            
+                continue
+            if general.city not in listup:
+                continue
+            if -1 != self.realm_num and self.realm_num != general.realm:
+                continue
 
-            if general.city in listup:
-                self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
+            self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))
 
         self.lb_generals.focus_set()
         self.lb_generals.selection_clear(0, tk.END)     # 기존 선택 해제
@@ -1097,8 +1099,26 @@ class GeneralTab:
                   command=lambda: self.save_general_selected() ).grid(row=0, column=0)        
 
     def save_general_selected(self):
-        files.test_save_general_selected(gl._loading_file, self.general_selected, True)
+        gn = len(gl.generals)
+        
+        _indices = self.lb_generals.curselection()
+        _items = [self.lb_generals.get(i) for i in _indices]
+        
+        count = 0
+        print("save: {0}".format(gl._loading_file))
+        for item in _items:
+            values = [p for p in re.split(r'[ .,]', item) if p]
+            
+            _num = int(values[0])
+            if 0 > _num or _num >= gn:
+                continue
+
+            selected = gl.generals[_num]
+            files.test_save_general_selected(gl._loading_file, count+1, selected, True)
+            count = count + 1
+
         self.lb_generals.focus_set()
+        print('save_general_selected: {0:3} / {1}'.format(count, len(_items)))        
 
     def test_file(self):
         print("tset_file..")
@@ -1199,7 +1219,7 @@ class GeneralTab:
                 continue
             if _realm != selected.realm:
                 continue
-            if False == self.refill_general(count, selected):
+            if False == self.refill_general(count+1, selected):
                 continue
             count = count + 1
             
@@ -1221,7 +1241,6 @@ class GeneralTab:
         
         value2 = selected.unpacked[12]
         value3 = selected.unpacked[20]
-        count = count + 1
         print("{0:3}. {1}[{2:3}][ {3:4X},{4:4X} => {5:4X},{6:4X} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3))        
 
     def reset_list(self):
@@ -1251,8 +1270,8 @@ class GeneralTab:
             if _realm != selected.realm:
                 continue
 
-            count = count + 1            
-            self.reset_general(count, selected)
+            self.reset_general(count+1, selected)
+            count = count + 1
 
         print('release: {0} / {1}'.format(count, len(_items)))
         self.refresh_general(self.general_selected)

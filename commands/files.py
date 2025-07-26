@@ -236,7 +236,7 @@ def test_save_items(fname):
         _item = ItemState(decoded)
         print(_item)
 
-def test_save_general_selected(fname, general, save=False):
+def test_save_general_selected(fname, count, general, save=False):
     if general is None:
         print("error: general None..")
         return False
@@ -251,10 +251,9 @@ def test_save_general_selected(fname, general, save=False):
     _general = General(general.num, decoded)
     if general.name != _general.name:
         print("error: not match decode..")
-        return False
-    
-    print("save: {0}".format(fname))
-    print(general)
+        return False    
+
+    print("{0:3}. {1}".format(count, general))
     if False == save:
         return False
     
@@ -265,7 +264,7 @@ def test_save_general_selected(fname, general, save=False):
         encoded = _encrypt_data(s4, packed)
         saved = f.write(encoded)
 
-        print("{0},{1}".format(general.num, gl.relations[general.num]))
+        #print("{0},{1}".format(general.num, gl.relations[general.num]))
         values = struct.pack('<H', gl.relations[general.num])
         encoded = _encrypt_data(s4, values)
         f.seek(gl.hero_relations_offset + 2 * general.num)
