@@ -88,7 +88,7 @@ def open_file(fname):
 
             f.seek(gl.scene_num_offset)
             _num = f.read(1)
-            gl._scene = int.from_bytes(_num)
+            gl._scene = int.from_bytes(_num, 'little')
 
             s4 = (gl._scene - 1) % 4
             for i in range(620): # 620명 기준

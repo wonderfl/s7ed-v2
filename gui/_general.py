@@ -9,8 +9,9 @@ import globals as gl
 from . import _city
 from . import _realm
 from . import _popup
+from . import frame_button as _button
+from . import update
 
-from . import char_basic as basic
 from . import gui
 
 from commands import files
@@ -81,9 +82,9 @@ class GeneralTab:
         self.lb_generals.see(_num)                         # 해당 항목이 보이도록 스크롤
         self.lb_generals.event_generate("<<ListboxSelect>>")
 
-        if _popup.ItemPopup._instance is not None:
-            print("listup_items")
-            _popup.ItemPopup._instance.frame_item.listup_items()
+        if _popup.FramePopup._instance is not None:
+            print("listup_tabs")
+            _popup.FramePopup._instance.listup_tabs()
 
     def refresh_general(self, selected ):
         self.name0.delete(0, tk.END)
@@ -1027,7 +1028,7 @@ class GeneralTab:
         self.lb_generals.pack(side="left", pady=2, fill="both", expand=True)
         self.lb_generals.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
         scrollbar.config(command=self.lb_generals.yview)
-        self.lb_generals.config(yscrollcommand=scrollbar.set)        
+        self.lb_generals.config(yscrollcommand=scrollbar.set)
 
     def build_tab_general(self, parent, nr, nc):
 
@@ -1061,42 +1062,11 @@ class GeneralTab:
         self.build_personalities(self.frame_2, 0, 0) # 개성
         self.build_experiences(self.frame_2, 3, 0) # 경험치
 
-        # 설정 버튼
-        #tk.Button(self.frame_2, text="설 정", width=10, command=lambda: self.show_realm_popup() ).grid(row=6, column=0)
+        self.frame_button = _button.FrameButton(self.frame_2, self )
 
         self.listup_generals()
         self.popup_frame = tk.LabelFrame(self.frame_general, text="", width=self._width00, height=self._height0, borderwidth=0, highlightthickness=0)
-
-        ### for test..
-        self.frame_test = tk.LabelFrame(self.frame_2, text="", width=self._width11, height=64, borderwidth=0, highlightthickness=0)
-        self.frame_test.grid(row=4, column=0, padx=(0,0), pady=4)
-        self.frame_test.grid_propagate(False)  # 크기 고정
-
-        test1 = tk.LabelFrame(self.frame_test, text="", width=104, height=45, )#borderwidth=0, highlightthickness=0)
-        test1.grid(row=0, column=0, rowspan=2, padx=(0,0))
-        test1.grid_propagate(False)  # 크기 고정
-        #tk.Button(test1, text="Reset Turn", width=12, height=1, relief="flat", #bd=0,
-        #          command=lambda: self.reset_turn() ).grid(row=0, column=0)
-        tk.Button(test1, text="ADD(충성,친밀)", width=12, height=2, relief="flat", #bd=0,
-                  command=lambda: self.refill_list() ).grid(row=0, column=0)
-
-        # test2 = tk.LabelFrame(self.frame_test, text="", width=98, height=30, )#borderwidth=0, highlightthickness=0)
-        # test2.grid(row=1, column=0, padx=(0,0), pady=(2,0))
-        # test2.grid_propagate(False)  # 크기 고정
-        # tk.Button(test2, text="Reset List", width=12, height=1, relief="flat", #bd=0,
-        #          command=lambda: self.reset_list() ).grid(row=0, column=0)
-        
-        test3 = tk.LabelFrame(self.frame_test, text="", width=104, height=45, )#borderwidth=0, highlightthickness=0)
-        test3.grid(row=0, column=1, rowspan=2,  padx=(4,0))
-        test3.grid_propagate(False)  # 크기 고정
-        tk.Button(test3, text="FULL(행동,훈련)", width=12, height=2, relief="flat", #bd=0,
-                  command=lambda: self.reset_list()).grid(row=0, column=0)
-        
-        test4 = tk.LabelFrame(self.frame_test, text="", width=98, height=45, )#borderwidth=0, highlightthickness=0)
-        test4.grid(row=0, column=2, rowspan=2, padx=(4,0))
-        test4.grid_propagate(False)  # 크기 고정
-        tk.Button(test4, text="Save(장수)", width=12, height=2, relief="flat", #bd=0,
-                  command=lambda: self.save_general_selected() ).grid(row=0, column=0)        
+             
 
     def save_general_selected(self):
         gn = len(gl.generals)
@@ -1106,6 +1076,10 @@ class GeneralTab:
         
         count = 0
         print("save: {0}".format(gl._loading_file))
+        if 0 >= len(_items) and self.general_selected:
+            files.test_save_general_selected(gl._loading_file, count+1, self.general_selected, True)
+            count = count + 1
+
         for item in _items:
             values = [p for p in re.split(r'[ .,]', item) if p]
             
@@ -1125,85 +1099,14 @@ class GeneralTab:
         #files.test_save_file('data.txt')
         files.test_save_generals('save generals')
 
-    def reset_turn(self):
-        indices = self.lb_generals.curselection()
-        if indices:
-            gn = len(gl.generals)
-            item = self.lb_generals.get(indices[0])
-            values = [p for p in re.split(r'[ .,]', item) if p]
-
-            _num = int(values[0])
-            if 0 <= _num and _num < gn:
-                selected = gl.generals[_num]
-
-                value0 = selected.unpacked[12]
-                value1 = selected.unpacked[20]                
-
-                selected.set_turns(0)
-                selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
-                selected.unpacked[20] = 200
-                selected.actions = selected.unpacked[20]
-                if 0 < selected.unpacked[7]:        # 병사
-                    selected.unpacked[41] = 100     # 훈련
-                    selected.training = selected.unpacked[41]
-
-                value2 = selected.unpacked[12]
-                value3 = selected.unpacked[20]
-
-                print("{0} [{1:X},{2:X}] => [{3:X},{4:X}]".format(selected.name, value0, value1, value2, value3))
-                #value0 = selected.unpacked[12]
-                #selected.unpacked[12] = gl.set_bits(value0, 0, 15, 1)
-
-    def refill_general(self, count, selected):
-        data0 = selected.unpacked[37] # 충성
-        data1 = selected.unpacked[11] # 건강, 성장,  수명
-        data2 = selected.unpacked[20] # 행동력
-        data3 = gl.relations[selected.num]
-
-        value0 = data0 + 5
-        if 96 <= value0:
-            value0 = selected.unpacked[37]
-        else:
-            selected.unpacked[37] = value0
-        selected.loyalty = value0
-
-        injury = gl.get_bits(data1, 0, 4)
-        if 0 < injury: # 아픈 경우
-            injury = injury - 1
-        value1 = gl.set_bits(data1, injury, 0, 4)
-        selected.unpacked[11] = value1
-        selected.injury = injury
-
-        value2 = data2 + 50
-        if 200 < value2:
-            value2 = 200
-        selected.unpacked[20] = value2
-        selected.actions = value2
-
-        value3 = data3 + 10
-        if 100 <= value3:
-            value3 = gl.relations[selected.num]
-        gl.relations[selected.num] = value3
-
-        if data0 == value0 and data1 == value1 and data2 == value2 and data3 == value3:
-            return False
+    def refill_result_list(self, str, call):
+        gn = len(gl.generals)        
+        if 0 > gl._player_num or gl._player_num >= gn:
+            print("error: realms index out of range: ", gl._player_num)
+            return
         
-        print("{0:3}. {1}[{2:3}][ {3:3} {4:4x} {5:3} {6:3} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3) + 
-                ("[ {0:2}, {1}, {2} ]".format( injury, format(data1, '016b'), format(value1, '016b')) if data1 != value1 else "") )        
-        return True
+        count = 0        
         
-
-    def refill_list(self):
-        # _realm = self.realm_filter.get()
-        # _city = self.city_filter.get()
-        # if _realm =='세력전체' and _city == '도시전체':
-        #     print("세력이나, 도시를 선택해주세요..")
-        #     return
-
-        gn = len(gl.generals)
-        
-        count = 0
-        #items = list(self.lb_generals.get(0, tk.END))
         _realm = gl.generals[gl._player_num].realm
         _indices = self.lb_generals.curselection()
         _items = [self.lb_generals.get(i) for i in _indices]        
@@ -1219,41 +1122,20 @@ class GeneralTab:
                 continue
             if _realm != selected.realm:
                 continue
-            if False == self.refill_general(count+1, selected):
+            res = call(count+1, selected)
+            if False == res:
                 continue
+            
             count = count + 1
             
-        print('refill: {0:3} / {1}'.format(count, len(_items)))
-        self.refresh_general(self.general_selected)                
+        print('refill {0}: {1:3} / {2}'.format(str, count, len(_items)))
+        self.refresh_general(self.general_selected)
+    
+    def refill_request_list(self, str, call):
 
-    def reset_general(self, count, selected):
-        value0 = selected.unpacked[12]
-        value1 = selected.unpacked[20]
-                    
-        selected.set_turns(0)
-        selected.turned = gl.bit16from(selected.unpacked[12], 0, 1)
-        selected.unpacked[20] = 200
-        selected.actions = selected.unpacked[20]
-        #selected.unpacked[37] = 100            # 충성
-        if 0 < selected.unpacked[7]:            # 병사
-            selected.unpacked[41] = 100         # 훈련
-            selected.training = selected.unpacked[41]
-        
-        value2 = selected.unpacked[12]
-        value3 = selected.unpacked[20]
-        print("{0:3}. {1}[{2:3}][ {3:4X},{4:4X} => {5:4X},{6:4X} ]".format(count, selected.fixed, selected.num, value0, value1, value2, value3))        
-
-    def reset_list(self):
-        # _realm = self.realm_filter.get()
-        # _city = self.city_filter.get()
-        # if _realm =='세력전체' and _city == '도시전체':
-        #     print("세력이나, 도시를 선택해주세요..")
-        #     return
-        
         gn = len(gl.generals)
         count = 0
 
-        #items = list(self.lb_generals.get(0, tk.END))
         _realm = gl.generals[gl._player_num].realm
         _indices = self.lb_generals.curselection()
         _items = [self.lb_generals.get(i) for i in _indices]
@@ -1270,31 +1152,21 @@ class GeneralTab:
             if _realm != selected.realm:
                 continue
 
-            self.reset_general(count+1, selected)
+            call(count+1, selected)
             count = count + 1
 
-        print('release: {0} / {1}'.format(count, len(_items)))
-        self.refresh_general(self.general_selected)
+        print('refill {0}: {1} / {2}'.format(str, count, len(_items)))
+        self.refresh_general(self.general_selected)        
 
     def close_popup(self):
         print("close_popup")
-        _popup.ItemPopup._instance = None
+        _popup.FramePopup._instance = None
 
     def show_popup(self):
         print("show_popup")
-        #if _popup.RealmPopup._instance is None or not _popup.RealmPopup._instance.winfo_exists():
-        #    _popup.RealmPopup._instance = _popup.RealmPopup(self.popup_frame)
-        #else:
-        #    _popup.RealmPopup._instance.lift()
 
-        #if _popup.CityPopup._instance is None or not _popup.CityPopup._instance.winfo_exists():
-        #    _popup.CityPopup._instance = _popup.CityPopup(self.popup_frame)
-        #else:
-        #    _popup.CityPopup._instance.lift()
-
-        if _popup.ItemPopup._instance is None or not _popup.ItemPopup._instance.winfo_exists():
-            _popup.ItemPopup._instance = _popup.ItemPopup(self.popup_frame, self.close_popup)
-            #print("set itemPopup: ",_popup.ItemPopup._instance)
+        if _popup.FramePopup._instance is None or not _popup.FramePopup._instance.winfo_exists():
+            _popup.FramePopup._instance = _popup.FramePopup(self.popup_frame, self.close_popup)
         else:
-            _popup.ItemPopup._instance.lift()
+            _popup.FramePopup._instance.lift()
     

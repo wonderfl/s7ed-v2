@@ -33,9 +33,6 @@ class ItemTab:
         self.rootframe = tk.Frame(tab)
         self.rootframe.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
-        self.realmTab = _realm.RealmTab(self.rootframe, 0, 0)
-        self.cityTab = _city.CityTab(self.rootframe, 1, 0)
-
         self.build_player(self.rootframe, 0, 1)
         self.build_tab_item(self.rootframe, 1, 1)
         
@@ -58,15 +55,10 @@ class ItemTab:
         self.current_gold.delete(0, tk.END)
         self.current_gold.insert(0, '{0}'.format(gl.hero_golds))
 
-        self.realmTab.listup_realms()
-        self.cityTab.listup_cities()
-
         gn = len(gl.generals)
         owners=[]
-        #owners.append("전체")
-        #owners.append("주인없음")
         ownerset=set()
-        
+
         self.lb_items.delete(0, tk.END)
         for item in gl.items:
             self.lb_items.insert(tk.END, " {0:2}. {1}".format(item.num, item.name))
@@ -140,10 +132,6 @@ class ItemTab:
         else:
             self.ownername.insert(0, '주인없음')
 
-        #self.itemnum.config(text='{0:3}.'.format(selected.num))
-        #self.itemname.delete(0, tk.END)
-        #self.itemname.insert(0, selected.name)
-
         self.market.delete(0, tk.END)
         self.market.insert(0, '{0}'.format(selected.market))
 
@@ -164,12 +152,9 @@ class ItemTab:
         self.itemprice.delete(0, tk.END)
         self.itemprice.insert(0, '{0}'.format( str(selected.price) if 0 < selected.price else ''))        
 
-        #print(selected.u00)
         for i in range(32):
             val = gl.bit32from(selected.u00, i, 1)
             self.skillv[i].set(val)
-            # if 0 < val:
-            #     print("{0:2}, val:{1}, var:{2}".format(i, val, self.skillv[i].get()))
         
     def on_selected(self, event):
         widget = event.widget
@@ -214,9 +199,7 @@ class ItemTab:
             
     def save_item(self):
         print("save item..")
-        #files.test_save_items('save items')
         files.test_save_item_selected( gl._loading_file, self.item_selected, True)
-
 
     def build_basic(self, parent, nr, nc):
         self.frame_basic = tk.LabelFrame(parent, text="아이템 기본 설정", width=self._width01, height=104)
@@ -230,11 +213,6 @@ class ItemTab:
         self.frame_b2 = tk.LabelFrame(self.frame_basic, text="", width=self._width01-4, height=48, borderwidth=0, highlightthickness=0)
         self.frame_b2.grid(row=1, column=0)
         self.frame_b2.grid_propagate(False)  # 크기 고정
-
-        # self.itemnum = tk.Label(frame_b1, text="", width=4, anchor="e")
-        # self.itemnum.grid(row=0, column=0, )
-        # self.itemname = tk.Entry(frame_b1, width=10, ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        # self.itemname.grid(row=0, column=1, padx=(4,0))
 
         self.ownernum = tk.Label(self.frame_b1, text="-", width=7, anchor="e" )
         self.ownernum.grid(row=0, column=0, padx=0)
@@ -325,7 +303,6 @@ class ItemTab:
              print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
 
     def build_player(self, parent, nr, nc):
-        #frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=108, )# borderwidth=0, highlightthickness=0)
         frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=96, )# borderwidth=0, highlightthickness=0)
         frame_player.grid(row=nr, column=nc, pady=0 )
         frame_player.grid_propagate(False)  # 크기 고정
@@ -343,10 +320,6 @@ class ItemTab:
         self.current_year.grid(row=0, column=3, padx=(4,0), pady=0)
         self.current_month = tk.Entry(frame_b1, width=4,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_month.grid(row=0, column=4, padx=(2,0), pady=0)
-
-        # frame_b2 = tk.LabelFrame(frame_player, text="", width=self._width00+108, height=28, )#borderwidth=0, highlightthickness=0)
-        # frame_b2.grid(row=1, column=0, sticky="nsew",)
-        # frame_b2.grid_propagate(False)  # 크기 고정  
 
         tk.Label(frame_b1, text="이름", width=8, anchor="e").grid(row=1, column=0, padx=(0,0), pady=0)
         self.player_name = tk.Entry(frame_b1, width=10, ) # state="disabled", disabledbackground="white", disabledforeground="black")
