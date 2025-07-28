@@ -125,7 +125,7 @@ class General:
         self.name2 = name2.split(b'\x00')[0].decode("euc-kr", errors="ignore")
         
         self.num = num
-        self.name = self.name0 + self.name1
+        self.name = self.name0 + self.name1.strip()
         
         #self.fixed = self.name if 4 <= len(self.name) else ' '+self.name+' ' if 3 <= len(self.name) else '  '+self.name+'  '
         self.fixed = pads.pad_string(self.name,8,'center')

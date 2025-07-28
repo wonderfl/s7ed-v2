@@ -47,11 +47,9 @@ class GeneralEditorApp:
 
         # 검색창 띄우기
         self.search_window = tk.Toplevel(self.root)
-        #self.search_window.overrideredirect(True)
         self.search_window.resizable(False, False)
         self.search_window.attributes('-toolwindow', True)
         self.search_window.title("이름으로 검색")
-        #self.search_window.geometry("160x50")
         self.root.update_idletasks()  # geometry 정보 갱신
         px = self.root.winfo_x()
         py = self.root.winfo_y()
@@ -86,7 +84,7 @@ class GeneralEditorApp:
         keyword = self.search_entry.get()
         if 1 >= len(keyword.strip()):
             return
-        items = self.generalTab.lb_generals.get(0, tk.END)
+        items = self.generalTab.items()
         li = len(items)
 
         ix = 0
@@ -103,15 +101,8 @@ class GeneralEditorApp:
         for i, general in enumerate(generals):
             if keyword not in general:
                 continue
-            num = (ix + i) % li            
-            #values = [p for p in re.split(r'[ .,]', selected) if p]
-            #print(general)
-            #print( '{0}, {1}[ {2}, {3} ]'.format(i, num, li, ix ))
-            self.generalTab.lb_generals.selection_clear(0, tk.END)
-            self.generalTab.lb_generals.selection_set(num)
-            self.generalTab.lb_generals.activate(num)
-            self.generalTab.lb_generals.see(num)
-            self.generalTab.lb_generals.event_generate("<<ListboxSelect>>")
+            num = (ix + i) % li
+            self.generalTab.focus_num(num)
             break
 
         self.search_window.destroy()  # 검색 후 닫기
@@ -208,6 +199,7 @@ def app():
     add_menu.add_command(label="행동력 + 50", command=info_open)
     add_menu.add_command(label="건강 +", command=info_open)
     add_menu.add_command(label="친밀 + 10", command=info_open)
+    add_menu.add_command(label="병사 +100", command=info_open)
 
     full_menu = tk.Menu(menu_bar, tearoff=0,)
     full_menu.add_command(label="행동유무", command=info_open)
