@@ -54,19 +54,25 @@ class ListupFrame:
         _app.general_selected = None
 
         gn = len(gl.generals)
-        filters = []
-        filters.append("세력전체")
-        filters.append("세력없음")
+        realm_filter = []
+        realm_filter.append("세력전체")
+        realm_filter.append("세력없음")
         for realm in gl.realms:
             if 0 > realm.ruler or realm.ruler >= gn:
                 continue
             ruler_name = " {0:3}. {1}".format( realm.num, gl.generals[realm.ruler].name)        
-            filters.append(ruler_name)
+            realm_filter.append(ruler_name)
         
-        
-        self.realm_filter['values'] = filters
+        self.realm_filter['values'] = realm_filter
         self.realm_filter.set("세력전체")
 
+        city_filter=[]
+        city_filter.append("도시전체")
+        city_filter.append("새로운장수")
+        for i, name in enumerate(gl._cityNames_):
+            city_filter.append('{0:2}.{1}'.format(i,name))        
+
+        self.city_filter['values'] = city_filter
         self.city_filter.set("도시전체")
 
         self.lb_generals.delete(0, tk.END)

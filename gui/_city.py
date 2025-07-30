@@ -80,12 +80,15 @@ class CityTab:
         #self.realm_namenum.delete(0, tk.END)
         #self.realm_namenum.insert(0, realm_namenum)
         
+        gov_state = ' -'
         gov_name = '  - '
         if 0 <= city.governor and city.governor < gn:
             gov = gl.generals[city.governor]
-            if 1 >= gov.state:
-                gov_name = gov.name
+            gov_name = gov.name
+            gov_state = gl._stateNames_[gov.state]
 
+
+        self.city_gov_state.config(text='{0}:'.format(gov_state))
         self.city_gov_name.config(text='{0}'.format(gov_name))
         values = [
             city.golds, city.foods, city.peoples*100, 
@@ -204,7 +207,8 @@ class CityTab:
 
         self.entries.clear()
 
-        tk.Label(frame_basic, text="태수:", width=4, anchor="e" ).grid(row=1, column=0, padx=(4,0))
+        self.city_gov_state = tk.Label(frame_basic, text="태수:", width=4, anchor="e" )
+        self.city_gov_state.grid(row=1, column=0, padx=(4,0))
         self.city_gov_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
         self.city_gov_name.grid(row=1, column=1, padx=0)
         #self.city_gov_num = tk.Entry(frame_basic, width=6 )

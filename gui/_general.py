@@ -150,11 +150,17 @@ class GeneralTab:
         self.realm.insert(0, selected.realm)
 
         self.city.set(gl._cityNames_[ selected.city if 54 > selected.city else 54])
-        self.state.set(gl._stateNames2[ selected.state if 7 > selected.state else 7])
+        self.state.set(gl._stateName2[ selected.state if 7 > selected.state else 7])
         self.rank.set(gl._rankNames_[ selected.rank if 4 > selected.rank else 4])
 
         self.colleague.delete(0, tk.END)
-        self.colleague.insert(0, selected.colleague)
+        self.colleague.insert(0, selected.colleague if 65535 != selected.colleague else ' -')
+
+        self.prev.config(text='{0}'.format('#'))
+        for general in gl.generals:
+            if general.colleague == selected.num:                
+                self.prev.config(text='{0}'.format(general.num))
+        
 
     def entry_row(self, frame, labels, width=4):
         for i, text in enumerate(labels):
@@ -239,6 +245,35 @@ class GeneralTab:
             self.general_selected.unpacked[27] = value
         except:
             print("error:..")
+
+    def on_enter_colleague(self, event):
+        print("enter colleague..")
+        if self.general_selected is None:
+            return
+        gn = len(gl.generals)
+        city = self.general_selected.city
+        entri = event.widget
+        try:
+            data0 = entri.get()
+            if '-' == data0.strip():
+                value = 65535
+                self.general_selected.colleague = value
+                self.general_selected.unpacked[15] = value
+                return
+
+            value = int(data0)
+            if 0 > value or value > gn:
+                print("error: overflow.. ", value)
+                return
+            
+            if city != gl.generals[value].city:
+                print("error: not colleague.. ", value)
+                return            
+
+            #self.general_selected.colleague = value
+            #self.general_selected.unpacked[15] = value
+        except:
+            print("error:..")            
         
     def on_combo_state_selected(self, event):
         selected_index = self.state.current()  # 선택된 항목의 인덱스
@@ -248,6 +283,21 @@ class GeneralTab:
 
         self.general_selected.state = selected_index
         self.general_selected.unpacked[26] = selected_index
+
+    def on_combo_city_selected(self, event):
+        selected_index = self.city.current()  # 선택된 항목의 인덱스
+        selected_value = self.city.get()      # 선택된 텍스트
+
+        print(f"{selected_index}: {selected_value}")
+
+        #self.general_selected.city = selected_index
+        #self.general_selected.unpacked[28] = selected_index
+
+        #nc = self.general_selected.city
+        #gl.cities[nc].governor = self.general_selected.num
+        #gl.cities[nc].unpacked[3] = self.general_selected.num
+        #governor = self
+
 
 
     def build_experiences(self, parent, nr, nc):
@@ -269,12 +319,13 @@ class GeneralTab:
         tk.Label(frame_affil, text="세력").grid(row=0, column=0)
         self.realm = tk.Entry(frame_affil, width=5)
         self.realm.grid(row=0, column=1)
-        self.realm.bind("<Return>", self.on_enter_realm)  # Enter 키 입력 시 호출            
+        self.realm.bind("<Return>", self.on_enter_realm)  # Enter 키 입력 시 호출
         tk.Button(frame_affil, text="표시",borderwidth=0, highlightthickness=0).grid(row=0, column=2)
 
         tk.Label(frame_affil, text="도시").grid(row=0, column=3, padx=(16,0))
         self.city = ttk.Combobox(frame_affil, values=gl._cityNames_, width=8, )
         self.city.grid(row=0, column=4, columnspan=2, padx=(3,0))
+        self.city.bind("<<ComboboxSelected>>", self.on_combo_city_selected)
 
         tk.Label(frame_affil, text="장군직").grid(row=1, column=0)
         ttk.Combobox(frame_affil, values=["없음", "도독", "장군", "대장군"], width=8, ).grid(row=1, column=1, columnspan=2, padx=(3,0))
@@ -284,14 +335,19 @@ class GeneralTab:
         self.rank.grid(row=1, column=4, columnspan=2, padx=(3,0))
 
         tk.Label(frame_affil, text="신분").grid(row=2, column=0,)
-        self.state = ttk.Combobox(frame_affil, values=gl._stateNames2, width=8, )
+        self.state = ttk.Combobox(frame_affil, values=gl._stateName2, width=8, )
         self.state.grid(row=2, column=1, columnspan=2, padx=(3,0))
         self.state.bind("<<ComboboxSelected>>", self.on_combo_state_selected)
         
         tk.Label(frame_affil, text="동료").grid(row=2, column=3, padx=(16,0))
         self.colleague = tk.Entry(frame_affil, width=6)
         self.colleague.grid(row=2, column=4, padx=(2,0))
+        self.colleague.bind("<Return>", self.on_enter_colleague)  # Enter 키 입력 시 호출
+        
         tk.Button(frame_affil, text="표시", borderwidth=0, highlightthickness=0).grid(row=2, column=5)
+        self.prev = tk.Label(frame_affil, text="-", width=6)
+        self.prev.grid(row=2, column=6, padx=(2,0))
+
 
 
     def build_tab_general(self, parent, nr, nc):
