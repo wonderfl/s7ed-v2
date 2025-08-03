@@ -15,7 +15,8 @@ import utils.padstr as pads
 
 #                              '< 8   16  6     10')  # 총 64 bytes
 #                              '< OO0 OOO xOOOO xx')  # 총 64 bytes
-ItemStateStruct = struct.Struct('<IHH 16s BBBBH 5H')  # 총 40 bytes
+#                              '< 012 3   456789 0')  # 총 64 bytes
+ItemStateStruct = struct.Struct('<IHH 16s BBBBBB 5H')  # 총 40 bytes
 class ItemState:
     def __init__(self, raw_data):
         self.unpack = ItemStateStruct.unpack(raw_data)
@@ -34,7 +35,7 @@ class ItemState:
         num = self.unpacked[5] # num
         price = self.unpacked[6] # x100 price
         stats = self.unpacked[7] # bonus value
-        value4 = self.unpacked[8]
+        next = self.unpacked[8] # next item num
 
         self.u00 = u00
         self.propstr = ','.join([str for i, str in enumerate(gl._propNames_) if gl.bit32from(self.u00, i, 1) ])
@@ -49,7 +50,7 @@ class ItemState:
         self.item_type = item_type
         self.stats = stats
         self.price = price*100
-        self.v4 = value4
+        self.next = next
     
     def __repr__(self):
         owner = None

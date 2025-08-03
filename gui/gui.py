@@ -39,6 +39,8 @@ class GeneralEditorApp:
         self.status = tk.Label(self.footbar, text="준비됨", bg="lightgray", anchor="w")
         self.status.pack(side=tk.LEFT, padx=10)
 
+        self.root.resizable(False, False)
+
     def show_search_entry(self, event=None):
         # 이미 검색창이 떠 있다면 무시
         if hasattr(self, 'search_window') and self.search_window.winfo_exists():

@@ -18,7 +18,7 @@ class ItemTab:
     _width00 = 268
     _width01 = 264
 
-    _height0 = 268
+    _height0 = 276
     _height1 = 280
 
     skills=[]
@@ -122,15 +122,25 @@ class ItemTab:
             print(f"잘못된 아이템 정보입니다: {index}, {value}, :{_name}, {selected.name},")
             return
         
+        self.item_changed = False
+        self.owner_changed = False
+        self.owner_prev = 65535
         self.item_selected = selected
+
+        self.itemname.delete(0, tk.END)
+        self.itemname.insert(0, '{0}'.format(selected.name))
+
         owner = gl.generals[selected.owner] if 0 <= selected.owner and selected.owner < len(gl.generals) else None
+        
+        self.nextitem.config(text='{0}'.format( selected.next if 0 <= selected.next < item_max else '-'))
+
         self.ownernum.config(text='{0}'.format('-'))
         self.ownername.delete(0, tk.END)
+        ownername = '주인없음'
         if owner is not None:
             self.ownernum.config(text='{0}'.format(owner.num))
-            self.ownername.insert(0, owner.name)
-        else:
-            self.ownername.insert(0, '주인없음')
+            ownername=owner.name
+        self.ownername.insert(0, ownername)
 
         self.market.delete(0, tk.END)
         self.market.insert(0, '{0}'.format(selected.market))
@@ -143,8 +153,8 @@ class ItemTab:
         itemtype = gl._itemTypes_[selected.item_type]
         self.typename.config(text='{0}'.format(itemtype))
 
-        self.itemtype.delete(0, tk.END)
-        self.itemtype.insert(0, '{0}'.format( str(selected.item_type)))
+        #self.itemtype.delete(0, tk.END)
+        #self.itemtype.insert(0, '{0}'.format( str(selected.item_type)))
 
         self.itemstats.delete(0, tk.END)
         self.itemstats.insert(0, '{0}'.format( str(selected.stats) if 0 < selected.stats else ''))
@@ -167,11 +177,12 @@ class ItemTab:
     def on_check_skills(self, pos):
         if self.item_selected is None:
             return
+        self.item_changed = True
+
         value = self.skillv[pos].get()
         data0 = self.item_selected.u00
         data1 = gl.set_bits(data0, value, pos, 1)
 
-        self.item_selected
         print('{0}[{1}]: {2:2}[ {3}, {4} ] '.format(self.item_selected.num, self.item_selected.name, pos, format(data0, '032b'), format(data1, '032b')))
         self.item_selected.u00 = data1
         self.item_selected.unpacked[0] = data1
@@ -196,13 +207,75 @@ class ItemTab:
             checked.grid(row=i//4, column=i%4, sticky="w", padx=(4,0),pady=0,ipady=0)
             self.skills.append(checked)
             self.skillv.append(var)
-            
+
+    def save_owner_items(self, owner):
+        print("save_owner_items: {0}. {1}[{2}]".format(owner.num, owner.name, owner.item, ))
+        if owner is None:
+            print("owner empty..")
+            return
+        
+        maxitems = len(gl.items)
+        items = [item for item in gl.items if item.owner == owner.num]
+        if 0 < len(items):
+            owner.unpacked[48] = items[0].num  # 아이템 소유자 정보 갱신
+            owner.item = items[0].num  # 아이템 소유자 정보 갱신
+            print("소유자 아이템: {0}[{1}], {2}개".format(owner.name, owner.item, len(items),))
+            for i, item in enumerate(items):
+                next = items[i+1].num if i+1 < len(items) else 255
+                if 0 <= next < maxitems:
+                    next = next
+
+                print("아이템: {0:3}. {1:3}[{2:3} => {3:3}], {4}".format(i, item.num, next, item.next,item.name))
+                if item.next == next:
+                    continue
+
+                item.next = next 
+                item.unpacked[8] = next
+                files.test_save_item_selected( gl._loading_file, item, True)
+        else:
+            owner.unpacked[48] = 255  # 아이템 소유자 정보 갱신
+            owner.item = 255  # 아이템 소유자 정보 갱신
+
+        files.test_save_general_selected(gl._loading_file, 1, owner, True)
+
     def save_item(self):
+        if self.item_selected is None:
+            print("아이템 선택 안됨")
+            return
+                
+        if False == self.item_changed:
+            print("아이템 변경 없음")
+            return 
+                
         print("save item..")
-        files.test_save_item_selected( gl._loading_file, self.item_selected, True)
+        selected = self.item_selected
+        max_generals = len(gl.generals)
+        
+        owner_prev = gl.generals[self.owner_prev] if 0 <= self.owner_prev < max_generals else None
+        if owner_prev is not None:
+            print("아이템 이전 소유자 저장")
+            self.save_owner_items(owner_prev)        
+
+        owner = gl.generals[selected.owner] if 0 <= selected.owner < max_generals else None
+        if owner is None:
+            selected.owner = 65535
+            selected.unpacked[1] = 65535
+            selected.next = 255
+            selected.unpacked[8] = 255
+            files.test_save_item_selected( gl._loading_file, selected, True)
+            return
+        files.test_save_item_selected( gl._loading_file, selected, True)
+
+        if False == self.owner_changed:
+            print("아이템 소유 변경 없음")
+            return            
+        if self.owner_prev == selected.owner:
+            print("아이템 소유 이전과 동일")
+            return            
+        self.save_owner_items(owner)
 
     def build_basic(self, parent, nr, nc):
-        self.frame_basic = tk.LabelFrame(parent, text="아이템 기본 설정", width=self._width01, height=104)
+        self.frame_basic = tk.LabelFrame(parent, text="아이템 기본 설정", width=self._width01, height=96)
         self.frame_basic.grid(row=nr, column=nc, pady=0 )
         self.frame_basic.grid_propagate(False)  # 크기 고정
                 
@@ -210,45 +283,65 @@ class ItemTab:
         self.frame_b1.grid(row=0, column=0, pady=(4, 0))
         self.frame_b1.grid_propagate(False)  # 크기 고정
 
-        self.frame_b2 = tk.LabelFrame(self.frame_basic, text="", width=self._width01-4, height=48, borderwidth=0, highlightthickness=0)
+        self.frame_b2 = tk.LabelFrame(self.frame_basic, text="", width=self._width01-4, height=42, borderwidth=0, highlightthickness=0)
         self.frame_b2.grid(row=1, column=0)
         self.frame_b2.grid_propagate(False)  # 크기 고정
 
-        self.ownernum = tk.Label(self.frame_b1, text="-", width=7, anchor="e" )
-        self.ownernum.grid(row=0, column=0, padx=0)
-        self.ownername = tk.Entry(self.frame_b1, width=8 )
-        self.ownername.grid(row=0, column=1, padx=(4,0))
+        label = tk.Label(self.frame_b1, text="이름", width=4, anchor="e", )#borderwidth=1, relief="solid", )
+        label.grid(row=0, column=0, padx=(0,0))
+        self.itemname = tk.Entry(self.frame_b1, width=10 )
+        self.itemname.grid(row=0, column=1, padx=(4,0))
+
+        label = tk.Label(self.frame_b1, text="소유", width=4, anchor="e", )#borderwidth=1, relief="solid",)
+        label.grid(row=0, column=2, padx=(8,0))
+        self.ownername = tk.Entry(self.frame_b1, width=7 )
+        self.ownername.grid(row=0, column=3, padx=(4,0))
+        self.ownername.bind("<Return>", self.on_enter_ownername)                
+        self.ownernum = tk.Label(self.frame_b1, text="-", width=3, anchor="w", )#borderwidth=1, relief="solid",  )
+        self.ownernum.grid(row=0, column=4, padx=(0,0))
+        self.nextitem = tk.Label(self.frame_b1, text="-", width=2, anchor="w", )#borderwidth=1, relief="solid",  )
+        self.nextitem.grid(row=0, column=5, padx=(0,0))        
+
         
         # 빈칸 추가 Save 버튼때문에
-        label = tk.Label(self.frame_b1, text="", width=6, anchor="e")
-        label.grid(row=0, column=2, padx=0)
+        #label = tk.Label(self.frame_b1, text="", width=4, anchor="e", borderwidth=1, relief="solid",  )
+        #label.grid(row=0, column=2, padx=0)
 
-        frame1 = tk.LabelFrame(self.frame_b1, width=76, height=26, )#highlightbackground="black", highlightthickness=0)
-        frame1.grid(row=0, column=3, padx=(4,0), pady=(0,0),)
-        frame1.grid_propagate(False)
-        tk.Button( frame1, text="Save Item", relief="flat", bd=0,   # 내부 border 제거
-                    command=lambda: self.save_item(), ).grid(row=0, column=0, padx=(4,0))
-
-        self.typename = tk.Label(self.frame_b2, text="종류", width=7, anchor="e")
-        self.typename.grid(row=0, column=0, )
-        self.itemtype = tk.Entry(self.frame_b2, width=8,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.itemtype.grid(row=0, column=1, padx=(4,0))
-
-        self.stattype = tk.Label(self.frame_b2, text="-", width=7, anchor="e")
-        self.stattype.grid(row=1, column=0, )
+        self.stattype = tk.Label(self.frame_b2, text="-", width=4, anchor="e", )#borderwidth=1, relief="solid", )
+        self.stattype.grid(row=0, column=0, padx=(0,0) )
         
-        self.itemstats = tk.Entry(self.frame_b2, width=8,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.itemstats.grid(row=1, column=1, padx=(4,0))
+        self.itemstats = tk.Entry(self.frame_b2, width=6,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.itemstats.grid(row=0, column=1, padx=(4,0))
         self.itemstats.bind("<Return>", self.on_enter_stats)
 
-        tk.Label(self.frame_b2, text="매매", width=6, anchor="e").grid(row=0, column=2, padx=0)
-        self.market = tk.Entry(self.frame_b2, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.market.grid(row=0, column=3, padx=(4,0))
+        self.typename = tk.Label(self.frame_b2, text="종류", width=4, anchor="e", )#borderwidth=1, relief="solid",  )
+        self.typename.grid(row=0, column=2, padx=(0,0))
+        #self.itemtype = tk.Entry(self.frame_b2, width=2,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        #self.itemtype.grid(row=0, column=1, padx=(4,0))        
+
+        label = tk.Label(self.frame_b2, text="가격", width=4, anchor="e", )#borderwidth=1, relief="solid", )
+        label.grid(row=1, column=0, padx=(0,0))
+        self.itemprice = tk.Entry(self.frame_b2, width=6,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.itemprice.grid(row=1, column=1, padx=(4,0))        
+
+        label = tk.Label(self.frame_b2, text="매매", width=4, anchor="e", )#borderwidth=1, relief="solid", )
+        label.grid(row=1, column=2, padx=(4,0))
+        self.market = tk.Entry(self.frame_b2, width=2, ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.market.grid(row=1, column=3, padx=(0,0))
         self.market.bind("<Return>", self.on_enter_market)
 
-        tk.Label(self.frame_b2, text="가격", width=6, anchor="e").grid(row=1, column=2, padx=0)
-        self.itemprice = tk.Entry(self.frame_b2, width=10,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
-        self.itemprice.grid(row=1, column=3, padx=(4,0))
+        self.frame_b3 = tk.LabelFrame(self.frame_b2, text="", width=self._width01-4, height=44, borderwidth=0, highlightthickness=0)
+        self.frame_b3.grid(row=0, column=4, rowspan=2, padx=(8,0), pady=(0,0))
+        self.frame_b3.grid_propagate(False)  # 크기 고정                
+
+        frame1 = tk.LabelFrame(self.frame_b3, width=96, height=40, highlightbackground="black", highlightthickness=0)
+        frame1.pack(padx=(8,0), pady=(0,0), )
+        frame1.pack_propagate(False)
+        tk.Button( frame1, text="Save Item", height=2, 
+                    relief="flat", bd=0,   # 내부 border 제거
+                    #borderwidth=1, relief="solid",
+                    command=lambda: self.save_item(),).pack(fill=tk.BOTH, padx=(0,0), pady=(0,0), )
+        #grid(row=0, column=0, padx=(0,0), pady=(0,0))
 
     def save_player(self):
         filename = gl._loading_file
@@ -261,6 +354,60 @@ class ItemTab:
             return
         files.save_player_gold(filename)
 
+
+    def on_enter_ownername(self, event):
+        if self.item_selected is None:
+            print("error: item not selected..")
+            return
+        
+        selected = self.item_selected
+        entri = event.widget
+        data0 = entri.get()
+        
+        value = data0.strip()
+        if 0 >= len(value):
+            print("error: owner name empty..")
+            return
+        
+        owner = None
+        if value.isdigit():
+            gn = len(gl.generals)
+            try:
+                num = int(value)
+                if 0 > num or num >= gn:
+                    print("overflow: {0}".format(value))
+                    return
+                owner = gl.generals[num]
+            except:
+                print('error: {0}'.format(value))
+                return
+        else:
+            # 장수 이름으로 검색
+            if '-' != value:
+                for i, general in enumerate(gl.generals):
+                    if value == general.name:
+                        owner = general
+                        break
+        if owner is None and '-' != value:
+            print("error: owner not found: {0}".format(value))
+            return
+        owner_num, owner_name = (owner.num, owner.name) if owner is not None else (65535, '-')
+        print("on_enter_ownername: {0:3}[{1:3}] => {2:3}[{3}]".format(selected.num, selected.owner, owner_num, owner_name))
+
+        self.item_changed = True
+        self.owner_changed = True
+
+        self.owner_prev = selected.owner
+        
+        selected.owner = owner_num
+        selected.unpacked[1] = owner_num
+
+        self.ownername.delete(0, tk.END)
+        self.ownername.insert(0, owner_name)
+        self.ownernum.config(text='{0}'.format(owner_num if 65535 != owner_num else '-'))
+        self.nextitem.config(text='{0}'.format(selected.next if 255 != selected.next else '-'))
+
+
     def on_enter_stats(self, event):
         entri = event.widget
         value0 = entri.get()
@@ -271,6 +418,8 @@ class ItemTab:
             value1 = int(value0)
             self.item_selected.stats = value1
             self.item_selected.unpacked[7] = value1
+            
+            self.item_changed = True
             print("on_enter_stats: {0}".format(value1))
         except ValueError:
              print(f"error: stats [{value0}]")
@@ -285,6 +434,8 @@ class ItemTab:
                 return
             self.item_selected.market = value1
             self.item_selected.unpacked[2] = value1
+            
+            self.item_changed = True
             print("on_enter_market: {0}".format(value1))
         except ValueError:
              print(f"error: market [{value0}]")

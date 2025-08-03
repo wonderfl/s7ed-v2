@@ -340,13 +340,13 @@ class GeneralTab:
         self.state.bind("<<ComboboxSelected>>", self.on_combo_state_selected)
         
         tk.Label(frame_affil, text="동료").grid(row=2, column=3, padx=(16,0))
-        self.colleague = tk.Entry(frame_affil, width=6)
-        self.colleague.grid(row=2, column=4, padx=(2,0))
+        self.colleague = tk.Entry(frame_affil, width=5)
+        self.colleague.grid(row=2, column=4, padx=(4,0))
         self.colleague.bind("<Return>", self.on_enter_colleague)  # Enter 키 입력 시 호출
         
-        tk.Button(frame_affil, text="표시", borderwidth=0, highlightthickness=0).grid(row=2, column=5)
-        self.prev = tk.Label(frame_affil, text="-", width=6)
-        self.prev.grid(row=2, column=6, padx=(2,0))
+        #tk.Button(frame_affil, text="표시", borderwidth=0, highlightthickness=0).grid(row=2, column=5)
+        self.prev = tk.Label(frame_affil, text="-", width=5, )#borderwidth=2, relief="solid")
+        self.prev.grid(row=2, column=5, padx=(0,0))
 
 
 

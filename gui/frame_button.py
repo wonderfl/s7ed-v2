@@ -9,10 +9,10 @@ class ButtonFrame:
     _width = 96
     _height = 32
 
-    def __init__(self, generalTab, parent ):
-        self.rootframe = parent
-        self.parentTab = generalTab
-        self.build_frame_button(parent, generalTab._width11)
+    def __init__(self, tab, frame ):
+        self.rootframe = frame
+        self.parentTab = tab
+        self.build_frame_button(frame, tab._width11)
 
     def create_button(self, parent, name, call, nr, nc, width, height):
 

@@ -18,6 +18,7 @@ class FramePopup(tk.Toplevel):
 
         self.rootframe = tk.LabelFrame(self,  borderwidth=0, highlightthickness=0, )
         self.rootframe.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        self.resizable(False, False)
 
         self.itemTab = _item.ItemTab(self.rootframe)
         self.realmTab = _realm.RealmTab(self.itemTab.rootframe, 0, 0)

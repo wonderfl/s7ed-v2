@@ -8,10 +8,10 @@ import globals as gl
 
 class ListupFrame:
     
-    def __init__(self, app, parent, nr, nc):
-        self.app = app
-        self.rootframe = parent
-        self.build_listup(app, parent, nr, nc) # 특기
+    def __init__(self, tab, frame, nr, nc):
+        self.parentTab = tab
+        self.rootframe = frame
+        self.build_listup(tab, frame, nr, nc) # 특기
 
     def find_item(self, str):
         found = -1
@@ -50,7 +50,7 @@ class ListupFrame:
         self.focus_num(0)
 
     def listup_generals(self):
-        _app = self.app
+        _app = self.parentTab
         _app.general_selected = None
 
         gn = len(gl.generals)
@@ -65,6 +65,7 @@ class ListupFrame:
         
         self.realm_filter['values'] = realm_filter
         self.realm_filter.set("세력전체")
+        _app.realm_num = -1
 
         city_filter=[]
         city_filter.append("도시전체")
@@ -73,14 +74,15 @@ class ListupFrame:
             city_filter.append('{0:2}.{1}'.format(i,name))        
 
         self.city_filter['values'] = city_filter
-        self.city_filter.set("도시전체")
+        self.city_filter.set("도시전체")        
+        _app.city_num = -1
 
         self.lb_generals.delete(0, tk.END)
         for general in gl.generals:
             self.lb_generals.insert(tk.END, " {0:3}. {1}".format(general.num, general.name))        
 
     def on_selected_general(self, index, value):
-        _app = self.app
+        _app = self.parentTab
         _app.general_selected = None
 
         gn = len(gl.generals)
@@ -108,7 +110,7 @@ class ListupFrame:
             self.on_selected_general(index, value)        
 
     def on_enter_realm(self, event):
-        _app = self.app
+        _app = self.parentTab
         if _app.general_selected is None:
             return
         
@@ -124,7 +126,7 @@ class ListupFrame:
             print("error:..")            
 
     def realm_selected(self, event):
-        _app = self.app
+        _app = self.parentTab
         _app.general_selected = None
 
         selected = self.realm_filter.get()
@@ -179,7 +181,7 @@ class ListupFrame:
         self.focus_generals()        
          
     def city_selected(self, event):
-        _app = self.app
+        _app = self.parentTab
         _app.general_selected = None
         selected = self.city_filter.get()
         values = [p for p in re.split(r'[ .,]', selected) if p]        
