@@ -185,21 +185,16 @@ class CityTab:
         self.entries[num1].focus_set()
 
     def build_basic(self, parent, nr, nc):
-        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01, height=self._height1-4)
+        frame_basic = tk.LabelFrame(parent, text="도시 기본 설정", width=self._width01-8, height=self._height1-4)
         frame_basic.grid(row=nr, column=nc, )
         frame_basic.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(4,0))
-        self.realm_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
-        self.realm_name.grid(row=0, column=1, padx=0)
 
-        #tk.Button(frame_basic, text="SaveCity", width=6, height=1, relief="flat", command=lambda: self.save_city() ).grid(row=0, column=2, padx=(4,0))
-        frame1 = tk.LabelFrame(frame_basic, width=64, height=27, )#highlightbackground="black", highlightthickness=0)
-        frame1.grid(row=0, column=2, padx=(8,0), pady=(0,0),)
-        frame1.grid_propagate(False)
-        tk.Button( frame1, text="Save City", relief="flat", bd=0,   # 내부 border 제거
-                    command=lambda: self.save_city(), ).grid(row=0, column=0, padx=(2,0))        
 
+        label = tk.Label(frame_basic, text="세력:", width=5, anchor="e",)# bd=2, relief="solid", borderwidth=1, )
+        label.grid(row=0, column=0, padx=(4,0), pady=(4,0))
+        self.realm_name = tk.Label(frame_basic, text="", width=10, anchor="w",)# bd=2, relief="solid", borderwidth=1, )
+        self.realm_name.grid(row=0, column=1, columnspan=2, padx=(0,0), pady=(4,0), sticky="ew")
         #         
         #self.realm_namenum = tk.Entry(frame_basic, width=6 )
         #self.realm_namenum.grid(row=0, column=2, padx=0)
@@ -207,69 +202,78 @@ class CityTab:
 
         self.entries.clear()
 
-        self.city_gov_state = tk.Label(frame_basic, text="태수:", width=4, anchor="e" )
+        self.city_gov_state = tk.Label(frame_basic, text="태수:", width=5, anchor="e", )#bd=2, relief="solid", borderwidth=1, )
         self.city_gov_state.grid(row=1, column=0, padx=(4,0))
-        self.city_gov_name = tk.Label(frame_basic, text="", width=7, anchor="e" )
-        self.city_gov_name.grid(row=1, column=1, padx=0)
+        self.city_gov_name = tk.Label(frame_basic, text="", width=10, anchor="w", )#bd=2, relief="solid", borderwidth=1, )
+        self.city_gov_name.grid(row=1, column=1, padx=0, columnspan=2, sticky="ew")
         #self.city_gov_num = tk.Entry(frame_basic, width=6 )
         #self.city_gov_num.grid(row=1, column=2, padx=0)
         #self.entries.append(self.city_gov_num)
 
-        tk.Label(frame_basic, text="  금:", width=4, anchor="e" ).grid(row=2, column=0, padx=(4,0))
-        self.city_golds = tk.Entry(frame_basic, width=7 )
-        self.city_golds.grid(row=2, column=1, padx=0)
+        tk.Label(frame_basic, text="  금:", width=5, anchor="e" ).grid(row=2, column=0, padx=(4,0))
+        self.city_golds = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_golds.grid(row=2, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_golds)
 
-        tk.Label(frame_basic, text="식량:", width=4, anchor="e" ).grid(row=3, column=0, padx=(4,0))
-        self.city_foods = tk.Entry(frame_basic, width=7 )
-        self.city_foods.grid(row=3, column=1, padx=0)
+        tk.Label(frame_basic, text="식량:", width=5, anchor="e" ).grid(row=3, column=0, padx=(4,0))
+        self.city_foods = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_foods.grid(row=3, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_foods)
 
-        tk.Label(frame_basic, text="인구:", width=4, anchor="e" ).grid(row=4, column=0, padx=(4,0))
-        self.city_peoples = tk.Entry(frame_basic, width=7 )
-        self.city_peoples.grid(row=4, column=1, padx=0)
+        tk.Label(frame_basic, text="인구:", width=5, anchor="e" ).grid(row=4, column=0, padx=(4,0))
+        self.city_peoples = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_peoples.grid(row=4, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_peoples)
 
-        tk.Label(frame_basic, text="개발:", width=4, anchor="e" ).grid(row=5, column=0, padx=(4,0))
-        self.city_devs = tk.Entry(frame_basic, width=7 )
-        self.city_devs.grid(row=5, column=1, padx=0)
+        tk.Label(frame_basic, text="개발:", width=5, anchor="e" ).grid(row=5, column=0, padx=(4,0))
+        self.city_devs = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_devs.grid(row=5, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_devs)
 
-        self.city_devmax = tk.Entry(frame_basic, width=8 )
-        self.city_devmax.grid(row=5, column=2, padx=0)
+        self.city_devmax = tk.Entry(frame_basic, width=5, justify="right" )
+        self.city_devmax.grid(row=5, column=2, padx=0, sticky="w")
         self.entries.append(self.city_devmax)
 
-        tk.Label(frame_basic, text="상업:", width=4, anchor="e" ).grid(row=6, column=0, padx=(4,0))
-        self.city_shops = tk.Entry(frame_basic, width=7 )
-        self.city_shops.grid(row=6, column=1, padx=0)
+        tk.Label(frame_basic, text="상업:", width=5, anchor="e" ).grid(row=6, column=0, padx=(4,0))
+        self.city_shops = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_shops.grid(row=6, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_shops)
 
-        self.city_shopmax = tk.Entry(frame_basic, width=8 )
-        self.city_shopmax.grid(row=6, column=2, padx=0)
+        self.city_shopmax = tk.Entry(frame_basic, width=5, justify="right" )
+        self.city_shopmax.grid(row=6, column=2, padx=0, sticky="w")
         self.entries.append(self.city_shopmax)
 
-        tk.Label(frame_basic, text="치안:", width=4, anchor="e" ).grid(row=7, column=0, padx=(4,0))
-        self.city_secu = tk.Entry(frame_basic, width=7 )
-        self.city_secu.grid(row=7, column=1, padx=0)
+        tk.Label(frame_basic, text="치안:", width=5, anchor="e" ).grid(row=7, column=0, padx=(4,0))
+        self.city_secu = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_secu.grid(row=7, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_secu)
 
-        tk.Label(frame_basic, text="방어:", width=4, anchor="e" ).grid(row=8, column=0, padx=(4,0))
-        self.city_defs = tk.Entry(frame_basic, width=7 )
-        self.city_defs.grid(row=8, column=1, padx=0)
+        tk.Label(frame_basic, text="방어:", width=5, anchor="e" ).grid(row=8, column=0, padx=(4,0))
+        self.city_defs = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_defs.grid(row=8, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_defs)
 
-        tk.Label(frame_basic, text="기술:", width=4, anchor="e" ).grid(row=9, column=0, padx=(4,0))
-        self.city_tech = tk.Entry(frame_basic, width=7 )
-        self.city_tech.grid(row=9, column=1, padx=0)
+        tk.Label(frame_basic, text="기술:", width=5, anchor="e" ).grid(row=9, column=0, padx=(4,0))
+        self.city_tech = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_tech.grid(row=9, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_tech)
 
-        tk.Label(frame_basic, text="민심:", width=4, anchor="e" ).grid(row=10, column=0, padx=(4,0))
-        self.city_sentiment = tk.Entry(frame_basic, width=7 )
-        self.city_sentiment.grid(row=10, column=1, padx=0)
+        tk.Label(frame_basic, text="민심:", width=5, anchor="e" ).grid(row=10, column=0, padx=(4,0))
+        self.city_sentiment = tk.Entry(frame_basic, width=7, justify="right" )
+        self.city_sentiment.grid(row=10, column=1, padx=0, sticky="ew")
         self.entries.append(self.city_sentiment)
 
         for i, entri in enumerate(self.entries):
             entri.bind("<Return>", lambda event, i=i: self.on_enter_city(event,i))
+
+        frame1 = tk.LabelFrame(frame_basic, height=32, )#highlightbackground="black", highlightthickness=0)
+        frame1.grid(row=11, column=0, columnspan=3, padx=(0,0), pady=(4,0), sticky="ew")
+        frame1.grid_propagate(False)
+
+        button = tk.Button( frame1, text="Save City", width=25, height=2,
+                            relief="flat", bd=0,   # 내부 border 제거
+                            command=lambda: self.save_city(), )
+        button.pack(padx=(0,0), pady=(0,2), expand=True, fill=tk.BOTH)
 
 
     def build_tab_city(self, parent, nr, nc):
@@ -299,11 +303,11 @@ class CityTab:
         scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
         scrollbar.pack(side="right", fill="y")
 
-        listbox_height = int((self._height0-32)/16)
-        self.lb_cities = tk.Listbox(self.frame_listup, height=listbox_height, width=10, highlightthickness=0, relief="flat")
+        listbox_height = int((self._height0+32)/16)
+        self.lb_cities = tk.Listbox(self.frame_listup, height=listbox_height, width=12, highlightthickness=0, relief="flat")
         self.lb_cities.pack(side="left", pady=0, fill="both", expand=True)
         self.lb_cities.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
-        scrollbar.config(command=self.lb_cities.yview)
+        scrollbar.config(command=self.lb_cities.yview, width=12)
         self.lb_cities.config(yscrollcommand=scrollbar.set)
         
         #for city in gl.cities:

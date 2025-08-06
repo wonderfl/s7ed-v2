@@ -2,6 +2,7 @@ import os
 import re
 
 import tkinter as tk
+from tkinter import font
 from tkinter import ttk
 from tkinter import filedialog, messagebox
 
@@ -22,6 +23,19 @@ class GeneralEditorApp:
         self.root.title("삼국지 VII - 장수 에디터 (전체 GUI 구성)")
         
         self.root.bind("<Control-f>", self.show_search_entry)  # Ctrl+F 핫키 등록        
+
+        # TkFixedFont 가져오기
+        fixed_font = font.nametofont("TkFixedFont")
+
+        # TkDefaultFont 가져오기
+        default_font = font.nametofont("TkDefaultFont")
+
+        # TkDefaultFont를 TkFixedFont와 동일하게 설정
+        default_font.configure(
+            family=fixed_font.cget("family"),
+            size=8,
+            weight="normal"
+        )
 
         self.create_widgets()
 
@@ -89,24 +103,28 @@ class GeneralEditorApp:
         items = self.generalTab.items()
         li = len(items)
 
-        ix = 0
-        selected = _app.generalTab.general_selected
-        if selected is not None:
-            strkey = " {0:3}. {1}".format(selected.num, selected.name)
-            for i, item in enumerate(items):
-                if strkey not in item:
-                    continue
-                ix = i+1
-                break
-
+        ix = -1
+        selected = _app.generalTab.listupFrame.index_selected()
+        if 0 > selected >= li:
+            return
+        ix = selected+1
+        print("found: {0} / {1}".format(ix, li))
+        if ix < 0:
+            print("not found: ", keyword)
+            return
+        
         generals = items[ix:] + items[:ix]
-        for i, general in enumerate(generals):
-            if keyword not in general:
+        num = -1
+        for i, iid in enumerate(generals):
+            item = self.generalTab.listupFrame.lb_generals.item(iid, 'values')
+            #print("search: {0} / {1} - {2}".format(i, li, item))
+            if keyword not in item[1]:
                 continue
             num = (ix + i) % li
-            self.generalTab.focus_num(num)
+            self.generalTab.focus_num(num, True)
             break
 
+        print("found: {0}, {1}".format( num, ix))
         self.search_window.destroy()  # 검색 후 닫기
 
 

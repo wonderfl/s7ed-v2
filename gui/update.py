@@ -75,8 +75,10 @@ def refill_general_soldiers( count, selected):
 def refill_general_loyalty( count, selected):
     data0 = selected.unpacked[37] # 충성
     value0 = data0 + 5
-    if 96 <= value0:
+    if 94 <= data0:
         value0 = data0
+    elif 94 <= value0:
+        value0 = 94
     selected.unpacked[37] = value0
     selected.loyalty = value0
 

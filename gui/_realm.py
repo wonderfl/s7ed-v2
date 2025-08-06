@@ -76,20 +76,20 @@ class RealmTab:
         frame_basic.grid(row=nr, column=nc, )
         frame_basic.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_basic, text="세력:", width=4, anchor="e" ).grid(row=0, column=0, padx=(8,0), pady=(8,0))
-        self.realm_num = tk.Label(frame_basic, text="", width=5, anchor="e" )
+        tk.Label(frame_basic, text="세력:", width=5, anchor="e" ).grid(row=0, column=0, padx=(8,0), pady=(8,0))
+        self.realm_num = tk.Label(frame_basic, text="", width=6, anchor="e" )
         self.realm_num.grid(row=0, column=1, padx=(8,0), pady=(8,0))
         self.realm_name = tk.Entry(frame_basic, width=6 )
         self.realm_name.grid(row=0, column=2, padx=(4,0), pady=(8,0))
 
-        tk.Label(frame_basic, text="주군:", width=4, anchor="e" ).grid(row=1, column=0, padx=(8,0))
-        self.ruler_name = tk.Label(frame_basic, text="-", width=5, anchor="e" )
+        tk.Label(frame_basic, text="주군:", width=5, anchor="e" ).grid(row=1, column=0, padx=(8,0))
+        self.ruler_name = tk.Label(frame_basic, text="-", width=6, anchor="e" )
         self.ruler_name.grid(row=1, column=1, padx=(8,0))
         self.ruler_num = tk.Entry(frame_basic, width=6 )
         self.ruler_num.grid(row=1, column=2, padx=(4,0))
 
-        tk.Label(frame_basic, text="참모:", width=4, anchor="e" ).grid(row=2, column=0, padx=(8,0))
-        self.staff_name = tk.Label(frame_basic, text="-", width=5, anchor="e" )
+        tk.Label(frame_basic, text="참모:", width=5, anchor="e" ).grid(row=2, column=0, padx=(8,0))
+        self.staff_name = tk.Label(frame_basic, text="-", width=6, anchor="e" )
         self.staff_name.grid(row=2, column=1, padx=(8,0))
         self.staff_num = tk.Entry(frame_basic, width=6 )
         self.staff_num.grid(row=2, column=2, padx=(4,0))
@@ -108,14 +108,14 @@ class RealmTab:
         scrollbar = tk.Scrollbar(self.frame_20, orient="vertical")
         scrollbar.pack(side="right", fill="y")
 
-        listbox_height = int((self._height0-8)/16)
-        self.lb_realms = tk.Listbox(self.frame_20, height=listbox_height, width=10, highlightthickness=0, relief="flat")
+        listbox_height = int((self._height0+16)/16)
+        self.lb_realms = tk.Listbox(self.frame_20, height=listbox_height, width=12, highlightthickness=0, relief="flat")
         self.lb_realms.pack(side="left", fill="both", expand=True)
         self.lb_realms.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
-        scrollbar.config(command=self.lb_realms.yview)
+        scrollbar.config(command=self.lb_realms.yview, width=12)
         self.lb_realms.config(yscrollcommand=scrollbar.set)
 
-        frame_1 = tk.LabelFrame(self.frame_realm, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
+        frame_1 = tk.LabelFrame( self.frame_realm, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)
         frame_1.grid(row=0, column=1, padx=(4,0), sticky='sw')
         frame_1.grid_propagate(False)  # 크기 고정
 

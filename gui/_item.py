@@ -340,7 +340,7 @@ class ItemTab:
         tk.Button( frame1, text="Save Item", height=2, 
                     relief="flat", bd=0,   # 내부 border 제거
                     #borderwidth=1, relief="solid",
-                    command=lambda: self.save_item(),).pack(fill=tk.BOTH, padx=(0,0), pady=(0,0), )
+                    command=lambda: self.save_item(),).pack(fill=tk.BOTH, expand=True, )
         #grid(row=0, column=0, padx=(0,0), pady=(0,0))
 
     def save_player(self):
@@ -488,10 +488,11 @@ class ItemTab:
 
 
         frame1 = tk.LabelFrame(frame_b1, width=80, height=26, highlightbackground="black", highlightthickness=0)
-        frame1.grid(row=1, column=5, padx=(16,0), pady=(0,0),)
+        frame1.grid(row=0, column=5, rowspan=2, padx=(16,0), pady=(0,0),)
         frame1.grid_propagate(False)
-        tk.Button( frame1, text="Save Gold", relief="flat", bd=0,   # 내부 border 제거
-                    command=lambda: self.save_player(), ).grid(row=0, column=0, padx=(8,0))
+        button = tk.Button( frame1, width=15, height=3, text="Save Gold", relief="flat", bd=0,   # 내부 border 제거
+                    command=lambda: self.save_player(), )
+        button.pack(padx=(0,0), expand=True, fill=tk.BOTH)
         
     def build_tab_item(self, parent, nr, nc):
         self.frame_item = tk.LabelFrame(parent, text="", width=self._width00+136, height=self._height0, borderwidth=0, highlightthickness=0, )
@@ -503,7 +504,7 @@ class ItemTab:
         self.frame_00.grid_propagate(False)  # 크기 고정
 
         owner_filters=[]
-        self.owner_filter = ttk.Combobox(self.frame_00, values=owner_filters, width=14, )
+        self.owner_filter = ttk.Combobox(self.frame_00, values=owner_filters, width=12, )
         self.owner_filter.pack(side="top", fill="y")
         self.owner_filter.bind("<<ComboboxSelected>>", self.on_selected_owner)
 
@@ -515,11 +516,11 @@ class ItemTab:
         scrollbar = tk.Scrollbar(self.frame_listup, orient="vertical")
         scrollbar.pack(side="right", fill="y")
 
-        scr_height = int((self._height0-32)/16)
-        self.lb_items = tk.Listbox(self.frame_listup, height=scr_height, width=14, highlightthickness=0, relief="flat")
+        scr_height = int((self._height0+32)/16)
+        self.lb_items = tk.Listbox(self.frame_listup, height=scr_height, width=16, highlightthickness=0, relief="flat")
         self.lb_items.pack(side="left", pady=0, fill="both", expand=True)
         self.lb_items.bind("<<ListboxSelect>>", self.on_selected)       # 선택될 때
-        scrollbar.config(command=self.lb_items.yview)
+        scrollbar.config(command=self.lb_items.yview, width=12)
         self.lb_items.config(yscrollcommand=scrollbar.set)
 
         self.frame_01 = tk.LabelFrame(self.frame_item, text="", width=self._width00, height=self._height1, borderwidth=0, highlightthickness=0)

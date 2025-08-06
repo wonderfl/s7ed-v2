@@ -10,6 +10,7 @@ class FramePopup(tk.Toplevel):
 
     def __init__(self, parent, close_popup):
         super().__init__(parent)
+        
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.close_popup = close_popup 

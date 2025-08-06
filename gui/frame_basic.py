@@ -6,7 +6,7 @@ import globals as gl
 class BasicFrame:
     _width01 = 280
     
-    image_height = 100
+    image_height = 120
     image_width = int(image_height*0.8)
 
     def __init__(self, app, parent, nr, nc):
@@ -25,9 +25,8 @@ class BasicFrame:
         except:
             print('error: {0}'.format(value1))
             return
-            
-        str = " {0:3}. ".format(num)
-        self.app.find_general(str)
+        
+        self.app.find_general_num(num, True)
 
     def on_enter_family(self, event):
         gn = len(gl.generals)        
@@ -81,7 +80,7 @@ class BasicFrame:
         frame_basic.grid_propagate(False)  # 크기 고정
 
         frame_b0 = tk.LabelFrame(frame_basic, text="", )#borderwidth=0, highlightthickness=0)
-        frame_b0.grid(row=0, column=0, rowspan=3, ipadx=0,ipady=0, pady=(4,0))
+        frame_b0.grid(row=0, column=0, rowspan=3, ipadx=0,ipady=0, pady=(8,0))
         frame_b0.grid_propagate(False)  # 크기 고정
         app.frame_image = frame_b0
 
@@ -89,13 +88,17 @@ class BasicFrame:
         app.canvas.pack()
         app.image_created = None
                 
-        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-96, height=68, borderwidth=0, highlightthickness=0)
-        frame_b1.grid(row=0, column=1, padx=(4,0), pady=(8,0))
+        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=60, borderwidth=0, highlightthickness=0)
+        frame_b1.grid(row=0, column=1, sticky='w', padx=(0,0), pady=(4,0))
         frame_b1.grid_propagate(False)  # 크기 고정        
 
-        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-96, height=30, borderwidth=0, highlightthickness=0)
-        frame_b2.grid(row=1, column=1, padx=(4,0), pady=(0,0))
+        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=20, borderwidth=0, highlightthickness=0)
+        frame_b2.grid(row=1, column=1, sticky='w', padx=(0,0), pady=(4,0))
         frame_b2.grid_propagate(False)  # 크기 고정 
+
+        frame_b3 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=40, borderwidth=0, highlightthickness=0)
+        frame_b3.grid(row=2, column=1, sticky='w', padx=(0,0), pady=(8,0))
+        frame_b3.grid_propagate(False)  # 크기 고정         
 
         tk.Label(frame_b1, text="번호",).grid(row=0, column=0,)
         entri0 = tk.Entry(frame_b1, width=4, )
@@ -132,12 +135,41 @@ class BasicFrame:
         app.name2 = tk.Entry(frame_b1, width=5 )
         app.name2.grid(row=2, column=5, padx=(0,0))
 
-        tk.Label(frame_b2, text="행동").grid(row=0, column=0)
+        tk.Label(frame_b2, text="행동").grid(row=0, column=0, padx=(0,0))
         app.turnv = tk.IntVar()
         app.turned = tk.Checkbutton(frame_b2, text="", variable=app.turnv)
         app.turned.grid(row=0, column=1, padx=(0,0))        
 
         app.genderv = tk.IntVar()
-        tk.Label(frame_b2, text="성별").grid(row=0, column=2, padx=(2,0))
-        tk.Radiobutton(frame_b2, text="남", variable=app.genderv, value=0).grid(row=0, column=3)
-        tk.Radiobutton(frame_b2, text="여", variable=app.genderv, value=1).grid(row=0, column=4)
+        tk.Label(frame_b2, text="성별").grid(row=0, column=2, padx=(0,0))
+        tk.Radiobutton(frame_b2, text="남", variable=app.genderv, value=0).grid(row=0, column=3, padx=(0,0))
+        tk.Radiobutton(frame_b2, text="여", variable=app.genderv, value=1).grid(row=0, column=4, padx=(0,0))
+
+        self.build_traits(frame_b3, 2, 0) # 특성
+
+
+    def update_radio(self):
+        val = self.traitv.get()
+        for i, radio in enumerate(self.traits):
+            if i == val:
+                radio.config(relief="raised", borderwidth=0, bg="white")
+            else:
+                radio.config(relief="sunken", borderwidth=0, bg="lightgray")
+
+    def build_traits(self, parent, nr, nc):
+        #frame_traits = tk.LabelFrame(parent, text="무장 특성", width=self._width01, height=56)
+        frame_traits = tk.LabelFrame(parent, text="", width=self._width01-108, height=40)
+        frame_traits.grid(row=nr, column=nc, pady=(0,0), ipady=0 )
+        frame_traits.grid_propagate(False)  # 크기 고정
+        
+        self.traits = []
+        self.traitv = tk.IntVar()
+        for i, label in enumerate(["무력", "지력", "정치", "매력","장군", "군사", "만능", "평범"]):
+            radio = tk.Radiobutton(frame_traits, width=6, height=1, 
+                                   value=i, text=label, variable=self.traitv,
+                                   indicatoron=False, 
+                                   command=self.update_radio,
+                                   highlightthickness=0, borderwidth=0,
+                                   bg="lightgray", )
+            radio.grid(row=i//4, column=i%4, padx=(2,0), pady=(2, 2), sticky='w')
+            self.traits.append(radio)

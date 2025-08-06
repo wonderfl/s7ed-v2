@@ -231,12 +231,12 @@ class PersonalityFrame:
         _selected.strategy = strategy        
 
     def build_personalities(self, app, parent, nr, nc):        
-        frame_personality = tk.LabelFrame(parent, text="무장 개성", width=app._width11, height=260)
+        frame_personality = tk.LabelFrame(parent, text="무장 개성", width=app._width11, height=248)
         frame_personality.grid(row=0, column=0, pady=(4,0) )
         frame_personality.grid_propagate(False)  # 크기 고정
 
-        frame_r1 = tk.LabelFrame(frame_personality, text="", width=app._width11-4, height=112, borderwidth=0, highlightthickness=0)
-        frame_r1.grid(row=0, column=0) 
+        frame_r1 = tk.LabelFrame(frame_personality, text="", width=app._width11-4, height=104, borderwidth=0, highlightthickness=0)
+        frame_r1.grid(row=0, column=0, pady=(8,0)) 
         frame_r1.grid_propagate(False)  # 크기 고정
 
         fields = ["탄생","등장","사관","수명", "성장","상성","야망","의리", "용맹","냉정","명성","공적", "봉록","행동력","병사","훈련", "충성","아이템","친밀"]
@@ -248,10 +248,10 @@ class PersonalityFrame:
             app.personalities.append(entri)
 
         frame_r2 = tk.LabelFrame(frame_personality, text="", width=app._width11-4, height=30, borderwidth=0, highlightthickness=0)
-        frame_r2.grid(row=1, column=0)
+        frame_r2.grid(row=1, column=0, padx=(0,0), pady=(0,0))
         frame_r2.grid_propagate(False)  # 크기 고정
 
-        tk.Label(frame_r2, text="무술우승", ).grid(row=0, column=0, sticky="e", padx=(10,0))
+        tk.Label(frame_r2, text="무술우승", ).grid(row=0, column=0, sticky="e", padx=(10,0),)
         wins = tk.Entry(frame_r2, width=3)
         wins.grid(row=0, column=1, )
         app.wins.append(wins)
@@ -266,7 +266,7 @@ class PersonalityFrame:
         app.health.grid(row=0, column=7,)
         app.health.bind("<<ComboboxSelected>>", self.on_selected_health)
 
-        frame_r4 = tk.LabelFrame(frame_personality, text="", width=app._width11-4, height=96, borderwidth=0, highlightthickness=0)
+        frame_r4 = tk.LabelFrame(frame_personality, text="", width=app._width11-4, height=88, borderwidth=0, highlightthickness=0)
         frame_r4.grid(row=3, column=0)
         frame_r4.grid_propagate(False)  # 크기 고정
         for i, label in enumerate(["포획 군주", "매복 세력", "작적 세력"]):

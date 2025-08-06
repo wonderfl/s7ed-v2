@@ -275,7 +275,10 @@ class General:
     
     def details2(self):
         return self.states_detail() + self.loyalties() + self.soldiers() + self.properties() + self.equipments()    
-
+    
+    def profile(general):
+        #return '{0:3}.{1}[{2:3} {3:2} ]'.format(general.num, general.fixed, general.loyalty, general.realm if general.realm !=255 else ' -',  )
+        return (general.num, general.name,general.loyalty, general.realm if general.realm !=255 else '-',)
     def __repr__(self):
         return self.profiles()
     

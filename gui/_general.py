@@ -1,8 +1,9 @@
 import re
 
 import tkinter as tk
-from tkinter import ttk
 import tkinter.font as tkfont
+
+from tkinter import ttk
 from PIL import Image, ImageTk
 
 import globals as gl
@@ -29,13 +30,10 @@ class GeneralTab:
     _width10 = 328
     _width11 = 320
 
-    _height0 = 520
+    _height0 = 496
 
     realm_num = -1
     city_num = -1
-
-    image_height = 100
-    image_width = int(image_height*0.8)
 
     skills=[]
     skillv=[]
@@ -94,14 +92,14 @@ class GeneralTab:
         _png = 'gui/png/face{0:03}.png'.format(selected.faceno)
 
         _image00 = Image.open(_png)  # 파일명 경로 지정  
-        _resized = _image00.resize((self.image_width,self.image_height), Image.LANCZOS)
+        _resized = _image00.resize((_basic.BasicFrame.image_width,_basic.BasicFrame.image_height), Image.LANCZOS)
         self.tk_image = ImageTk.PhotoImage(_resized)
 
         if self.image_created:
             self.canvas.delete(self.image_created)
         self.image_created = self.canvas.create_image(0, 0, anchor='nw', image=self.tk_image)
 
-        self.traitv.set(selected.job)        
+        self.basicFrame.traitv.set(selected.job)        
         
         for i in range(32):
             self.skillv[i].set(gl.bit32from(selected.props, i, 1))
@@ -160,7 +158,6 @@ class GeneralTab:
         for general in gl.generals:
             if general.colleague == selected.num:                
                 self.prev.config(text='{0}'.format(general.num))
-        
 
     def entry_row(self, frame, labels, width=4):
         for i, text in enumerate(labels):
@@ -169,16 +166,16 @@ class GeneralTab:
 
     def append_entries(self, frame, entries, labels, width=4):
         for i, text in enumerate(labels):
-            tk.Label(frame, text=text).grid(row=0, column=i * 2)
+            tk.Label(frame, text=text).grid(row=0, column=i * 2, padx=(4,0), pady=(4,0))
             entry = tk.Entry(frame, width=width )
-            entry.grid(row=0, column=i * 2 + 1)
+            entry.grid(row=0, column=i * 2 + 1, pady=(4,0))
             entries.append(entry)\
 
     def items(self):
         return self.listupFrame.items()
 
-    def find_general(self, str, now=False):        
-        found = self.listupFrame.find_item(str)
+    def find_general_num(self, num, now=False):        
+        found = self.listupFrame.find_item_num(num)
         if -1 == found:
             return
         self.listupFrame.focus_num(found, now)        
@@ -222,13 +219,14 @@ class GeneralTab:
             print('error: {0}, {1}'.format(num, value0))
 
     def build_traits(self, parent, nr, nc):
-        frame_traits = tk.LabelFrame(parent, text="무장 특성", width=self._width01, height=64)
-        frame_traits.grid(row=nr, column=nc, pady=(4,0) )
+        frame_traits = tk.LabelFrame(parent, text="무장 특성", width=self._width01, height=56)
+        frame_traits.grid(row=nr, column=nc, pady=(4,0), ipady=0 )
         frame_traits.grid_propagate(False)  # 크기 고정
         
         self.traitv = tk.IntVar()
         for i, label in enumerate(["무력", "지력", "정치", "매력","장군", "군사", "만능", "평범"]):
-            tk.Radiobutton(frame_traits, text=label, variable=self.traitv, value=i, width=6, height=1, highlightthickness=0, borderwidth=0).grid(row=i//4, column=i%4)
+            radio = tk.Radiobutton(frame_traits, text=label,  variable=self.traitv, value=i, highlightthickness=0, borderwidth=0)
+            radio.grid(row=i//4, column=i%4, pady=(4 if i<=4 else 0, 0), padx=(8,0), sticky='w')
 
     def on_enter_realm(self, event):
         print("enter realm..")
@@ -351,7 +349,7 @@ class GeneralTab:
 
 
     def build_tab_general(self, parent, nr, nc):
-        self.frame_general = tk.LabelFrame(parent, text="", width= (128+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_general = tk.LabelFrame(parent, text="", width= (168+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_general.grid(row=nr, column=nc, rowspan=2, padx=(4,0))
         self.frame_general.grid_propagate(False)  # 크기 고정
 
@@ -367,10 +365,10 @@ class GeneralTab:
         self.frame_1.grid_propagate(False)  # 크기 고정
 
         self.basicFrame = _basic.BasicFrame(self, self.frame_1, 0, 0)        
-        self.build_traits(self.frame_1, 2, 0) # 특성
-        self.build_stats(self.frame_1, 3, 0) # 능력치
-        self.skillFrame = _skill.SkillFrame(self, self.frame_1, 4, 0)
-        self.equipFrame = _equip.EquipFrame(self, self.frame_1, 5, 0)
+        #self.build_traits(self.frame_1, 2, 0) # 특성
+        self.build_stats(self.frame_1, 2, 0) # 능력치
+        self.skillFrame = _skill.SkillFrame(self, self.frame_1, 3, 0)
+        self.equipFrame = _equip.EquipFrame(self, self.frame_1, 4, 0)
 
         self.frame_2 = tk.LabelFrame(self.frame_general, text="", width=self._width10, height=self._height0-4, borderwidth=0, highlightthickness=0)
         self.frame_2.grid(row=0, column=2, padx=(4,0))
@@ -396,9 +394,9 @@ class GeneralTab:
             count = count + 1
 
         for item in _items:
-            values = [p for p in re.split(r'[ .,]', item) if p]
+            #values = [p for p in re.split(r'[ .,]', item) if p]
             
-            _num = int(values[0])
+            _num = int(item[0])
             if 0 > _num or _num >= gn:
                 continue
 
@@ -425,9 +423,9 @@ class GeneralTab:
         
         _items = _items = self.listupFrame.selections()
         for item in _items:
-            values = [p for p in re.split(r'[ .,]', item) if p]
+            #values = [p for p in re.split(r'[ .,]', item) if p]
             
-            _num = int(values[0])
+            _num = int(item[0])
             if 0 > _num or _num >= gn:
                 continue
             
@@ -454,9 +452,8 @@ class GeneralTab:
         
         _items = self.listupFrame.selections()
         for item in _items:
-            values = [p for p in re.split(r'[ .,]', item) if p]
-            
-            _num = int(values[0])
+            #values = [p for p in re.split(r'[ .,]', item) if p]            
+            _num = int(item[0])
             if 0 > _num or _num >= gn:
                 continue
 
@@ -481,9 +478,9 @@ class GeneralTab:
         
         _items = self.listupFrame.selections()
         for item in _items:
-            values = [p for p in re.split(r'[ .,]', item) if p]
+            #values = [p for p in re.split(r'[ .,]', item) if p]
             
-            _num = int(values[0])
+            _num = int(item[0])
             if 0 > _num or _num >= gn:
                 continue
             selected = gl.generals[_num]
