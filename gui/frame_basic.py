@@ -158,8 +158,8 @@ class BasicFrame:
 
     def build_traits(self, parent, nr, nc):
         #frame_traits = tk.LabelFrame(parent, text="무장 특성", width=self._width01, height=56)
-        frame_traits = tk.LabelFrame(parent, text="", width=self._width01-108, height=40)
-        frame_traits.grid(row=nr, column=nc, pady=(0,0), ipady=0 )
+        frame_traits = tk.LabelFrame(parent, text="", width=self._width01-108, height=36)
+        frame_traits.grid(row=nr, column=nc, pady=(4,0), ipady=0 )
         frame_traits.grid_propagate(False)  # 크기 고정
         
         self.traits = []
@@ -171,5 +171,5 @@ class BasicFrame:
                                    command=self.update_radio,
                                    highlightthickness=0, borderwidth=0,
                                    bg="lightgray", )
-            radio.grid(row=i//4, column=i%4, padx=(2,0), pady=(2, 2), sticky='w')
+            radio.grid(row=i//4, column=i%4, padx=(2,0), pady=(2 if i < 4 else 0, 2), sticky='w')
             self.traits.append(radio)
