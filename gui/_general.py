@@ -21,6 +21,7 @@ from . import update
 from . import gui
 
 from commands import files
+from utils import kaodata_image
 
 class GeneralTab:
 
@@ -88,10 +89,23 @@ class GeneralTab:
         if 65535 == parent:
             parent = ' -'
         self.parents.insert(0, parent)
-
-        _png = 'gui/png/face{0:03}.png'.format(selected.faceno)
-
-        _image00 = Image.open(_png)  # 파일명 경로 지정  
+        
+        try:
+            #_png = 'gui/png/face{0:03}.png'.format(selected.faceno)
+            #_image00 = Image.open(_png)
+            # Kaodata.s7 파일에서 얼굴 이미지 읽기 시도
+            _image00 = kaodata_image.get_face_image(selected.faceno)
+        except Exception as e:
+            print(f"[얼굴이미지] Kaodata.s7 읽기 실패 (faceno: {selected.faceno}): {e}")
+            # 폴백: 기존 PNG 파일 사용
+            _png = 'gui/png/face{0:03}.png'.format(selected.faceno)
+            try:
+                _image00 = Image.open(_png)
+            except Exception as e2:
+                print(f"[얼굴이미지] PNG 파일 읽기 실패 (faceno: {selected.faceno}): {e2}")
+                # 기본 이미지 생성 (에러 방지)
+                _image00 = Image.new('RGB', (96, 120), color='gray')
+        
         _resized = _image00.resize((_basic.BasicFrame.image_width,_basic.BasicFrame.image_height), Image.LANCZOS)
         self.tk_image = ImageTk.PhotoImage(_resized)
 
