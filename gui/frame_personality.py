@@ -22,7 +22,17 @@ class PersonalityFrame:
         value0 = self.app.personalities[num].get()
         try:
             value1 = int(value0)
-            if 3 == num: # 수명
+            #fields = ["탄생","등장","사관","수명", "성장","상성","야망","의리", "용맹","냉정","명성","공적", "봉록","행동력","병사","훈련", "충성","아이템","친밀"]                
+            if 0 == num: # 탄생
+                _selected.birthyear = value1
+                _selected.unpacked[3] = value1
+            elif 1 == num: # 등장
+                _selected.appearance = value1 
+                _selected.unpacked[2] = value1
+            elif 2 == num: # 사관
+                _selected.employment = value1                                                         
+                _selected.unpacked[4] = value1
+            elif 3 == num: # 수명
                 if 15 < value1:
                     print("error: overflow {0} {1}".format(num, value1))
                     return

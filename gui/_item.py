@@ -440,7 +440,33 @@ class ItemTab:
         except ValueError:
              print(f"error: market [{value0}]")
 
-    def on_enter(self, event):
+    def on_enter_year(self, event):
+        entry = event.widget
+        key = self.entry_ids[entry]
+        try:
+            value = int(self.entry_vars[key].get())
+            if 0 > value or value > 250:
+                print("error: out of range {0}[{1}]".format(key, value))
+                return
+            gl._year = value
+            print("on_enter_year: {0}[{1}]".format(key, value))            
+        except ValueError:
+             print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
+
+    def on_enter_month(self, event):
+        entry = event.widget
+        key = self.entry_ids[entry]
+        try:
+            value = int(self.entry_vars[key].get())
+            if 0 > value or value > 12:
+                print("error: out of range {0}[{1}]".format(key, value))
+                return
+            gl._month = value
+            print("on_enter_month: {0}[{1}]".format(key, value))            
+        except ValueError:
+             print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
+
+    def on_enter_gold(self, event):
         entry = event.widget
         key = self.entry_ids[entry]
         try:
@@ -449,9 +475,9 @@ class ItemTab:
                 print("error: out of range {0}[{1}]".format(key, value))
                 return
             gl.hero_golds = value
-            print("on_enter: {0}[{1}]".format(key, value))            
+            print("on_enter_gold: {0}[{1}]".format(key, value))            
         except ValueError:
-             print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")
+             print(f"[{key}] 숫자 아님: {self.entry_vars[key].get()}")                          
 
     def build_player(self, parent, nr, nc):
         frame_player = tk.LabelFrame(parent, text="시나리오 기본 설정", width=self._width00+120, height=96, )# borderwidth=0, highlightthickness=0)
@@ -467,10 +493,22 @@ class ItemTab:
         self.current_scene.grid(row=0, column=1, padx=(4,0), pady=0)
 
         tk.Label(frame_b1, text="게임날짜", width=8, anchor="e").grid(row=0, column=2, padx=0, pady=0)
-        self.current_year = tk.Entry(frame_b1, width=4,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        
+        var_year = tk.StringVar()
+        self.current_year = tk.Entry(frame_b1, width=4,  textvariable=var_year) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_year.grid(row=0, column=3, padx=(4,0), pady=0)
-        self.current_month = tk.Entry(frame_b1, width=4,  ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.current_year.bind("<Return>", self.on_enter_year)
+
+        self.entry_vars["현재년도"] = var_year
+        self.entry_ids[self.current_year] = "현재년도"
+        
+        var_month = tk.StringVar()
+        self.current_month = tk.Entry(frame_b1, width=4,  textvariable=var_month) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_month.grid(row=0, column=4, padx=(2,0), pady=0)
+        self.current_month.bind("<Return>", self.on_enter_month)
+
+        self.entry_vars["현재월"] = var_month
+        self.entry_ids[self.current_month] = "현재월"        
 
         tk.Label(frame_b1, text="이름", width=8, anchor="e").grid(row=1, column=0, padx=(0,0), pady=0)
         self.player_name = tk.Entry(frame_b1, width=10, ) # state="disabled", disabledbackground="white", disabledforeground="black")
@@ -479,9 +517,9 @@ class ItemTab:
         tk.Label(frame_b1, text="소지금", width=8, anchor="e").grid(row=1, column=2, padx=0, pady=0)
 
         var_gold = tk.StringVar()
-        self.current_gold = tk.Entry(frame_b1, width=9,  textvariable=var_gold ) # state="disabled", disabledbackground="white", disabledforeground="black")
+        self.current_gold = tk.Entry(frame_b1, width=9, textvariable=var_gold ) # state="disabled", disabledbackground="white", disabledforeground="black")
         self.current_gold.grid(row=1, column=3, columnspan=2, padx=(4,0), pady=0)
-        self.current_gold.bind("<Return>", self.on_enter)
+        self.current_gold.bind("<Return>", self.on_enter_gold)
 
         self.entry_vars["소지금"] = var_gold
         self.entry_ids[self.current_gold] = "소지금"

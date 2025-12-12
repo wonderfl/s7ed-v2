@@ -136,7 +136,7 @@ class ListupFrame:
             return
 
         _selected = gl.generals[_num]
-        if _selected.name != values[1]:
+        if _selected.name != values[2]:
             print("'{0}' != '{1}'".format(_selected.name, values[1]))
             print(f"잘못된 이름입니다: {index}, {values}, {values}")
             return        
@@ -316,8 +316,8 @@ class ListupFrame:
         #style.configure("Treeview", rowheight=18, font=tree_font)        
         style.configure("Treeview", rowheight=20, font=tree_font, )
 
-        self.columns=("num","name","loyalty","realm")
-        texts=("no.","이름","충성","세력")
+        self.columns=("num","realm","name","birth","turned","loyalty","str","int","pol","chr")
+        texts=("no.","rlm","name","bth","turn","lty","str","int","pol","chr")
         tree = ttk.Treeview(self.frame_listup, height=20, 
                             style="Treeview", 
                             selectmode='extended', 
@@ -334,9 +334,16 @@ class ListupFrame:
             tree.heading(col, text=texts[i], command=lambda c=col: self.sort_by_column(c))
 
         tree.column("num", width=28, anchor="e", stretch=False)
+        tree.column("realm", width=26, anchor="e", stretch=False)
         tree.column("name", width=54, anchor="center", stretch=False)
-        tree.column("loyalty", width=30, anchor="e", stretch=False)
-        tree.column("realm", width=30, anchor="w", stretch=False)
+        tree.column("birth", width=26, anchor="e", stretch=False)
+        tree.column("turned", width=26, anchor="e", stretch=False)
+        tree.column("loyalty", width=26, anchor="e", stretch=False)
+        tree.column("str", width=26, anchor="e", stretch=False)
+        tree.column("int", width=26, anchor="e", stretch=False)
+        tree.column("pol", width=26, anchor="e", stretch=False)
+        tree.column("chr", width=26, anchor="e", stretch=False)
+
 
         tree.bind("<<TreeviewSelect>>", self.on_selected)       # 선택될 때        
         tree.bind("<Control-a>", self.select_all)

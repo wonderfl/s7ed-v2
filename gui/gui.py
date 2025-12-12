@@ -10,10 +10,12 @@ import gui._general as _gnl
 import gui._item as _item
 import gui._popup as _popup
 import gui.frame_button as _button
+import gui._face_import as _face_import
 
 import commands.files as file
 
 import globals as gl
+import os
 
 _value = ""
 
@@ -118,7 +120,7 @@ class GeneralEditorApp:
         for i, iid in enumerate(generals):
             item = self.generalTab.listupFrame.lb_generals.item(iid, 'values')
             #print("search: {0} / {1} - {2}".format(i, li, item))
-            if keyword not in item[1]:
+            if keyword not in item[2]:
                 continue
             num = (ix + i) % li
             self.generalTab.focus_num(num, True)
@@ -156,6 +158,30 @@ def reload_file():
     
     gl._loading_file = filename
 
+
+def check_and_reload_file():
+    """파일 변경을 체크하고 사용자에게 확인 후 리로드"""
+    if file.check_file_changed():
+        filename = gl._loading_file
+        result = messagebox.askyesno(
+            "파일 변경 감지",
+            f"파일이 외부에서 변경되었습니다.\n\n{filename}\n\n다시 불러오시겠습니까?",
+            icon='question'
+        )
+        
+        if result:
+            # 사용자가 "예"를 선택한 경우 리로드
+            reload_file()
+        else:
+            # 사용자가 "아니오"를 선택한 경우 현재 mtime으로 업데이트 (다음 체크까지 무시)
+            try:
+                gl._file_mtime = os.path.getmtime(filename)
+            except Exception as e:
+                print(f"[파일체크] mtime 업데이트 실패: {e}")
+    
+    # 1초 후 다시 체크
+    _root.after(1000, check_and_reload_file)
+
 def save_file():
     filename = gl._loading_file
     if 0 >= len(filename):
@@ -168,6 +194,12 @@ def save_file():
         
     file.save_file(filename)
     gl._loading_file = filename
+    
+    # 저장 후 파일의 수정 시간 업데이트
+    try:
+        gl._file_mtime = os.path.getmtime(filename)
+    except Exception as e:
+        print(f"[파일체크] mtime 업데이트 실패: {e}")
 
     _app.status.config(text="저장 완료: {0}를 저장하였습니다.".format(filename))
 
@@ -209,6 +241,9 @@ def app():
 
     file_menu.add_separator()
     file_menu.add_command(label="Export", command=export_file)
+    
+    file_menu.add_separator()
+    file_menu.add_command(label="얼굴 이미지 가져오기...", command=lambda: _face_import.show_face_import_panel(_root))
 
     file_menu.add_separator()
     file_menu.add_command(label="Exit", command=_root.quit)
@@ -241,6 +276,10 @@ def app():
     menu_bar.add_cascade(label="City/Item", command=info_open)    
 
     _root.config(menu=menu_bar)
+    
+    # 파일 변경 감지 시작 (1초마다 체크)
+    _root.after(1000, check_and_reload_file)
+    
     _root.mainloop()
 
 if __name__ == "__main__":

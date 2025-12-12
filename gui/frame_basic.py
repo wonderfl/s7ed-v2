@@ -79,8 +79,8 @@ class BasicFrame:
         frame_basic.grid(row=nr, column=nc, pady=(4,0) )
         frame_basic.grid_propagate(False)  # 크기 고정
 
-        frame_b0 = tk.LabelFrame(frame_basic, text="", )#borderwidth=0, highlightthickness=0)
-        frame_b0.grid(row=0, column=0, rowspan=3, ipadx=0,ipady=0, pady=(8,0))
+        frame_b0 = tk.LabelFrame(frame_basic, text="", )#width=112, height=136)#borderwidth=0, highlightthickness=0)
+        frame_b0.grid( column=0, row=0, rowspan=3, ipadx=0,ipady=0, pady=(8,0))
         frame_b0.grid_propagate(False)  # 크기 고정
         app.frame_image = frame_b0
 
@@ -88,15 +88,15 @@ class BasicFrame:
         app.canvas.pack()
         app.image_created = None
                 
-        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=60, borderwidth=0, highlightthickness=0)
+        frame_b1 = tk.LabelFrame(frame_basic, text="", width=self._width01-112, height=60, borderwidth=0, highlightthickness=0)
         frame_b1.grid(row=0, column=1, sticky='w', padx=(0,0), pady=(4,0))
         frame_b1.grid_propagate(False)  # 크기 고정        
 
-        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=20, borderwidth=0, highlightthickness=0)
+        frame_b2 = tk.LabelFrame(frame_basic, text="", width=self._width01-112, height=20, borderwidth=0, highlightthickness=0)
         frame_b2.grid(row=1, column=1, sticky='w', padx=(0,0), pady=(4,0))
         frame_b2.grid_propagate(False)  # 크기 고정 
 
-        frame_b3 = tk.LabelFrame(frame_basic, text="", width=self._width01-108, height=40, borderwidth=0, highlightthickness=0)
+        frame_b3 = tk.LabelFrame(frame_basic, text="", width=self._width01-112, height=40, borderwidth=0, highlightthickness=0)
         frame_b3.grid(row=2, column=1, sticky='w', padx=(0,0), pady=(8,0))
         frame_b3.grid_propagate(False)  # 크기 고정         
 

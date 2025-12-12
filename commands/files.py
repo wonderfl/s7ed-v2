@@ -77,7 +77,7 @@ def open_file(fname):
 
             f.seek(gl.game_month_offset )
             val1 = f.read(1)
-            gl._month = int.from_bytes(val1, 'little')            
+            gl._month = int.from_bytes(val1, 'little')
             
             f.seek(gl.player_name_offset)
             _name = f.read(8)
@@ -190,6 +190,13 @@ def open_file(fname):
 
         print(f"\nLoad '{fname}' Completed.. {rn}:{cn}:{gn}")
         #print("{0}년 {1}월: {2} / {3}".format( gl._year,gl._month, hero.name, home.details2()))
+        
+        # 파일의 수정 시간 저장
+        try:
+            gl._file_mtime = os.path.getmtime(fname)
+        except Exception as e:
+            print(f"[파일체크] mtime 저장 실패: {e}")
+            gl._file_mtime = None
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
@@ -351,6 +358,7 @@ def test_save_cities(fname):
 
 def save_player_gold(fname):
     try:
+        print("save_player_gold: {0}, {1}, {2}".format(gl._year, gl._month, gl.hero_golds))
         s4 = (gl._scene - 1) % 4    
         with open(fname, "r+b") as f:
             values = struct.pack('<H', gl.hero_golds)
@@ -358,6 +366,19 @@ def save_player_gold(fname):
 
             f.seek(gl.hero_golds_offset)
             saved = f.write(encoded)
+
+
+            # values = struct.pack('<H', gl._year)
+            # encoded = _encrypt_data(s4, values)
+            # f.seek(gl.game_year_offset )
+            # saved = f.write(encoded)
+
+            # values = struct.pack('<B', gl._month)
+            # encoded = _encrypt_data(s4, values)
+            # f.seek(gl.game_month_offset )
+            # saved = f.write(encoded)
+
+
     except FileNotFoundError:
         print("{0} 파일을 찾을 수 없습니다.".format(fname))
         return None         
@@ -397,12 +418,41 @@ def save_file(fname):
             f.seek(gl.hero_golds_offset)
             saved = f.write(encoded)
 
+
         print(f"\nSave '{fname}' Completed.. {s4}")
+        
+        # 저장 후 파일의 수정 시간 업데이트
+        try:
+            gl._file_mtime = os.path.getmtime(fname)
+        except Exception as e:
+            print(f"[파일체크] mtime 업데이트 실패: {e}")
 
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")
         return None    
+
+
+def check_file_changed():
+    """파일이 외부에서 변경되었는지 확인"""
+    if not gl._loading_file or len(gl._loading_file) == 0:
+        return False
     
+    if gl._file_mtime is None:
+        return False
+    
+    try:
+        if not os.path.exists(gl._loading_file):
+            return False
+        
+        current_mtime = os.path.getmtime(gl._loading_file)
+        if current_mtime != gl._file_mtime:
+            return True
+        return False
+    except Exception as e:
+        print(f"[파일체크] 파일 변경 확인 실패: {e}")
+        return False
+
+
 find_commands = {
     "1": gl.ActionMenu("load game", load_file, 2, "게임 데이터 로드."),
     "2": gl.ActionMenu("save game", save_file, 2, "게임 데이터 저장."),

@@ -106,8 +106,8 @@ class GeneralTab:
                 # 기본 이미지 생성 (에러 방지)
                 _image00 = Image.new('RGB', (96, 120), color='gray')
         
-        _resized = _image00.resize((_basic.BasicFrame.image_width,_basic.BasicFrame.image_height), Image.LANCZOS)
-        self.tk_image = ImageTk.PhotoImage(_resized)
+        #_resized = _image00.resize((_basic.BasicFrame.image_width,_basic.BasicFrame.image_height), Image.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(_image00)
 
         if self.image_created:
             self.canvas.delete(self.image_created)
@@ -363,7 +363,7 @@ class GeneralTab:
 
 
     def build_tab_general(self, parent, nr, nc):
-        self.frame_general = tk.LabelFrame(parent, text="", width= (168+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
+        self.frame_general = tk.LabelFrame(parent, text="", width= (312+self._width00+self._width10), height=self._height0, borderwidth=0, highlightthickness=0, )
         self.frame_general.grid(row=nr, column=nc, rowspan=2, padx=(4,0))
         self.frame_general.grid_propagate(False)  # 크기 고정
 

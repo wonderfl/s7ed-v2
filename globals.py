@@ -73,6 +73,7 @@ _scene = ''
 _player_num = -1
 _player_name = ''
 _loading_file = ""
+_file_mtime = None  # 파일의 마지막 수정 시간 저장
 
 savetime_offset = 0x0000001E # 저장시간( 년,월,일, 시,분,초)
 
