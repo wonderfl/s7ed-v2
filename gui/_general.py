@@ -398,6 +398,7 @@ class GeneralTab:
 
     def save_general_selected(self):
         print("save: {0}".format(gl._loading_file))
+        gl._is_saving = True
         
         gn = len(gl.generals)
         count = 0        

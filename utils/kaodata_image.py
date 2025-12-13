@@ -6,13 +6,18 @@ import re
 import glob
 from PIL import Image
 
+# globals 모듈 import
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import globals as gl
+
 # 얼굴 이미지 상수
 FACE_WIDTH = 96
 FACE_HEIGHT = 120
 FACE_SIZE = FACE_WIDTH * FACE_HEIGHT  # 11520 bytes (팔레트 모드)
 
-# Kaodata.s7 파일 경로
-KAODATA_PATH = 'saves/Kaodata.s7'
+# 기본 Kaodata.s7 파일 경로 (fallback용)
+DEFAULT_KAODATA_PATH = 'saves/Kaodata.s7'
 
 # 헤더 크기 (추정)
 HEADER_SIZE = 10372
@@ -24,8 +29,22 @@ _kaodata_file_path = None
 # 전역 변수: 팔레트 캐싱
 _face_palette = None
 
-# 전역 변수: PNG 디렉토리 경로 (마지막 사용 경로 기억)
-_png_dir = None
+def get_face_file_path():
+    """얼굴 파일 경로를 가져옵니다. 설정되지 않았으면 기본 경로를 반환합니다."""
+    if gl._face_file and len(gl._face_file) > 0:
+        return gl._face_file
+    # 기본 경로 (상대 경로를 절대 경로로 변환)
+    default_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), DEFAULT_KAODATA_PATH)
+    return default_path
+
+def set_face_file_path(file_path):
+    """얼굴 파일 경로를 설정합니다."""
+    if file_path and os.path.exists(file_path):
+        gl._face_file = os.path.abspath(file_path)
+        # 파일 핸들도 닫아서 다음에 새 경로로 열리도록 함
+        close_kaodata_file()
+    else:
+        print(f"[얼굴이미지] 파일 경로 설정 실패: {file_path}")
 
 def _load_face_palette():
     """기존 PNG 파일에서 팔레트를 로드합니다."""
@@ -125,7 +144,7 @@ def get_face_image(faceno):
         raise ValueError(f"얼굴 번호는 0~647 사이여야 합니다. (입력: {faceno})")
     
     # 파일 경로 확인
-    file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), KAODATA_PATH)
+    file_path = get_face_file_path()
     
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Kaodata.s7 파일을 찾을 수 없습니다: {file_path}")
@@ -181,7 +200,7 @@ def save_face_image(faceno, image):
         raise ValueError("이미지가 None입니다.")
     
     # 파일 경로 확인
-    file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), KAODATA_PATH)
+    file_path = get_face_file_path()
     
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Kaodata.s7 파일을 찾을 수 없습니다: {file_path}")
@@ -249,10 +268,8 @@ def get_png_dir():
     Returns:
         str: PNG 디렉토리 경로 (설정되지 않았으면 기본값 'gui/png' 반환)
     """
-    global _png_dir
-    
-    if _png_dir is not None:
-        return _png_dir
+    if gl._png_dir and len(gl._png_dir) > 0:
+        return gl._png_dir
     
     # 기본값 반환
     return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gui/png')
@@ -264,15 +281,13 @@ def set_png_dir(png_dir):
     Args:
         png_dir: PNG 디렉토리 경로 (None이면 기본값으로 리셋)
     """
-    global _png_dir
-    
     if png_dir is None:
-        _png_dir = None
+        gl._png_dir = ""
     else:
         # 절대 경로로 변환
         if not os.path.isabs(png_dir):
             png_dir = os.path.abspath(png_dir)
-        _png_dir = png_dir
+        gl._png_dir = png_dir
 
 def save_face_from_png(png_path, faceno):
     """

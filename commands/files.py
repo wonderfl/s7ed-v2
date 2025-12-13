@@ -3,6 +3,7 @@ import os
 import re
 import copy
 import struct
+import time
 
 import tkinter as tk
 
@@ -197,6 +198,25 @@ def open_file(fname):
         except Exception as e:
             print(f"[파일체크] mtime 저장 실패: {e}")
             gl._file_mtime = None
+        
+        # 저장 파일과 같은 디렉토리에 있는 Kaodata.s7 파일 자동 감지
+        try:
+            file_dir = os.path.dirname(fname)
+            
+            import utils.kaodata_image as kaodata_image
+            kaodata_dir = kaodata_image.get_face_file_path()            
+            
+            print(f"[파일체크] 저장 파일: {fname}, 얼굴 파일: {kaodata_dir}")
+
+            # kaodata_path = os.path.join(kaodata_dir, "Kaodata.s7")
+            # if os.path.exists(kaodata_path):
+            #     import utils.kaodata_image as kaodata_image
+            #     import utils.config as config
+            #     kaodata_image.set_face_file_path(kaodata_path)
+            #     config.save_config()  # 설정 파일에 저장
+            #     print(f"[파일체크] 얼굴 파일 경로 자동 설정: {kaodata_path}")
+        except Exception as e:
+            print(f"[파일체크] 얼굴 파일 경로 자동 설정 실패: {e}")
 
     except FileNotFoundError:
         print(f": `{fname}`파일을 찾을 수 없습니다.")
@@ -264,6 +284,7 @@ def test_save_general_selected(fname, count, general, save=False):
     if False == save:
         return False
     
+    gl._is_saving = True
     with open(fname, "r+b") as f:
         f.seek(gl.generals_offset + general.num * GeneralStruct.size)
         values = general.unpacked
@@ -300,7 +321,7 @@ def test_save_item_selected(fname, item, save=False):
     print(item)
     if False == save:
         return False
-    
+    gl._is_saving = True
     with open(fname, "r+b") as f:
         f.seek(gl.items_offset + item.num * ItemStateStruct.size)
         values = item.unpacked
@@ -330,7 +351,7 @@ def test_save_city_selected(fname, city, save=False):
     print(city)
     if False == save:
         return False
-    
+    gl._is_saving = True
     with open(fname, "r+b") as f:
         f.seek(gl.cities_offset + city.num * CityStateStruct.size)
         values = city.unpacked
@@ -360,6 +381,7 @@ def save_player_gold(fname):
     try:
         print("save_player_gold: {0}, {1}, {2}".format(gl._year, gl._month, gl.hero_golds))
         s4 = (gl._scene - 1) % 4    
+        gl._is_saving = True
         with open(fname, "r+b") as f:
             values = struct.pack('<H', gl.hero_golds)
             encoded = _encrypt_data(s4, values)
@@ -387,6 +409,9 @@ def save_player_gold(fname):
 def save_file(fname):
 
     try:
+        # 저장 중 플래그 설정
+        gl._is_saving = True
+        
         # 장수 620명 기준 읽기 예시
         #with open(filename, 'r', encoding='utf-8') as f:
         s4 = (gl._scene - 1) % 4
@@ -417,23 +442,26 @@ def save_file(fname):
 
             f.seek(gl.hero_golds_offset)
             saved = f.write(encoded)
-
+            
+            # 파일을 명시적으로 flush하여 디스크에 완전히 쓰기
+            f.flush()
+            os.fsync(f.fileno())
 
         print(f"\nSave '{fname}' Completed.. {s4}")
-        
-        # 저장 후 파일의 수정 시간 업데이트
-        try:
-            gl._file_mtime = os.path.getmtime(fname)
-        except Exception as e:
-            print(f"[파일체크] mtime 업데이트 실패: {e}")
 
     except FileNotFoundError:
         print("❌ 파일을 찾을 수 없습니다.")
+        gl._is_saving = False
+        return None
+    except Exception as e:
+        print(f"[파일저장] 저장 중 오류 발생: {e}")
+        gl._is_saving = False
         return None    
 
 
 def check_file_changed():
     """파일이 외부에서 변경되었는지 확인"""
+
     if not gl._loading_file or len(gl._loading_file) == 0:
         return False
     
@@ -446,6 +474,7 @@ def check_file_changed():
         
         current_mtime = os.path.getmtime(gl._loading_file)
         if current_mtime != gl._file_mtime:
+            print(f"[파일체크] 파일 변경 감지: 저장된 mtime={gl._file_mtime}, 현재 mtime={current_mtime}")
             return True
         return False
     except Exception as e:

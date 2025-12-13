@@ -16,6 +16,8 @@ import commands.files as file
 
 import globals as gl
 import os
+import utils.kaodata_image as kaodata_image
+import utils.config as config
 
 _value = ""
 
@@ -132,7 +134,19 @@ class GeneralEditorApp:
 
 def open_file():
     gl._loading_file = ""
-    filepath = filedialog.askopenfilename(filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")])
+    
+    # 저장 파일 디렉토리 설정 (마지막으로 연 파일의 디렉토리 또는 기본값)
+    initial_dir = None
+    if gl._save_file_dir and os.path.exists(gl._save_file_dir):
+        initial_dir = gl._save_file_dir
+    elif gl._loading_file and os.path.exists(gl._loading_file):
+        initial_dir = os.path.dirname(gl._loading_file)
+    
+    filepath = filedialog.askopenfilename(
+        title="저장 파일 선택",
+        filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")],
+        initialdir=initial_dir
+    )
     if filepath:
         file.open_file(filepath)
         #messagebox.showinfo("로딩 완료", f"{filepath}를 불러왔습니다.")
@@ -140,6 +154,20 @@ def open_file():
         _app.generalTab.listup_generals()
         _app.status.config(text="로딩 완료: {0}를 불러왔습니다.".format(filepath))
         gl._loading_file = filepath
+        gl._save_file_dir = os.path.dirname(filepath)  # 저장 파일 디렉토리 기억
+        config.save_config()  # 설정 파일에 저장
+
+def open_face_file():
+    """얼굴 파일(Kaodata.s7) 열기"""
+    filepath = filedialog.askopenfilename(
+        title="얼굴 파일 선택",
+        filetypes=[("Kaodata Files", "Kaodata.s7"), ("s7 Files", "*.s7"), ("All Files", "*.*")]
+    )
+    if filepath:
+        kaodata_image.set_face_file_path(filepath)
+        _app.status.config(text="얼굴 파일 설정: {0}".format(filepath))
+        config.save_config()  # 설정 파일에 저장
+        messagebox.showinfo("완료", f"얼굴 파일이 설정되었습니다.\n\n{filepath}")
 
 def reload_file():
     filename = gl._loading_file
@@ -161,23 +189,28 @@ def reload_file():
 
 def check_and_reload_file():
     """파일 변경을 체크하고 사용자에게 확인 후 리로드"""
-    if file.check_file_changed():
-        filename = gl._loading_file
-        result = messagebox.askyesno(
-            "파일 변경 감지",
-            f"파일이 외부에서 변경되었습니다.\n\n{filename}\n\n다시 불러오시겠습니까?",
-            icon='question'
-        )
-        
-        if result:
-            # 사용자가 "예"를 선택한 경우 리로드
-            reload_file()
-        else:
-            # 사용자가 "아니오"를 선택한 경우 현재 mtime으로 업데이트 (다음 체크까지 무시)
-            try:
-                gl._file_mtime = os.path.getmtime(filename)
-            except Exception as e:
-                print(f"[파일체크] mtime 업데이트 실패: {e}")
+    
+    filename = gl._loading_file    
+    if file.check_file_changed():            
+        # 저장 중이면 체크하지 않음
+        if False == gl._is_saving:
+            result = messagebox.askyesno(
+                "파일 변경 감지",
+                f"파일이 외부에서 변경되었습니다.\n\n{filename}\n\n다시 불러오시겠습니까?",
+                icon='question'
+            )
+
+            if result:
+                # 사용자가 "예"를 선택한 경우 리로드
+                reload_file()
+
+    if gl._is_saving:
+        gl._is_saving = False
+        try:
+            gl._file_mtime = os.path.getmtime(filename)
+            print(f"[파일저장중] mtime 업데이트: {gl._file_mtime}")
+        except Exception as e:
+            print(f"[파일체크] mtime 업데이트 실패: {e}")
     
     # 1초 후 다시 체크
     _root.after(1000, check_and_reload_file)
@@ -194,21 +227,30 @@ def save_file():
         
     file.save_file(filename)
     gl._loading_file = filename
-    
-    # 저장 후 파일의 수정 시간 업데이트
-    try:
-        gl._file_mtime = os.path.getmtime(filename)
-    except Exception as e:
-        print(f"[파일체크] mtime 업데이트 실패: {e}")
+    # mtime 업데이트는 commands/files.py의 save_file()에서 처리됨
 
     _app.status.config(text="저장 완료: {0}를 저장하였습니다.".format(filename))
 
 
 def save_as_file():
-    filepath = filedialog.asksaveasfilename(defaultextension=".s7",
-                                             filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")])
-    file.save_file(filepath)
-    gl._loading_file = filepath
+    # 저장 파일 디렉토리 설정
+    initial_dir = None
+    if gl._save_file_dir and os.path.exists(gl._save_file_dir):
+        initial_dir = gl._save_file_dir
+    elif gl._loading_file and os.path.exists(gl._loading_file):
+        initial_dir = os.path.dirname(gl._loading_file)
+    
+    filepath = filedialog.asksaveasfilename(
+        title="저장 파일 선택",
+        defaultextension=".s7",
+        filetypes=[("s7 Files", "*.s7"), ("All Files", "*.*")],
+        initialdir=initial_dir
+    )
+    if filepath:
+        file.save_file(filepath)
+        gl._loading_file = filepath
+        gl._save_file_dir = os.path.dirname(filepath)  # 저장 파일 디렉토리 기억
+        config.save_config()  # 설정 파일에 저장
 
 
 def export_file():
@@ -243,6 +285,7 @@ def app():
     file_menu.add_command(label="Export", command=export_file)
     
     file_menu.add_separator()
+    file_menu.add_command(label="얼굴 파일 열기...", command=open_face_file)
     file_menu.add_command(label="얼굴 이미지 가져오기...", command=lambda: _face_import.show_face_import_panel(_root))
 
     file_menu.add_separator()
@@ -276,6 +319,9 @@ def app():
     menu_bar.add_cascade(label="City/Item", command=info_open)    
 
     _root.config(menu=menu_bar)
+    
+    # 설정 파일 로드
+    config.load_config()
     
     # 파일 변경 감지 시작 (1초마다 체크)
     _root.after(1000, check_and_reload_file)

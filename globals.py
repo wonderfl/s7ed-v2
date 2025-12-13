@@ -72,8 +72,13 @@ _month = 3
 _scene = ''
 _player_num = -1
 _player_name = ''
-_loading_file = ""
+_loading_file = ""  # 저장 파일 경로 (D_Save*.s7)
+_face_file = ""  # 얼굴 파일 경로 (Kaodata.s7)
+_png_dir = ""  # PNG 파일 가져오기 디렉토리 경로
+_save_file_dir = ""  # 저장 파일 열기 대화상자 초기 디렉토리
 _file_mtime = None  # 파일의 마지막 수정 시간 저장
+_is_saving = False  # 파일 저장 중 플래그
+_last_save_time = 0  # 마지막 저장 시간 (타임스탬프)
 
 savetime_offset = 0x0000001E # 저장시간( 년,월,일, 시,분,초)
 

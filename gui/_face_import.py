@@ -123,6 +123,9 @@ class FaceImportPanel(tk.Toplevel):
             # 선택한 파일의 디렉토리 경로 저장
             png_dir = os.path.dirname(file_path)
             kaodata_image.set_png_dir(png_dir)
+            # 설정 파일에 저장
+            import utils.config as config
+            config.save_config()
             
             self.load_image(file_path)
     
