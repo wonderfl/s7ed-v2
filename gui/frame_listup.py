@@ -317,7 +317,7 @@ class ListupFrame:
         style.configure("Treeview", rowheight=20, font=tree_font, )
 
         self.columns=("num","realm","name","birth","turned","loyalty","str","int","pol","chr")
-        texts=("no.","rlm","name","bth","turn","lty","str","int","pol","chr")
+        texts=("no.","rn","name","bth","tn","lty","str","int","pol","chr")
         tree = ttk.Treeview(self.frame_listup, height=20, 
                             style="Treeview", 
                             selectmode='extended', 
@@ -334,10 +334,10 @@ class ListupFrame:
             tree.heading(col, text=texts[i], command=lambda c=col: self.sort_by_column(c))
 
         tree.column("num", width=28, anchor="e", stretch=False)
-        tree.column("realm", width=26, anchor="e", stretch=False)
+        tree.column("realm", width=20, anchor="e", stretch=False)
         tree.column("name", width=54, anchor="center", stretch=False)
         tree.column("birth", width=26, anchor="e", stretch=False)
-        tree.column("turned", width=26, anchor="e", stretch=False)
+        tree.column("turned", width=20, anchor="e", stretch=False)
         tree.column("loyalty", width=26, anchor="e", stretch=False)
         tree.column("str", width=26, anchor="e", stretch=False)
         tree.column("int", width=26, anchor="e", stretch=False)

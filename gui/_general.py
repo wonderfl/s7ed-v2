@@ -290,6 +290,15 @@ class GeneralTab:
         except:
             print("error:..")            
         
+    def on_combo_rank_selected(self, event):
+        selected_index = self.rank.current()  # 선택된 항목의 인덱스
+        selected_value = self.rank.get()      # 선택된 텍스트
+
+        print(f"{selected_index}: {selected_value}")
+
+        self.general_selected.rank = selected_index
+        self.general_selected.unpacked[39] = selected_index
+
     def on_combo_state_selected(self, event):
         selected_index = self.state.current()  # 선택된 항목의 인덱스
         selected_value = self.state.get()      # 선택된 텍스트
@@ -297,7 +306,7 @@ class GeneralTab:
         print(f"{selected_index}: {selected_value}")
 
         self.general_selected.state = selected_index
-        self.general_selected.unpacked[26] = selected_index
+        self.general_selected.unpacked[26] = selected_index        
 
     def on_combo_city_selected(self, event):
         selected_index = self.city.current()  # 선택된 항목의 인덱스
@@ -348,6 +357,7 @@ class GeneralTab:
         tk.Label(frame_affil, text="계급").grid(row=1, column=3, padx=(16,0))
         self.rank = ttk.Combobox(frame_affil, values=gl._rankNames_, width=8, )
         self.rank.grid(row=1, column=4, columnspan=2, padx=(3,0))
+        self.rank.bind("<<ComboboxSelected>>", self.on_combo_rank_selected)
 
         tk.Label(frame_affil, text="신분").grid(row=2, column=0,)
         self.state = ttk.Combobox(frame_affil, values=gl._stateName2, width=8, )
