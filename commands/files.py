@@ -474,6 +474,8 @@ def check_file_changed():
         
         current_mtime = os.path.getmtime(gl._loading_file)
         if current_mtime != gl._file_mtime:
+            if gl._is_saving:
+                return False
             print(f"[파일체크] 파일 변경 감지: 저장된 mtime={gl._file_mtime}, 현재 mtime={current_mtime}")
             return True
         return False

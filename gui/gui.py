@@ -188,8 +188,8 @@ def reload_file():
 
 def check_and_reload_file():
     """파일 변경을 체크하고 사용자에게 확인 후 리로드"""
+    filename = gl._loading_file
     if file.check_file_changed():
-        filename = gl._loading_file
         result = messagebox.askyesno(
             "파일 변경 감지",
             f"파일이 외부에서 변경되었습니다.\n\n{filename}\n\n다시 불러오시겠습니까?",
@@ -199,12 +199,7 @@ def check_and_reload_file():
         if result:
             # 사용자가 "예"를 선택한 경우 리로드
             reload_file()
-        else:
-            # 사용자가 "아니오"를 선택한 경우 현재 mtime으로 업데이트 (다음 체크까지 무시)
-            try:
-                gl._file_mtime = os.path.getmtime(filename)
-            except Exception as e:
-                print(f"[파일체크] mtime 업데이트 실패: {e}")
+
 
     if gl._is_saving:
         gl._is_saving = False
@@ -213,7 +208,7 @@ def check_and_reload_file():
             print(f"[파일저장중] mtime 업데이트: {gl._file_mtime}")
         except Exception as e:
             print(f"[파일체크] mtime 업데이트 실패: {e}")
-    
+
     # 1초 후 다시 체크
     _root.after(1000, check_and_reload_file)
 
