@@ -79,7 +79,7 @@ class BasicFrame:
         frame_basic.grid(row=nr, column=nc, pady=(4,0) )
         frame_basic.grid_propagate(False)  # 크기 고정
 
-        frame_b0 = tk.LabelFrame(frame_basic, text="", width=96, height=120,borderwidth=0, highlightthickness=0)
+        frame_b0 = tk.LabelFrame(frame_basic, text="", )#width=96, height=120,)# borderwidth=0, highlightthickness=0)
         frame_b0.grid( column=0, row=0, rowspan=3, ipadx=0,ipady=0, pady=(8,0))
         frame_b0.grid_propagate(False)  # 크기 고정
         app.frame_image = frame_b0

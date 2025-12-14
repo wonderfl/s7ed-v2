@@ -106,12 +106,15 @@ class GeneralTab:
                 # 기본 이미지 생성 (에러 방지)
                 _image00 = Image.new('RGB', (96, 120), color='gray')
         
-        #_resized = _image00.resize((_basic.BasicFrame.image_width,_basic.BasicFrame.image_height), Image.LANCZOS)
-        self.tk_image = ImageTk.PhotoImage(_image00)
+        iw = int(_basic.BasicFrame.image_width*0.99)
+        ih = int(_basic.BasicFrame.image_height*0.99)
+        _resized = _image00.resize(( iw, ih), Image.LANCZOS)
+        self.tk_image = ImageTk.PhotoImage(_resized)
 
         if self.image_created:
             self.canvas.delete(self.image_created)
-        self.image_created = self.canvas.create_image(0, 0, anchor='nw', image=self.tk_image)
+        # Canvas 중앙에 이미지 배치
+        self.image_created = self.canvas.create_image(2, 2, anchor='nw', image=self.tk_image)      
 
         self.basicFrame.traitv.set(selected.job)        
         
