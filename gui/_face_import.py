@@ -92,6 +92,17 @@ class FaceImportPanel(tk.Toplevel):
         
         tk.Label(face_frame, text="(0~647)", fg="gray").pack(side=tk.LEFT)
         
+        # 얼굴 인식 옵션 체크박스
+        self.use_face_detection = tk.BooleanVar()
+        self.use_face_detection.set(False)
+        face_detection_check = tk.Checkbutton(
+            face_frame, 
+            text="얼굴 인식 사용", 
+            variable=self.use_face_detection,
+            command=self.on_face_detection_toggle
+        )
+        face_detection_check.pack(side=tk.LEFT, padx=(20, 0))
+        
         # 버튼 프레임
         button_frame = tk.Frame(main_frame)
         button_frame.pack(fill=tk.X)
@@ -154,9 +165,23 @@ class FaceImportPanel(tk.Toplevel):
     
     def show_preview(self, image):
         """새 이미지 미리보기 표시"""
+        # 얼굴 인식이 켜져 있으면 얼굴 영역 추출
+        preview_image = image
+        if self.use_face_detection.get():
+            try:
+                preview_image = kaodata_image.extract_face_region(image.copy())
+            except ValueError as e:
+                # 얼굴을 찾을 수 없는 경우
+                self.status_label.config(text=f"경고: {str(e)}", fg="orange")
+                preview_image = image  # 원본 이미지 표시
+            except Exception as e:
+                print(f"[얼굴이미지] 미리보기 얼굴 추출 실패: {e}")
+                self.status_label.config(text=f"에러: {e}", fg="red")
+                preview_image = image  # 원본 이미지 표시
+        
         # 이미지 리사이즈
         preview_size = (_basic.BasicFrame.image_width *2, _basic.BasicFrame.image_height*2)
-        resized = image.resize(preview_size, Image.LANCZOS)
+        resized = preview_image.resize(preview_size, Image.LANCZOS)
         
         # PhotoImage로 변환
         self.tk_image_new = ImageTk.PhotoImage(resized)
@@ -173,6 +198,11 @@ class FaceImportPanel(tk.Toplevel):
         
         # 현재 이미지도 업데이트
         self.update_current_preview()
+    
+    def on_face_detection_toggle(self):
+        """얼굴 인식 체크박스 토글 시 미리보기 업데이트"""
+        if self.current_image is not None:
+            self.show_preview(self.current_image)
     
     def update_current_preview(self):
         """현재 저장된 이미지 미리보기 업데이트"""
@@ -251,8 +281,14 @@ class FaceImportPanel(tk.Toplevel):
             if not result:
                 return
             
-            # 저장
-            kaodata_image.save_face_from_png(self.current_image_path, faceno)
+            # 저장 (얼굴 인식 옵션 적용)
+            use_detection = self.use_face_detection.get()
+            try:
+                kaodata_image.save_face_from_png(self.current_image_path, faceno, use_face_detection=use_detection)
+            except ValueError as e:
+                # 얼굴을 찾을 수 없는 경우
+                messagebox.showerror("얼굴 인식 실패", f"{str(e)}\n\n얼굴 인식 체크박스를 해제하고 다시 시도하세요.")
+                return
             
             # 현재 이미지 미리보기 업데이트
             self.update_current_preview()
