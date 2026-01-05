@@ -757,12 +757,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         x_end = x_start + crop_width
         y_end = y_start + crop_height
         
-        # 최종 비율 확인 (96:120 비율 보장)
-        if crop_height > 0:
-            final_ratio = crop_width / crop_height
-            if abs(final_ratio - target_ratio) > 0.001:  # 0.1% 이상 차이나면 경고
-        
-        
         # 얼굴 영역 크롭
         face_region = img_rgb[y_start:y_end, x_start:x_end]
         
@@ -876,8 +870,6 @@ def import_faces_from_png(png_dir=None, pattern='face*.png', verbose=True):
     face_pattern = re.compile(r'face(\d+)\.png', re.IGNORECASE)
     
     results = {'success': 0, 'failed': 0, 'errors': []}
-    
-    if verbose:
     
     for png_file in sorted(png_files):
         try:
