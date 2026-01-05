@@ -47,6 +47,13 @@ class FaceExtractPanel(tk.Toplevel):
         self.sharpness = tk.DoubleVar(value=1.0)  # 선명도 (0.0 ~ 2.0, 기본값: 1.0, 1.0 미만=흐림, 1.0 초과=선명)
         self.exposure = tk.DoubleVar(value=1.0)  # 노출 (0.0 ~ 2.0, 기본값: 1.0, 1.0 미만=어둡게, 1.0 초과=밝게)
         self.equalize = tk.DoubleVar(value=0.0)  # 평탄화 (0.0 ~ 1.0, 기본값: 0.0, 0.0=평탄화 없음, 1.0=완전 평탄화)
+        self.gamma = tk.DoubleVar(value=1.0)  # 감마 보정 (0.5 ~ 2.0, 기본값: 1.0)
+        self.vibrance = tk.DoubleVar(value=1.0)  # 비브런스 (0.0 ~ 2.0, 기본값: 1.0)
+        self.clarity = tk.DoubleVar(value=0.0)  # 명확도 (-100 ~ +100, 기본값: 0.0)
+        self.dehaze = tk.DoubleVar(value=0.0)  # 안개 제거 (-100 ~ +100, 기본값: 0.0)
+        self.tint = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
+        self.empty1 = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
+        self.empty2 = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
         
         # 수동 영역 설정
         self.use_manual_region = tk.BooleanVar(value=False)
@@ -56,11 +63,13 @@ class FaceExtractPanel(tk.Toplevel):
         self.manual_h = tk.IntVar(value=0)
         
         # 미리보기 이미지
-        self.tk_image_extracted = None
         self.tk_image_original = None
+        self.tk_image_extracted_original = None
+        self.tk_image_extracted_adjusted = None
         self.tk_image_palette = None
-        self.image_created_extracted = None
         self.image_created_original = None
+        self.image_created_extracted_original = None
+        self.image_created_extracted_adjusted = None
         self.image_created_palette = None
         self.grid_lines_extracted = []  # 추출 이미지 격자선 ID 저장
         self.crop_rect_original = None  # 원본 이미지에 그려진 얼굴/수동 영역 테두리
@@ -195,8 +204,8 @@ class FaceExtractPanel(tk.Toplevel):
         self.offset_y_label = tk.Label(offset_y_frame, text="0", width=6)
         self.offset_y_label.pack(side=tk.LEFT)
 
-        scaled_length = 300
-        label_width = 8
+        scaled_length = 240
+        label_width = 12
         
         # 밝기/대비 조정 프레임
         adjust_frame = tk.LabelFrame(settings_frame, text="이미지 조정", padx=5, pady=5)
@@ -216,189 +225,68 @@ class FaceExtractPanel(tk.Toplevel):
         )
         btn_reset.pack(side=tk.LEFT)
         
-        # 1줄: 밝기, 평탄화
+        # 슬라이더 생성 헬퍼 함수
+        def create_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6):
+            frame = tk.Frame(parent)
+            frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+            
+            tk.Label(frame, text=label_text, width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
+            scale = tk.Scale(
+                frame,
+                from_=from_val,
+                to=to_val,
+                resolution=resolution,
+                orient=tk.HORIZONTAL,
+                variable=variable,
+                command=self.on_adjust_change,
+                length=scaled_length,
+                showvalue=False
+            )
+            scale.pack(side=tk.LEFT, padx=(0, 5))
+            
+            label = tk.Label(frame, text=default_label, width=width)
+            label.pack(side=tk.LEFT)
+            return label
+        
+        # 1줄: 밝기, 감마, 노출 (밝기 관련)
         row1_frame = tk.Frame(adjust_frame)
         row1_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 밝기 조정
-        brightness_frame = tk.Frame(row1_frame)
-        brightness_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.brightness_label = create_slider(row1_frame, "Brightness:", self.brightness, 0.5, 1.5, 0.01, "100%")
+        self.gamma_label = create_slider(row1_frame, "Gamma:", self.gamma, 0.5, 2.0, 0.01, "100%")
+        self.exposure_label = create_slider(row1_frame, "Exposure:", self.exposure, 0.5, 1.5, 0.01, "100%")
         
-        tk.Label(brightness_frame, text="밝기:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        brightness_scale = tk.Scale(
-            brightness_frame,
-            from_=0.5,
-            to=1.5,
-            resolution=0.01,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.brightness,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        brightness_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.brightness_label = tk.Label(brightness_frame, text="100%", width=6)
-        self.brightness_label.pack(side=tk.LEFT)
-        
-        # 평탄화 조정
-        equalize_frame = tk.Frame(row1_frame)
-        equalize_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        tk.Label(equalize_frame, text="평탄화:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        equalize_scale = tk.Scale(
-            equalize_frame,
-            from_=0.0,
-            to=0.5,
-            resolution=0.005,  # 1% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.equalize,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        equalize_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.equalize_label = tk.Label(equalize_frame, text="0%", width=6)
-        self.equalize_label.pack(side=tk.LEFT)
-        
-        # 2줄: 대비, 선명도
+        # 2줄: 대비, 선명도, Clarity (대비/선명도 관련)
         row2_frame = tk.Frame(adjust_frame)
         row2_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 대비 조정
-        contrast_frame = tk.Frame(row2_frame)
-        contrast_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.contrast_label = create_slider(row2_frame, "Contrast:", self.contrast, 0.5, 1.5, 0.01, "100%")
+        self.sharpness_label = create_slider(row2_frame, "Sharpness:", self.sharpness, 0.0, 3.0, 0.01, "100%")
+        self.clarity_label = create_slider(row2_frame, "Clarity:", self.clarity, -100.0, 100.0, 1.0, "0")
         
-        tk.Label(contrast_frame, text="대비:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        contrast_scale = tk.Scale(
-            contrast_frame,
-            from_=0.5,
-            to=1.5,
-            resolution=0.01,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.contrast,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        contrast_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.contrast_label = tk.Label(contrast_frame, text="100%", width=6)
-        self.contrast_label.pack(side=tk.LEFT)
-        
-        # 선명도 조정
-        sharpness_frame = tk.Frame(row2_frame)
-        sharpness_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        tk.Label(sharpness_frame, text="선명도:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        sharpness_scale = tk.Scale(
-            sharpness_frame,
-            from_=0.0,
-            to=3.0,
-            resolution=0.01,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.sharpness,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        sharpness_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.sharpness_label = tk.Label(sharpness_frame, text="100%", width=6)
-        self.sharpness_label.pack(side=tk.LEFT)
-        
-        # 3줄: 채도, 색온도
+        # 3줄: Dehaze, 평탄화
         row3_frame = tk.Frame(adjust_frame)
         row3_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 채도 조정
-        saturation_frame = tk.Frame(row3_frame)
-        saturation_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.dehaze_label = create_slider(row3_frame, "Dehaze:", self.dehaze, -100.0, 100.0, 1.0, "0")
+        self.equalize_label = create_slider(row3_frame, "Equalize:", self.equalize, 0.0, 0.5, 0.005, "0%")
+        self.empty1_label = create_slider(row3_frame, "None:", self.empty1, -100.0, 100.0, 1.0, "0")
         
-        tk.Label(saturation_frame, text="채도:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        saturation_scale = tk.Scale(
-            saturation_frame,
-            from_=0.5,
-            to=1.5,
-            resolution=0.01,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.saturation,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        saturation_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.saturation_label = tk.Label(saturation_frame, text="100%", width=6)
-        self.saturation_label.pack(side=tk.LEFT)
-        
-        # 색온도 조정
-        color_temp_frame = tk.Frame(row3_frame)
-        color_temp_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        tk.Label(color_temp_frame, text="색온도:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        color_temp_scale = tk.Scale(
-            color_temp_frame,
-            from_=-300.0,
-            to=300.0,
-            resolution=1.0,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.color_temp,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        color_temp_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.color_temp_label = tk.Label(color_temp_frame, text="0", width=6)
-        self.color_temp_label.pack(side=tk.LEFT)
-        
-        # 4줄: 색조, 노출
+        # 4줄: 채도, Vibrance, 색조 (색상 관련)
         row4_frame = tk.Frame(adjust_frame)
-        row4_frame.pack(fill=tk.X)
+        row4_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 색조 조정
-        hue_frame = tk.Frame(row4_frame)
-        hue_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.saturation_label = create_slider(row4_frame, "Saturation:", self.saturation, 0.5, 1.5, 0.01, "100%")
+        self.vibrance_label = create_slider(row4_frame, "Vibrance:", self.vibrance, 0.0, 2.0, 0.01, "100%")
+        self.hue_label = create_slider(row4_frame, "Hue:", self.hue, -60.0, 60.0, 1.0, "0")
         
-        tk.Label(hue_frame, text="색조:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        hue_scale = tk.Scale(
-            hue_frame,
-            from_=-60.0,
-            to=60.0,
-            resolution=1,  # 1도 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.hue,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        hue_scale.pack(side=tk.LEFT, padx=(0, 5))
+        # 5줄: 색온도, 틴트
+        row5_frame = tk.Frame(adjust_frame)
+        row5_frame.pack(fill=tk.X)
         
-        self.hue_label = tk.Label(hue_frame, text="0", width=6)
-        self.hue_label.pack(side=tk.LEFT)
-        
-        # 노출 조정
-        exposure_frame = tk.Frame(row4_frame)
-        exposure_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        tk.Label(exposure_frame, text="노출:", width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
-        exposure_scale = tk.Scale(
-            exposure_frame,
-            from_=0.5,
-            to=1.5,
-            resolution=0.01,  # 2% 스텝
-            orient=tk.HORIZONTAL,
-            variable=self.exposure,
-            command=self.on_adjust_change,
-            length=scaled_length,
-            showvalue=False
-        )
-        exposure_scale.pack(side=tk.LEFT, padx=(0, 5))
-        
-        self.exposure_label = tk.Label(exposure_frame, text="100%", width=6)
-        self.exposure_label.pack(side=tk.LEFT)
+        self.color_temp_label = create_slider(row5_frame, "Color Temp:", self.color_temp, -300.0, 300.0, 1.0, "0")
+        self.tint_label = create_slider(row5_frame, "Tint:", self.tint, -150.0, 150.0, 1.0, "0")
+        self.empty2_label = create_slider(row5_frame, "None:", self.empty2, -100.0, 100.0, 1.0, "0")
         
         # 팔레트 변환 설정 프레임
         palette_frame = tk.LabelFrame(settings_frame, text="팔레트 변환 설정", padx=5, pady=5)
@@ -465,19 +353,23 @@ class FaceExtractPanel(tk.Toplevel):
         btn_apply_detected = tk.Button(coord_frame, text="감지된 값 적용", command=self.apply_detected_region, width=12)
         btn_apply_detected.pack(side=tk.LEFT, padx=(10, 0))
         
-        # 이미지 미리보기 프레임 (2개 이미지 나란히 표시)
+        # 이미지 미리보기 프레임 (4개 이미지 나란히 표시)
         preview_frame = tk.LabelFrame(main_frame, text="미리보기", padx=5, pady=5)
         preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # 좌측: 원본 이미지 (96x120 비율로 크롭)
+        # 이미지 크기: 288x360
+        preview_width = 288
+        preview_height = 360
+        
+        # 1. 좌측: 원본 이미지
         left_frame = tk.Frame(preview_frame)
         left_frame.pack(side=tk.LEFT, padx=5, pady=5)
         
-        tk.Label(left_frame, text="원본 이미지 (96x120 비율)", font=("", 9)).pack()
+        tk.Label(left_frame, text="원본 이미지", font=("", 9)).pack()
         self.canvas_original = tk.Canvas(
             left_frame, 
-            width=_basic.BasicFrame.image_width *4, 
-            height=_basic.BasicFrame.image_height*4,
+            width=preview_width, 
+            height=preview_height,
             bg="gray"
         )
         self.canvas_original.pack(padx=5, pady=5)
@@ -487,46 +379,59 @@ class FaceExtractPanel(tk.Toplevel):
         self.canvas_original.bind("<B1-Motion>", self.on_canvas_drag)
         self.canvas_original.bind("<ButtonRelease-1>", self.on_canvas_release)
         
-        # 중간: 추출된 얼굴 이미지
-        middle_frame = tk.Frame(preview_frame)
-        middle_frame.pack(side=tk.LEFT, padx=5, pady=5)
+        # 2. 추출 원본 (조정 전)
+        extracted_original_frame = tk.Frame(preview_frame)
+        extracted_original_frame.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # 추출된 얼굴 라벨과 버튼을 가로로 배치
-        middle_top_frame = tk.Frame(middle_frame)
-        middle_top_frame.pack(fill=tk.X)
+        extracted_original_top_frame = tk.Frame(extracted_original_frame)
+        extracted_original_top_frame.pack(fill=tk.X)
         
-        tk.Label(middle_top_frame, text="추출된 얼굴", font=("", 9)).pack(side=tk.LEFT)
+        tk.Label(extracted_original_top_frame, text="추출 원본", font=("", 9)).pack(side=tk.LEFT)
         
-        # 추출 이미지 저장 버튼 (라벨 옆)
-        btn_save_extracted = tk.Button(middle_top_frame, text="원본 저장", command=self.save_extracted_png, width=12, bg="#4CAF50", fg="white")
-        btn_save_extracted.pack(side=tk.LEFT, padx=(10, 0))
+        btn_save_extracted_original = tk.Button(extracted_original_top_frame, text="원본 저장", command=self.save_extracted_png, width=12, bg="#4CAF50", fg="white")
+        btn_save_extracted_original.pack(side=tk.LEFT, padx=(10, 0))
         
-        self.canvas_extracted = tk.Canvas(
-            middle_frame, 
-            width=_basic.BasicFrame.image_width *4, 
-            height=_basic.BasicFrame.image_height*4,
+        self.canvas_extracted_original = tk.Canvas(
+            extracted_original_frame, 
+            width=preview_width, 
+            height=preview_height,
             bg="gray"
         )
-        self.canvas_extracted.pack(padx=5, pady=5)
+        self.canvas_extracted_original.pack(padx=5, pady=5)
         
-        # 우측: 팔레트 적용 버전
+        # 3. 추출 조정 (조정 후)
+        extracted_adjusted_frame = tk.Frame(preview_frame)
+        extracted_adjusted_frame.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        extracted_adjusted_top_frame = tk.Frame(extracted_adjusted_frame)
+        extracted_adjusted_top_frame.pack(fill=tk.X)
+        
+        tk.Label(extracted_adjusted_top_frame, text="추출 조정", font=("", 9)).pack(side=tk.LEFT)
+        
+        self.canvas_extracted_adjusted = tk.Canvas(
+            extracted_adjusted_frame, 
+            width=preview_width, 
+            height=preview_height,
+            bg="gray"
+        )
+        self.canvas_extracted_adjusted.pack(padx=5, pady=5)
+        
+        # 4. 우측: 팔레트 적용 버전
         right_frame = tk.Frame(preview_frame)
         right_frame.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # 팔레트 적용 라벨과 버튼을 가로로 배치
         right_top_frame = tk.Frame(right_frame)
         right_top_frame.pack(fill=tk.X)
         
         tk.Label(right_top_frame, text="팔레트 적용", font=("", 9)).pack(side=tk.LEFT)
         
-        # PNG 저장 버튼 (라벨 옆)
         btn_save_png = tk.Button(right_top_frame, text="PNG 저장", command=self.save_png, width=12, bg="#2196F3", fg="white")
         btn_save_png.pack(side=tk.LEFT, padx=(10, 0))
         
         self.canvas_palette = tk.Canvas(
             right_frame, 
-            width=_basic.BasicFrame.image_width *4, 
-            height=_basic.BasicFrame.image_height*4,
+            width=preview_width, 
+            height=preview_height,
             bg="gray"
         )
         self.canvas_palette.pack(padx=5, pady=5)
@@ -619,7 +524,8 @@ class FaceExtractPanel(tk.Toplevel):
                             self.manual_w.set(w)
                             self.manual_h.set(h)
                             self.face_detected = True
-                            self.show_extracted_preview()
+                            self.show_extracted_original()
+                            self.show_extracted_adjusted()
                             self.show_original_preview()
                             self.draw_crop_region_on_original()
                             self.status_label.config(
@@ -658,13 +564,19 @@ class FaceExtractPanel(tk.Toplevel):
         self.exposure.set(1.0)
         self.color_temp.set(0.0)
         self.sharpness.set(1.0)
+        self.gamma.set(1.0)
+        self.vibrance.set(1.0)
+        self.clarity.set(0.0)
+        self.dehaze.set(0.0)
+        self.tint.set(0.0)
         
         # 라벨 업데이트
         self.on_adjust_change()
         
         # 미리보기 업데이트
         if self.extracted_image is not None:
-            self.show_extracted_preview()
+            self.show_extracted_original()
+            self.show_extracted_adjusted()
             self.update_palette_preview()
     
     def on_adjust_change(self, value=None):
@@ -694,10 +606,26 @@ class FaceExtractPanel(tk.Toplevel):
         equalize_value = self.equalize.get()
         self.equalize_label.config(text=f"{int(equalize_value * 100)}%")
         
+        gamma_value = self.gamma.get()
+        self.gamma_label.config(text=f"{int(gamma_value * 100)}%")
+        
+        vibrance_value = self.vibrance.get()
+        self.vibrance_label.config(text=f"{int(vibrance_value * 100)}%")
+        
+        clarity_value = self.clarity.get()
+        self.clarity_label.config(text=f"{int(clarity_value)}")
+        
+        dehaze_value = self.dehaze.get()
+        self.dehaze_label.config(text=f"{int(dehaze_value)}")
+        
+        tint_value = self.tint.get()
+        self.tint_label.config(text=f"{int(tint_value)}")
+        
         # 이미지가 로드되어 있으면 미리보기 업데이트
         if self.extracted_image is not None:
             # 추출된 이미지 미리보기 업데이트
-            self.show_extracted_preview()
+            self.show_extracted_original()
+            self.show_extracted_adjusted()
             # 팔레트 미리보기 업데이트
             self.update_palette_preview()
     
@@ -922,7 +850,8 @@ class FaceExtractPanel(tk.Toplevel):
             self.face_detected = True
             
             # 미리보기 업데이트
-            self.show_extracted_preview()
+            self.show_extracted_original()
+            self.show_extracted_adjusted()
             self.show_original_preview()
             # 팔레트 적용 버전 계산 및 표시
             self.update_palette_preview()
@@ -986,7 +915,8 @@ class FaceExtractPanel(tk.Toplevel):
                         self.extracted_image = result
                     
                     self.face_detected = True
-                    self.show_extracted_preview()
+                    self.show_extracted_original()
+                    self.show_extracted_adjusted()
                     self.update_palette_preview()
                     
                     self.status_label.config(
@@ -996,16 +926,12 @@ class FaceExtractPanel(tk.Toplevel):
                 except Exception as extract_error:
                     self.status_label.config(text=f"경고: {str(e)} (수동 영역 추출도 실패: {extract_error})", fg="orange")
                     # 미리보기 초기화
-                    if self.image_created_extracted:
-                        self.canvas_extracted.delete(self.image_created_extracted)
-                        self.image_created_extracted = None
-                    # 격자선도 삭제
-                    for line_id in self.grid_lines_extracted:
-                        try:
-                            self.canvas_extracted.delete(line_id)
-                        except:
-                            pass
-                    self.grid_lines_extracted.clear()
+                    if self.image_created_extracted_original:
+                        self.canvas_extracted_original.delete(self.image_created_extracted_original)
+                        self.image_created_extracted_original = None
+                    if self.image_created_extracted_adjusted:
+                        self.canvas_extracted_adjusted.delete(self.image_created_extracted_adjusted)
+                        self.image_created_extracted_adjusted = None
             else:
                 self.status_label.config(text=f"경고: {str(e)}", fg="orange")
                 messagebox.showwarning("얼굴 인식 실패", str(e))
@@ -1027,24 +953,66 @@ class FaceExtractPanel(tk.Toplevel):
             self.status_label.config(text=f"에러: {e}", fg="red")
             messagebox.showerror("에러", f"얼굴 추출 실패:\n{e}")
             # 미리보기 초기화
-            if self.image_created_extracted:
-                self.canvas_extracted.delete(self.image_created_extracted)
-                self.image_created_extracted = None
-            # 격자선도 삭제
-            for line_id in self.grid_lines_extracted:
-                try:
-                    self.canvas_extracted.delete(line_id)
-                except:
-                    pass
-            self.grid_lines_extracted.clear()
+            if self.image_created_extracted_original:
+                self.canvas_extracted_original.delete(self.image_created_extracted_original)
+                self.image_created_extracted_original = None
+            if self.image_created_extracted_adjusted:
+                self.canvas_extracted_adjusted.delete(self.image_created_extracted_adjusted)
+                self.image_created_extracted_adjusted = None
     
-    def show_extracted_preview(self):
-        """추출된 얼굴 이미지 미리보기 표시 (밝기/대비 조정 적용)"""
+    def show_extracted_original(self):
+        """추출 원본 이미지 미리보기 표시 (조정 없음)"""
         if self.extracted_image is None:
+            if self.image_created_extracted_original:
+                self.canvas_extracted_original.delete(self.image_created_extracted_original)
+                self.image_created_extracted_original = None
             return
         
         try:
-            # 밝기/대비 조정 적용
+            # 이미지 복사
+            display_img = self.extracted_image.copy()
+            
+            # RGB 모드로 변환
+            if display_img.mode != 'RGB':
+                if display_img.mode == 'RGBA':
+                    background = Image.new('RGB', display_img.size, (0, 0, 0))
+                    background.paste(display_img, mask=display_img.split()[3])
+                    display_img = background
+                else:
+                    display_img = display_img.convert('RGB')
+            
+            # 이미지 리사이즈 (288x360)
+            preview_size = (288, 360)
+            resized = display_img.resize(preview_size, Image.LANCZOS)
+        
+        # PhotoImage로 변환
+            self.tk_image_extracted_original = ImageTk.PhotoImage(resized)
+        
+        # Canvas에 표시
+            if self.image_created_extracted_original:
+                self.canvas_extracted_original.delete(self.image_created_extracted_original)
+            
+            self.image_created_extracted_original = self.canvas_extracted_original.create_image(
+                144,  # 288 / 2
+                180,  # 360 / 2
+                image=self.tk_image_extracted_original
+            )
+            
+            # 3x3 격자 그리기
+            self.draw_grid_extracted()
+        except Exception as e:
+            print(f"[얼굴추출] 추출 원본 이미지 미리보기 표시 실패: {e}")
+    
+    def show_extracted_adjusted(self):
+        """추출 조정 이미지 미리보기 표시 (모든 조정 적용)"""
+        if self.extracted_image is None:
+            if self.image_created_extracted_adjusted:
+                self.canvas_extracted_adjusted.delete(self.image_created_extracted_adjusted)
+                self.image_created_extracted_adjusted = None
+            return
+        
+        try:
+            # 이미지 조정 적용
             from PIL import ImageEnhance
             
             # 이미지 복사
@@ -1112,11 +1080,92 @@ class FaceExtractPanel(tk.Toplevel):
                 enhancer = ImageEnhance.Contrast(display_img)
                 display_img = enhancer.enhance(contrast_value)
             
+            # Clarity 조정 (대비 다음)
+            clarity_value = self.clarity.get()
+            if clarity_value != 0.0:
+                try:
+                    from PIL import ImageFilter
+                    import numpy as np
+                    # Unsharp Mask 필터 사용 (중간 톤 대비 강조)
+                    # clarity_value를 0~2 범위로 정규화 (0~100 -> 0~2)
+                    amount = abs(clarity_value) / 50.0
+                    if clarity_value > 0:
+                        # 선명도 향상
+                        blurred = display_img.filter(ImageFilter.GaussianBlur(radius=1.0))
+                        img_array = np.array(display_img, dtype=np.float32)
+                        blur_array = np.array(blurred, dtype=np.float32)
+                        # Unsharp mask: 원본 + (원본 - 블러) * amount
+                        img_array = img_array + (img_array - blur_array) * amount
+                        img_array = np.clip(img_array, 0, 255)
+                        display_img = Image.fromarray(img_array.astype(np.uint8))
+                    else:
+                        # 선명도 감소 (블러)
+                        blur_radius = abs(clarity_value) / 50.0
+                        display_img = display_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                except ImportError:
+                    print("[얼굴추출] PIL ImageFilter가 없어 Clarity 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Clarity 조정 실패: {e}")
+            
+            # Dehaze 조정 (Clarity 다음)
+            dehaze_value = self.dehaze.get()
+            if dehaze_value != 0.0:
+                try:
+                    from PIL import ImageEnhance
+                    import numpy as np
+                    # Dehaze: 대비 향상 + 약간의 선명도 향상
+                    # dehaze_value를 0~1 범위로 정규화 (0~100 -> 0~1)
+                    amount = abs(dehaze_value) / 100.0
+                    if dehaze_value > 0:
+                        # 안개 제거: 대비 향상
+                        enhancer = ImageEnhance.Contrast(display_img)
+                        display_img = enhancer.enhance(1.0 + amount * 0.5)
+                    else:
+                        # 안개 추가: 대비 감소
+                        enhancer = ImageEnhance.Contrast(display_img)
+                        display_img = enhancer.enhance(1.0 - amount * 0.3)
+                except Exception as e:
+                    print(f"[얼굴추출] Dehaze 조정 실패: {e}")
+            
             # 채도 조정
             saturation_value = self.saturation.get()
             if saturation_value != 1.0:
                 enhancer = ImageEnhance.Color(display_img)
                 display_img = enhancer.enhance(saturation_value)
+            
+            # Vibrance 조정 (채도 다음)
+            vibrance_value = self.vibrance.get()
+            if vibrance_value != 1.0:
+                try:
+                    import cv2
+                    import numpy as np
+                    img_array = np.array(display_img, dtype=np.float32)
+                    img_hsv = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+                    
+                    # Vibrance: 채도와 유사하지만 피부톤 범위(약 0~30, 150~180)는 덜 조정
+                    # 피부톤 범위를 덜 강조하기 위해 가중치 적용
+                    saturation_channel = img_hsv[:, :, 1]
+                    hue_channel = img_hsv[:, :, 0]
+                    
+                    # 피부톤 범위 체크 (Hue: 0~30, 150~180)
+                    skin_mask = ((hue_channel >= 0) & (hue_channel <= 30)) | ((hue_channel >= 150) & (hue_channel <= 180))
+                    
+                    # 피부톤은 50%만 조정, 나머지는 100% 조정
+                    weight = np.where(skin_mask, 0.5, 1.0)
+                    adjustment = (vibrance_value - 1.0) * weight
+                    
+                    saturation_channel = saturation_channel + adjustment * 50
+                    saturation_channel = np.clip(saturation_channel, 0, 255)
+                    
+                    img_hsv[:, :, 1] = saturation_channel
+                    img_array = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+                    display_img = Image.fromarray(img_array)
+                except ImportError:
+                    # OpenCV가 없으면 일반 채도 조정 사용
+                    enhancer = ImageEnhance.Color(display_img)
+                    display_img = enhancer.enhance(vibrance_value)
+                except Exception as e:
+                    print(f"[얼굴추출] Vibrance 조정 실패: {e}")
             
             # 색조 조정
             hue_value = self.hue.get()
@@ -1162,6 +1211,49 @@ class FaceExtractPanel(tk.Toplevel):
                 except ImportError:
                     print("[얼굴추출] numpy가 없어 색온도 조정을 건너뜁니다.")
             
+            # 틴트 조정 (색온도 다음)
+            tint_value = self.tint.get()
+            if tint_value != 0.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(display_img, dtype=np.float32)
+                    
+                    # 틴트 조정 (마젠타=양수: 빨강/파랑 증가, 초록 감소, 녹색=음수: 초록 증가, 빨강/파랑 감소)
+                    # -150 ~ 150 범위를 -0.3 ~ 0.3으로 정규화
+                    tint_factor = tint_value / 150.0 * 0.3
+                    
+                    if tint_factor > 0:
+                        # 마젠타: 빨강, 파랑 증가, 초록 감소
+                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)  # R 증가
+                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)  # G 감소
+                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)  # B 증가
+                    else:
+                        # 녹색: 초록 증가, 빨강, 파랑 감소
+                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)  # R 감소
+                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)  # G 증가
+                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)  # B 감소
+                    
+                    display_img = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 틴트 조정을 건너뜁니다.")
+            
+            # 감마 보정 (노출 전)
+            gamma_value = self.gamma.get()
+            if gamma_value != 1.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(display_img, dtype=np.float32)
+                    
+                    # 감마 보정: output = 255 * (input / 255) ^ (1 / gamma)
+                    img_array = img_array / 255.0
+                    img_array = np.power(img_array, 1.0 / gamma_value)
+                    img_array = img_array * 255.0
+                    img_array = np.clip(img_array, 0, 255)
+                    
+                    display_img = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 감마 보정을 건너뜁니다.")
+            
             # 노출 조정
             exposure_value = self.exposure.get()
             if exposure_value != 1.0:
@@ -1183,8 +1275,8 @@ class FaceExtractPanel(tk.Toplevel):
                 except ImportError:
                     print("[얼굴추출] numpy가 없어 노출 조정을 건너뜁니다.")
             
-            # 이미지 리사이즈
-            preview_size = (_basic.BasicFrame.image_width *4, _basic.BasicFrame.image_height*4)
+            # 이미지 리사이즈 (288x360)
+            preview_size = (288, 360)
             resized = display_img.resize(preview_size, Image.LANCZOS)
             
             # 선명도 조정 (리사이즈 이후)
@@ -1194,88 +1286,70 @@ class FaceExtractPanel(tk.Toplevel):
                 resized = enhancer.enhance(sharpness_value)
             
             # PhotoImage로 변환
-            self.tk_image_extracted = ImageTk.PhotoImage(resized)
+            self.tk_image_extracted_adjusted = ImageTk.PhotoImage(resized)
             
             # Canvas에 표시
-            if self.image_created_extracted:
-                self.canvas_extracted.delete(self.image_created_extracted)
+            if self.image_created_extracted_adjusted:
+                self.canvas_extracted_adjusted.delete(self.image_created_extracted_adjusted)
             
-            self.image_created_extracted = self.canvas_extracted.create_image(
-                _basic.BasicFrame.image_width *2,
-                _basic.BasicFrame.image_height *2,
-                image=self.tk_image_extracted
+            self.image_created_extracted_adjusted = self.canvas_extracted_adjusted.create_image(
+                144,  # 288 / 2
+                180,  # 360 / 2
+                image=self.tk_image_extracted_adjusted
             )
-            
-            # 3x3 격자 그리기
-            self.draw_grid_extracted()
         except Exception as e:
-            print(f"[얼굴추출] 추출 이미지 미리보기 표시 실패: {e}")
+            print(f"[얼굴추출] 추출 조정 이미지 미리보기 표시 실패: {e}")
     
     def draw_grid_extracted(self):
-        """추출 이미지에 3x3 격자 그리기"""
+        """추출 원본 이미지에 3x3 격자 그리기"""
         # 기존 격자선 삭제
         for line_id in self.grid_lines_extracted:
             try:
-                self.canvas_extracted.delete(line_id)
+                self.canvas_extracted_original.delete(line_id)
             except:
                 pass
         self.grid_lines_extracted.clear()
         
-        if self.image_created_extracted is None or self.tk_image_extracted is None:
+        if self.image_created_extracted_original is None or self.tk_image_extracted_original is None:
             return
         
-        # 실제 이미지 크기 가져오기
-        try:
-            # PhotoImage는 width와 height 속성을 가짐
-            img_width = self.tk_image_extracted.width()
-            img_height = self.tk_image_extracted.height()
-        except AttributeError:
-            # width() 메서드가 없는 경우 속성으로 접근
-            try:
-                img_width = self.tk_image_extracted.width
-                img_height = self.tk_image_extracted.height
-            except:
-                # 폴백: 예상 크기 사용
-                img_width = _basic.BasicFrame.image_width * 4
-                img_height = _basic.BasicFrame.image_height * 4
-        except:
-            # 폴백: 예상 크기 사용
-            img_width = _basic.BasicFrame.image_width * 4
-            img_height = _basic.BasicFrame.image_height * 4
+        # 실제 이미지 크기 가져오기 (288x360)
+        img_width = 288
+        img_height = 360
         
         # 이미지 중심 위치
-        center_x = _basic.BasicFrame.image_width * 2
-        center_y = _basic.BasicFrame.image_height * 2
+        center_x = 144  # 288 / 2
+        center_y = 180  # 360 / 2
         
         # 이미지 시작 위치 (좌상단)
         start_x = center_x - img_width // 2
         start_y = center_y - img_height // 2
         
-        # 격자선 색상 (빨간색, 두께 3으로 더 잘 보이게)
+        # 격자선 색상
         grid_color = "white"
         grid_width = 1
         
         # 수직선 2개 (이미지 너비를 3등분)
         for i in range(1, 3):
             x = start_x + (img_width * i // 3)
-            line_id = self.canvas_extracted.create_line(
+            line_id = self.canvas_extracted_original.create_line(
                 x, start_y,
                 x, start_y + img_height,
                 fill=grid_color,
                 width=grid_width,
-                tags="grid"  # 태그 추가로 나중에 쉽게 삭제 가능
+                tags="grid"
             )
             self.grid_lines_extracted.append(line_id)
         
         # 수평선 2개 (이미지 높이를 3등분)
         for i in range(1, 3):
             y = start_y + (img_height * i // 3)
-            line_id = self.canvas_extracted.create_line(
+            line_id = self.canvas_extracted_original.create_line(
                 start_x, y,
                 start_x + img_width, y,
                 fill=grid_color,
                 width=grid_width,
-                tags="grid"  # 태그 추가로 나중에 쉽게 삭제 가능
+                tags="grid"
             )
             self.grid_lines_extracted.append(line_id)
     
@@ -1359,6 +1433,12 @@ class FaceExtractPanel(tk.Toplevel):
                 except Exception as e:
                     print(f"[얼굴추출] 평탄화 실패: {e}")
             
+            # 리사이즈 (96x120) - 평탄화 직후
+            processed_img = processed_img.resize(
+                (kaodata_image.FACE_WIDTH, kaodata_image.FACE_HEIGHT),
+                Image.LANCZOS
+            )
+            
             # 밝기/대비 조정 적용
             from PIL import ImageEnhance
             
@@ -1372,11 +1452,72 @@ class FaceExtractPanel(tk.Toplevel):
                 enhancer = ImageEnhance.Contrast(processed_img)
                 processed_img = enhancer.enhance(contrast_value)
             
+            # Clarity 조정 (대비 다음)
+            clarity_value = self.clarity.get()
+            if clarity_value != 0.0:
+                try:
+                    from PIL import ImageFilter
+                    import numpy as np
+                    amount = abs(clarity_value) / 50.0
+                    if clarity_value > 0:
+                        blurred = processed_img.filter(ImageFilter.GaussianBlur(radius=1.0))
+                        img_array = np.array(processed_img, dtype=np.float32)
+                        blur_array = np.array(blurred, dtype=np.float32)
+                        img_array = img_array + (img_array - blur_array) * amount
+                        img_array = np.clip(img_array, 0, 255)
+                        processed_img = Image.fromarray(img_array.astype(np.uint8))
+                    else:
+                        blur_radius = abs(clarity_value) / 50.0
+                        processed_img = processed_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                except ImportError:
+                    print("[얼굴추출] PIL ImageFilter가 없어 Clarity 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Clarity 조정 실패: {e}")
+            
+            # Dehaze 조정 (Clarity 다음)
+            dehaze_value = self.dehaze.get()
+            if dehaze_value != 0.0:
+                try:
+                    from PIL import ImageEnhance
+                    amount = abs(dehaze_value) / 100.0
+                    if dehaze_value > 0:
+                        enhancer = ImageEnhance.Contrast(processed_img)
+                        processed_img = enhancer.enhance(1.0 + amount * 0.5)
+                    else:
+                        enhancer = ImageEnhance.Contrast(processed_img)
+                        processed_img = enhancer.enhance(1.0 - amount * 0.3)
+                except Exception as e:
+                    print(f"[얼굴추출] Dehaze 조정 실패: {e}")
+            
             # 채도 조정
             saturation_value = self.saturation.get()
             if saturation_value != 1.0:
                 enhancer = ImageEnhance.Color(processed_img)
                 processed_img = enhancer.enhance(saturation_value)
+            
+            # Vibrance 조정 (채도 다음)
+            vibrance_value = self.vibrance.get()
+            if vibrance_value != 1.0:
+                try:
+                    import cv2
+                    import numpy as np
+                    img_array = np.array(processed_img, dtype=np.float32)
+                    img_hsv = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+                    saturation_channel = img_hsv[:, :, 1]
+                    hue_channel = img_hsv[:, :, 0]
+                    skin_mask = ((hue_channel >= 0) & (hue_channel <= 30)) | ((hue_channel >= 150) & (hue_channel <= 180))
+                    weight = np.where(skin_mask, 0.5, 1.0)
+                    adjustment = (vibrance_value - 1.0) * weight
+                    saturation_channel = saturation_channel + adjustment * 50
+                    saturation_channel = np.clip(saturation_channel, 0, 255)
+                    img_hsv[:, :, 1] = saturation_channel
+                    img_array = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+                    processed_img = Image.fromarray(img_array)
+                except ImportError:
+                    enhancer = ImageEnhance.Color(processed_img)
+                    processed_img = enhancer.enhance(vibrance_value)
+                except Exception as e:
+                    print(f"[얼굴추출] Vibrance 조정 실패: {e}")
             
             # 색조 조정
             hue_value = self.hue.get()
@@ -1422,6 +1563,39 @@ class FaceExtractPanel(tk.Toplevel):
                 except ImportError:
                     print("[얼굴추출] numpy가 없어 색온도 조정을 건너뜁니다.")
             
+            # 틴트 조정 (색온도 다음)
+            tint_value = self.tint.get()
+            if tint_value != 0.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(processed_img, dtype=np.float32)
+                    tint_factor = tint_value / 150.0 * 0.3
+                    if tint_factor > 0:
+                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)
+                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)
+                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)
+                    else:
+                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)
+                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)
+                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)
+                    processed_img = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 틴트 조정을 건너뜁니다.")
+            
+            # 감마 보정 (노출 전)
+            gamma_value = self.gamma.get()
+            if gamma_value != 1.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(processed_img, dtype=np.float32)
+                    img_array = img_array / 255.0
+                    img_array = np.power(img_array, 1.0 / gamma_value)
+                    img_array = img_array * 255.0
+                    img_array = np.clip(img_array, 0, 255)
+                    processed_img = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 감마 보정을 건너뜁니다.")
+            
             # 노출 조정
             exposure_value = self.exposure.get()
             if exposure_value != 1.0:
@@ -1442,12 +1616,6 @@ class FaceExtractPanel(tk.Toplevel):
                     processed_img = Image.fromarray(img_array.astype(np.uint8))
                 except ImportError:
                     print("[얼굴추출] numpy가 없어 노출 조정을 건너뜁니다.")
-            
-            # 리사이즈 (96x120)
-            processed_img = processed_img.resize(
-                (kaodata_image.FACE_WIDTH, kaodata_image.FACE_HEIGHT),
-                Image.LANCZOS
-            )
             
             # 선명도 조정 (리사이즈 이후)
             sharpness_value = self.sharpness.get()
@@ -1493,8 +1661,8 @@ class FaceExtractPanel(tk.Toplevel):
             # 이미지가 96x120인지 확인하고, 미리보기 크기로 확대
             # 팔레트 적용 이미지는 이미 96x120으로 리사이즈되어 있음
             # 미리보기 크기로 확대 표시
-            preview_size = (_basic.BasicFrame.image_width *4, _basic.BasicFrame.image_height*4)
-            # LANCZOS로 확대하여 더 부드럽게 표시
+            # 이미지가 96x120인지 확인하고, 미리보기 크기로 확대 (288x360)
+            preview_size = (288, 360)
             resized = preview_img.resize(preview_size, Image.LANCZOS)
             
             # PhotoImage로 변환
@@ -1505,8 +1673,8 @@ class FaceExtractPanel(tk.Toplevel):
                 self.canvas_palette.delete(self.image_created_palette)
             
             self.image_created_palette = self.canvas_palette.create_image(
-                _basic.BasicFrame.image_width *2,
-                _basic.BasicFrame.image_height *2,
+                144,  # 288 / 2
+                180,  # 360 / 2
                 image=self.tk_image_palette
             )
         except Exception as e:
@@ -1558,8 +1726,8 @@ class FaceExtractPanel(tk.Toplevel):
             # 크롭
             cropped = self.current_image.crop((x_start, y_start, x_end, y_end))
             
-            # 이미지 리사이즈 (미리보기용)
-            preview_size = (_basic.BasicFrame.image_width *4, _basic.BasicFrame.image_height*4)
+            # 이미지 리사이즈 (미리보기용, 288x360)
+            preview_size = (288, 360)
             resized = cropped.resize(preview_size, Image.LANCZOS)
             
             # PhotoImage로 변환
@@ -1570,8 +1738,8 @@ class FaceExtractPanel(tk.Toplevel):
                 self.canvas_original.delete(self.image_created_original)
             
             self.image_created_original = self.canvas_original.create_image(
-                _basic.BasicFrame.image_width *2,
-                _basic.BasicFrame.image_height *2,
+                144,  # 288 / 2
+                180,  # 360 / 2
                 image=self.tk_image_original
             )
             
@@ -1633,9 +1801,9 @@ class FaceExtractPanel(tk.Toplevel):
             # 크롭 영역이 미리보기 영역을 벗어남
             return
         
-        # 미리보기 크기
-        preview_width = _basic.BasicFrame.image_width * 4
-        preview_height = _basic.BasicFrame.image_height * 4
+        # 미리보기 크기 (288x360)
+        preview_width = 288
+        preview_height = 360
         
         # 크롭 영역 좌표를 미리보기 좌표로 변환
         scale_x = preview_width / preview_crop_width
@@ -1647,8 +1815,8 @@ class FaceExtractPanel(tk.Toplevel):
         rect_y2 = (crop_y + crop_h) * scale_y
         
         # Canvas 좌표로 변환 (이미지가 중앙에 배치됨)
-        canvas_center_x = _basic.BasicFrame.image_width * 2
-        canvas_center_y = _basic.BasicFrame.image_height * 2
+        canvas_center_x = 144  # 288 / 2
+        canvas_center_y = 180  # 360 / 2
         
         rect_x1_canvas = canvas_center_x - preview_width // 2 + rect_x1
         rect_y1_canvas = canvas_center_y - preview_height // 2 + rect_y1
@@ -1738,9 +1906,9 @@ class FaceExtractPanel(tk.Toplevel):
                 # 크롭 영역이 미리보기 영역을 벗어남
                 return
             
-            # 미리보기 크기
-            preview_width = _basic.BasicFrame.image_width * 4
-            preview_height = _basic.BasicFrame.image_height * 4
+            # 미리보기 크기 (288x360)
+            preview_width = 288
+            preview_height = 360
             
             # 크롭 영역 좌표를 미리보기 좌표로 변환
             scale_x = preview_width / preview_crop_width
@@ -1752,8 +1920,8 @@ class FaceExtractPanel(tk.Toplevel):
             rect_y2 = actual_crop_y2 * scale_y
             
             # Canvas 좌표로 변환 (이미지가 중앙에 배치됨)
-            canvas_center_x = _basic.BasicFrame.image_width * 2
-            canvas_center_y = _basic.BasicFrame.image_height * 2
+            canvas_center_x = 144  # 288 / 2
+            canvas_center_y = 180  # 360 / 2
             
             rect_x1_canvas = canvas_center_x - preview_width // 2 + rect_x1
             rect_y1_canvas = canvas_center_y - preview_height // 2 + rect_y1
@@ -1977,13 +2145,13 @@ class FaceExtractPanel(tk.Toplevel):
             preview_crop_width = img_width
             preview_crop_height = int(preview_crop_width / target_ratio)
         
-        # 미리보기 크기
-        preview_width = _basic.BasicFrame.image_width * 4
-        preview_height = _basic.BasicFrame.image_height * 4
+        # 미리보기 크기 (288x360)
+        preview_width = 288
+        preview_height = 360
         
         # Canvas 좌표를 미리보기 좌표로 변환
-        canvas_center_x = _basic.BasicFrame.image_width * 2
-        canvas_center_y = _basic.BasicFrame.image_height * 2
+        canvas_center_x = 144  # 288 / 2
+        canvas_center_y = 180  # 360 / 2
         
         rect_x1_preview = rect_x1_canvas - (canvas_center_x - preview_width // 2)
         rect_y1_preview = rect_y1_canvas - (canvas_center_y - preview_height // 2)

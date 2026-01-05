@@ -315,7 +315,8 @@ def app():
     menu_bar.add_cascade(label="Help", menu=help_menu)
     menu_bar.add_cascade(label="Save", command=save_file)    
     menu_bar.add_cascade(label="Reload", command=reload_file)    
-    menu_bar.add_cascade(label="City/Item", command=info_open)    
+    menu_bar.add_cascade(label="City/Item", command=info_open) 
+    menu_bar.add_cascade(label="Face Extract", command=lambda: _face_extract.show_face_extract_panel(_root))
 
     _root.config(menu=menu_bar)
     
