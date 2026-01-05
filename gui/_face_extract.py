@@ -52,6 +52,8 @@ class FaceExtractPanel(tk.Toplevel):
         self.clarity = tk.DoubleVar(value=0.0)  # 명확도 (-100 ~ +100, 기본값: 0.0)
         self.dehaze = tk.DoubleVar(value=0.0)  # 안개 제거 (-100 ~ +100, 기본값: 0.0)
         self.tint = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
+        self.noise_reduction = tk.DoubleVar(value=0.0)  # 노이즈 제거 (0.0 ~ 100.0, 기본값: 0.0)
+        self.vignette = tk.DoubleVar(value=0.0)  # 비네팅 (-100 ~ +100, 기본값: 0.0)
         self.empty1 = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
         self.empty2 = tk.DoubleVar(value=0.0)  # 틴트 (-150 ~ +150, 기본값: 0.0)
         
@@ -132,16 +134,32 @@ class FaceExtractPanel(tk.Toplevel):
         
         btn_browse = tk.Button(button_frame, text="찾아보기...", command=self.browse_file, width=12)
         btn_browse.pack(side=tk.LEFT)
+
+        scaled_length = 240
+        label_width = 12        
         
         # 오른쪽: 설정 프레임
-        settings_frame = tk.LabelFrame(top_frame, text="얼굴 영역 설정", padx=5, pady=5)
+        settings_frame = tk.LabelFrame(top_frame, text="face Area Settings", padx=5, pady=5)
         settings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        # 크기 비율 설정
-        scale_frame = tk.Frame(settings_frame)
-        scale_frame.pack(fill=tk.X, pady=(0, 5))
+        # 얼굴 영역 설정 슬라이더 (한 줄에 배치)
+        face_area_frame = tk.Frame(settings_frame)
+        face_area_frame.pack(fill=tk.X, pady=(0, 5))
         
-        tk.Label(scale_frame, text="크기 비율:").pack(side=tk.LEFT, padx=(0, 5))
+        # 크기 비율 설정
+        scale_frame = tk.Frame(face_area_frame)
+        scale_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        
+        # Size Ratio 타이틀 라벨에 클릭 이벤트 바인딩
+        def reset_size_ratio(event):
+            scale_scale.set(2.0)
+            self.crop_scale.set(2.0)
+            self.on_setting_change()
+        
+        size_ratio_label = tk.Label(scale_frame, text="Size Ratio:", width=label_width, anchor="e", cursor="hand2")
+        size_ratio_label.pack(side=tk.LEFT, padx=(0, 5))
+        size_ratio_label.bind("<Button-1>", reset_size_ratio)
+        
         scale_scale = tk.Scale(
             scale_frame,
             from_=0.5,
@@ -150,7 +168,7 @@ class FaceExtractPanel(tk.Toplevel):
             orient=tk.HORIZONTAL,
             variable=self.crop_scale,
             command=self.on_setting_change,
-            length=200,
+            length=scaled_length,
             showvalue=False
         )
         scale_scale.pack(side=tk.LEFT, padx=(0, 5))
@@ -158,15 +176,20 @@ class FaceExtractPanel(tk.Toplevel):
         self.scale_label = tk.Label(scale_frame, text="200%", width=8)
         self.scale_label.pack(side=tk.LEFT)
         
-        # 중심점 오프셋 설정 (세로 배치)
-        offset_frame = tk.Frame(settings_frame)
-        offset_frame.pack(fill=tk.X, pady=(0, 5))
-        
         # X 오프셋 (좌우)
-        offset_x_frame = tk.Frame(offset_frame)
-        offset_x_frame.pack(fill=tk.X, pady=(0, 5))
+        offset_x_frame = tk.Frame(face_area_frame)
+        offset_x_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
-        tk.Label(offset_x_frame, text="중심점 X (좌우):").pack(side=tk.LEFT, padx=(0, 5))
+        # X Offset 타이틀 라벨에 클릭 이벤트 바인딩
+        def reset_x_offset(event):
+            offset_x_scale.set(0)
+            self.center_offset_x.set(0)
+            self.on_setting_change()
+        
+        x_offset_label = tk.Label(offset_x_frame, text="X Offset:", width=label_width, anchor="e", cursor="hand2")
+        x_offset_label.pack(side=tk.LEFT, padx=(0, 5))
+        x_offset_label.bind("<Button-1>", reset_x_offset)
+        
         offset_x_scale = tk.Scale(
             offset_x_frame,
             from_=-200,
@@ -175,19 +198,28 @@ class FaceExtractPanel(tk.Toplevel):
             orient=tk.HORIZONTAL,
             variable=self.center_offset_x,
             command=self.on_setting_change,
-            length=300,
+            length=scaled_length,
             showvalue=False
         )
-        offset_x_scale.pack(side=tk.LEFT, padx=(0, 10))
+        offset_x_scale.pack(side=tk.LEFT, padx=(0, 5))
         
         self.offset_x_label = tk.Label(offset_x_frame, text="0", width=6)
         self.offset_x_label.pack(side=tk.LEFT)
         
         # Y 오프셋 (상하)
-        offset_y_frame = tk.Frame(offset_frame)
-        offset_y_frame.pack(fill=tk.X)
+        offset_y_frame = tk.Frame(face_area_frame)
+        offset_y_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        tk.Label(offset_y_frame, text="중심점 Y (상하):").pack(side=tk.LEFT, padx=(0, 5))
+        # Y Offset 타이틀 라벨에 클릭 이벤트 바인딩
+        def reset_y_offset(event):
+            offset_y_scale.set(0)
+            self.center_offset_y.set(0)
+            self.on_setting_change()
+        
+        y_offset_label = tk.Label(offset_y_frame, text="Y Offset:", width=label_width, anchor="e", cursor="hand2")
+        y_offset_label.pack(side=tk.LEFT, padx=(0, 5))
+        y_offset_label.bind("<Button-1>", reset_y_offset)
+        
         offset_y_scale = tk.Scale(
             offset_y_frame,
             from_=-200,
@@ -196,19 +228,17 @@ class FaceExtractPanel(tk.Toplevel):
             orient=tk.HORIZONTAL,
             variable=self.center_offset_y,
             command=self.on_setting_change,
-            length=300,
+            length=scaled_length,
             showvalue=False
         )
-        offset_y_scale.pack(side=tk.LEFT, padx=(0, 10))
+        offset_y_scale.pack(side=tk.LEFT, padx=(0, 5))
         
         self.offset_y_label = tk.Label(offset_y_frame, text="0", width=6)
         self.offset_y_label.pack(side=tk.LEFT)
 
-        scaled_length = 240
-        label_width = 12
-        
+       
         # 밝기/대비 조정 프레임
-        adjust_frame = tk.LabelFrame(settings_frame, text="이미지 조정", padx=5, pady=5)
+        adjust_frame = tk.LabelFrame(settings_frame, text="Image Processing", padx=5, pady=5)
         adjust_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 초기화 버튼
@@ -226,11 +256,30 @@ class FaceExtractPanel(tk.Toplevel):
         btn_reset.pack(side=tk.LEFT)
         
         # 슬라이더 생성 헬퍼 함수
-        def create_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6):
+        def create_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6, default_value=None):
             frame = tk.Frame(parent)
             frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
             
-            tk.Label(frame, text=label_text, width=label_width, anchor="e").pack(side=tk.LEFT, padx=(0, 5))
+            # 기본값이 없으면 변수의 현재 값을 기본값으로 사용
+            if default_value is None:
+                default_value = variable.get()
+            
+            # 기본값을 명시적으로 저장 (클로저 문제 방지)
+            reset_value = default_value
+            
+            # 타이틀 라벨 생성 및 클릭 이벤트 바인딩 (해당 슬라이더만 초기화)
+            def reset_single_slider(event):
+                # 슬라이더 값 변경 (Scale 위젯의 set 메서드 직접 호출)
+                scale.set(reset_value)
+                # 변수도 동기화
+                variable.set(reset_value)
+                # 슬라이더 값 변경 후 즉시 업데이트
+                self.on_adjust_change()
+            
+            title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
+            title_label.pack(side=tk.LEFT, padx=(0, 5))
+            title_label.bind("<Button-1>", reset_single_slider)
+            
             scale = tk.Scale(
                 frame,
                 from_=from_val,
@@ -244,49 +293,49 @@ class FaceExtractPanel(tk.Toplevel):
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
             
-            label = tk.Label(frame, text=default_label, width=width)
-            label.pack(side=tk.LEFT)
-            return label
+            value_label = tk.Label(frame, text=default_label, width=width)
+            value_label.pack(side=tk.LEFT)
+            return value_label
         
         # 1줄: 밝기, 감마, 노출 (밝기 관련)
         row1_frame = tk.Frame(adjust_frame)
         row1_frame.pack(fill=tk.X, pady=(0, 5))
         
-        self.brightness_label = create_slider(row1_frame, "Brightness:", self.brightness, 0.5, 1.5, 0.01, "100%")
-        self.gamma_label = create_slider(row1_frame, "Gamma:", self.gamma, 0.5, 2.0, 0.01, "100%")
-        self.exposure_label = create_slider(row1_frame, "Exposure:", self.exposure, 0.5, 1.5, 0.01, "100%")
+        self.brightness_label = create_slider(row1_frame, "Brightness:", self.brightness, 0.5, 1.5, 0.01, "100%", default_value=1.0)
+        self.gamma_label = create_slider(row1_frame, "Gamma:", self.gamma, 0.5, 2.0, 0.01, "100%", default_value=1.0)
+        self.exposure_label = create_slider(row1_frame, "Exposure:", self.exposure, 0.5, 1.5, 0.01, "100%", default_value=1.0)
         
         # 2줄: 대비, 선명도, Clarity (대비/선명도 관련)
         row2_frame = tk.Frame(adjust_frame)
         row2_frame.pack(fill=tk.X, pady=(0, 5))
         
-        self.contrast_label = create_slider(row2_frame, "Contrast:", self.contrast, 0.5, 1.5, 0.01, "100%")
-        self.sharpness_label = create_slider(row2_frame, "Sharpness:", self.sharpness, 0.0, 3.0, 0.01, "100%")
-        self.clarity_label = create_slider(row2_frame, "Clarity:", self.clarity, -100.0, 100.0, 1.0, "0")
+        self.contrast_label = create_slider(row2_frame, "Contrast:", self.contrast, 0.5, 1.5, 0.01, "100%", default_value=1.0)
+        self.sharpness_label = create_slider(row2_frame, "Sharpness:", self.sharpness, 0.0, 3.0, 0.01, "100%", default_value=1.0)
+        self.clarity_label = create_slider(row2_frame, "Clarity:", self.clarity, -100.0, 100.0, 1.0, "0", default_value=0.0)
         
-        # 3줄: Dehaze, 평탄화
+        # 3줄: Dehaze, 평탄화, Noise Reduction
         row3_frame = tk.Frame(adjust_frame)
         row3_frame.pack(fill=tk.X, pady=(0, 5))
         
-        self.dehaze_label = create_slider(row3_frame, "Dehaze:", self.dehaze, -100.0, 100.0, 1.0, "0")
-        self.equalize_label = create_slider(row3_frame, "Equalize:", self.equalize, 0.0, 0.5, 0.005, "0%")
-        self.empty1_label = create_slider(row3_frame, "None:", self.empty1, -100.0, 100.0, 1.0, "0")
+        self.dehaze_label = create_slider(row3_frame, "Dehaze:", self.dehaze, -100.0, 100.0, 1.0, "0", default_value=0.0)
+        self.equalize_label = create_slider(row3_frame, "Equalize:", self.equalize, 0.0, 0.5, 0.005, "0%", default_value=0.0)
+        self.noise_reduction_label = create_slider(row3_frame, "DeNoise:", self.noise_reduction, 0.0, 100.0, 1.0, "0", default_value=0.0)
         
         # 4줄: 채도, Vibrance, 색조 (색상 관련)
         row4_frame = tk.Frame(adjust_frame)
         row4_frame.pack(fill=tk.X, pady=(0, 5))
         
-        self.saturation_label = create_slider(row4_frame, "Saturation:", self.saturation, 0.5, 1.5, 0.01, "100%")
-        self.vibrance_label = create_slider(row4_frame, "Vibrance:", self.vibrance, 0.0, 2.0, 0.01, "100%")
-        self.hue_label = create_slider(row4_frame, "Hue:", self.hue, -60.0, 60.0, 1.0, "0")
+        self.saturation_label = create_slider(row4_frame, "Saturation:", self.saturation, 0.5, 1.5, 0.01, "100%", default_value=1.0)
+        self.vibrance_label = create_slider(row4_frame, "Vibrance:", self.vibrance, 0.0, 2.0, 0.01, "100%", default_value=1.0)
+        self.hue_label = create_slider(row4_frame, "Hue:", self.hue, -60.0, 60.0, 1.0, "0", default_value=0.0)
         
-        # 5줄: 색온도, 틴트
+        # 5줄: 색온도, 틴트, Vignette
         row5_frame = tk.Frame(adjust_frame)
         row5_frame.pack(fill=tk.X)
         
-        self.color_temp_label = create_slider(row5_frame, "Color Temp:", self.color_temp, -300.0, 300.0, 1.0, "0")
-        self.tint_label = create_slider(row5_frame, "Tint:", self.tint, -150.0, 150.0, 1.0, "0")
-        self.empty2_label = create_slider(row5_frame, "None:", self.empty2, -100.0, 100.0, 1.0, "0")
+        self.color_temp_label = create_slider(row5_frame, "Color Temp:", self.color_temp, -300.0, 300.0, 1.0, "0", default_value=0.0)
+        self.tint_label = create_slider(row5_frame, "Tint:", self.tint, -150.0, 150.0, 1.0, "0", default_value=0.0)
+        self.vignette_label = create_slider(row5_frame, "Vignette:", self.vignette, -100.0, 100.0, 1.0, "0", default_value=0.0)
         
         # 팔레트 변환 설정 프레임
         palette_frame = tk.LabelFrame(settings_frame, text="팔레트 변환 설정", padx=5, pady=5)
@@ -569,6 +618,8 @@ class FaceExtractPanel(tk.Toplevel):
         self.clarity.set(0.0)
         self.dehaze.set(0.0)
         self.tint.set(0.0)
+        self.noise_reduction.set(0.0)
+        self.vignette.set(0.0)
         
         # 라벨 업데이트
         self.on_adjust_change()
@@ -620,6 +671,12 @@ class FaceExtractPanel(tk.Toplevel):
         
         tint_value = self.tint.get()
         self.tint_label.config(text=f"{int(tint_value)}")
+        
+        noise_reduction_value = self.noise_reduction.get()
+        self.noise_reduction_label.config(text=f"{int(noise_reduction_value)}")
+        
+        vignette_value = self.vignette.get()
+        self.vignette_label.config(text=f"{int(vignette_value)}")
         
         # 이미지가 로드되어 있으면 미리보기 업데이트
         if self.extracted_image is not None:
@@ -1080,6 +1137,29 @@ class FaceExtractPanel(tk.Toplevel):
                 enhancer = ImageEnhance.Contrast(display_img)
                 display_img = enhancer.enhance(contrast_value)
             
+            # Noise Reduction 조정 (Clarity 전)
+            noise_reduction_value = self.noise_reduction.get()
+            if noise_reduction_value > 0.0:
+                try:
+                    import cv2
+                    import numpy as np
+                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
+                    # noise_reduction_value를 필터 파라미터로 변환
+                    # d: 필터 크기 (9 고정)
+                    # sigmaColor: 색상 공간 표준편차 (0~100 -> 0~50)
+                    # sigmaSpace: 좌표 공간 표준편차 (0~100 -> 0~50)
+                    sigma_color = noise_reduction_value * 0.5
+                    sigma_space = noise_reduction_value * 0.5
+                    img_array = np.array(display_img, dtype=np.uint8)
+                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
+                    display_img = Image.fromarray(img_array)
+                except ImportError:
+                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
+            
             # Clarity 조정 (대비 다음)
             clarity_value = self.clarity.get()
             if clarity_value != 0.0:
@@ -1285,6 +1365,48 @@ class FaceExtractPanel(tk.Toplevel):
                 enhancer = ImageEnhance.Sharpness(resized)
                 resized = enhancer.enhance(sharpness_value)
             
+            # Vignette 조정 (마지막 효과)
+            vignette_value = self.vignette.get()
+            if vignette_value != 0.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(resized, dtype=np.float32)
+                    height, width = img_array.shape[:2]
+                    
+                    # 중앙 좌표
+                    center_x = width / 2.0
+                    center_y = height / 2.0
+                    
+                    # 최대 거리 (중앙에서 모서리까지)
+                    max_distance = np.sqrt(center_x ** 2 + center_y ** 2)
+                    
+                    # 각 픽셀의 중앙으로부터의 거리 계산
+                    y_coords, x_coords = np.ogrid[:height, :width]
+                    distances = np.sqrt((x_coords - center_x) ** 2 + (y_coords - center_y) ** 2)
+                    
+                    # 거리를 0~1 범위로 정규화
+                    normalized_distances = distances / max_distance
+                    
+                    # Vignette 마스크 생성 (거리에 따라 0~1 범위)
+                    # 양수: 주변부 밝게 (마스크를 더함)
+                    # 음수: 주변부 어둡게 (마스크를 뺌)
+                    vignette_strength = abs(vignette_value) / 100.0
+                    if vignette_value > 0:
+                        # 주변부 밝게: 거리에 따라 밝기 증가
+                        mask = (1.0 - normalized_distances) * vignette_strength
+                        img_array = img_array + mask[:, :, np.newaxis] * 50.0
+                    else:
+                        # 주변부 어둡게: 거리에 따라 밝기 감소
+                        mask = normalized_distances * vignette_strength
+                        img_array = img_array - mask[:, :, np.newaxis] * 50.0
+                    
+                    img_array = np.clip(img_array, 0, 255)
+                    resized = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 Vignette 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Vignette 조정 실패: {e}")
+            
             # PhotoImage로 변환
             self.tk_image_extracted_adjusted = ImageTk.PhotoImage(resized)
             
@@ -1452,6 +1574,25 @@ class FaceExtractPanel(tk.Toplevel):
                 enhancer = ImageEnhance.Contrast(processed_img)
                 processed_img = enhancer.enhance(contrast_value)
             
+            # Noise Reduction 조정 (Clarity 전)
+            noise_reduction_value = self.noise_reduction.get()
+            if noise_reduction_value > 0.0:
+                try:
+                    import cv2
+                    import numpy as np
+                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
+                    sigma_color = noise_reduction_value * 0.5
+                    sigma_space = noise_reduction_value * 0.5
+                    img_array = np.array(processed_img, dtype=np.uint8)
+                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
+                    processed_img = Image.fromarray(img_array)
+                except ImportError:
+                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
+            
             # Clarity 조정 (대비 다음)
             clarity_value = self.clarity.get()
             if clarity_value != 0.0:
@@ -1488,6 +1629,25 @@ class FaceExtractPanel(tk.Toplevel):
                         processed_img = enhancer.enhance(1.0 - amount * 0.3)
                 except Exception as e:
                     print(f"[얼굴추출] Dehaze 조정 실패: {e}")
+            
+            # Noise Reduction 조정 (Clarity 전)
+            noise_reduction_value = self.noise_reduction.get()
+            if noise_reduction_value > 0.0:
+                try:
+                    import cv2
+                    import numpy as np
+                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
+                    sigma_color = noise_reduction_value * 0.5
+                    sigma_space = noise_reduction_value * 0.5
+                    img_array = np.array(processed_img, dtype=np.uint8)
+                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
+                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
+                    processed_img = Image.fromarray(img_array)
+                except ImportError:
+                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
             
             # 채도 조정
             saturation_value = self.saturation.get()
@@ -1622,6 +1782,48 @@ class FaceExtractPanel(tk.Toplevel):
             if sharpness_value != 1.0:
                 enhancer = ImageEnhance.Sharpness(processed_img)
                 processed_img = enhancer.enhance(sharpness_value)
+            
+            # Vignette 조정 (마지막 효과, 팔레트 적용 전)
+            vignette_value = self.vignette.get()
+            if vignette_value != 0.0:
+                try:
+                    import numpy as np
+                    img_array = np.array(processed_img, dtype=np.float32)
+                    height, width = img_array.shape[:2]
+                    
+                    # 중앙 좌표
+                    center_x = width / 2.0
+                    center_y = height / 2.0
+                    
+                    # 최대 거리 (중앙에서 모서리까지)
+                    max_distance = np.sqrt(center_x ** 2 + center_y ** 2)
+                    
+                    # 각 픽셀의 중앙으로부터의 거리 계산
+                    y_coords, x_coords = np.ogrid[:height, :width]
+                    distances = np.sqrt((x_coords - center_x) ** 2 + (y_coords - center_y) ** 2)
+                    
+                    # 거리를 0~1 범위로 정규화
+                    normalized_distances = distances / max_distance
+                    
+                    # Vignette 마스크 생성 (거리에 따라 0~1 범위)
+                    # 양수: 주변부 밝게 (마스크를 더함)
+                    # 음수: 주변부 어둡게 (마스크를 뺌)
+                    vignette_strength = abs(vignette_value) / 100.0
+                    if vignette_value > 0:
+                        # 주변부 밝게: 거리에 따라 밝기 증가
+                        mask = (1.0 - normalized_distances) * vignette_strength
+                        img_array = img_array + mask[:, :, np.newaxis] * 50.0
+                    else:
+                        # 주변부 어둡게: 거리에 따라 밝기 감소
+                        mask = normalized_distances * vignette_strength
+                        img_array = img_array - mask[:, :, np.newaxis] * 50.0
+                    
+                    img_array = np.clip(img_array, 0, 255)
+                    processed_img = Image.fromarray(img_array.astype(np.uint8))
+                except ImportError:
+                    print("[얼굴추출] numpy가 없어 Vignette 조정을 건너뜁니다.")
+                except Exception as e:
+                    print(f"[얼굴추출] Vignette 조정 실패: {e}")
             
             # 2단계: 마지막에 팔레트 적용
             self.palette_applied_image = kaodata_image.convert_to_palette_colors(
