@@ -356,16 +356,16 @@ class FaceExtractPanel(tk.Toplevel):
         row3_frame.pack(fill=tk.X, pady=(0, 5))
         
         self.dehaze_label = create_slider(row3_frame, "Dehaze:", self.dehaze, -100.0, 100.0, 1.0, "0", default_value=0.0)
-        self.equalize_label = create_slider(row3_frame, "Equalize:", self.equalize, 0.0, 0.5, 0.005, "0%", default_value=0.0)
-        self.noise_reduction_label = create_slider(row3_frame, "DeNoise:", self.noise_reduction, 0.0, 100.0, 1.0, "0", default_value=0.0)
+        self.vibrance_label = create_slider(row3_frame, "Vibrance:", self.vibrance, 0.0, 2.0, 0.01, "100%", default_value=1.0)        
+        self.vignette_label = create_slider(row3_frame, "Vignette:", self.vignette, -100.0, 100.0, 1.0, "0", default_value=0.0)        
         
         # 4줄: 채도, Vibrance, 색조 (색상 관련)
         row4_frame = tk.Frame(adjust_frame)
         row4_frame.pack(fill=tk.X, pady=(0, 5))
-        
+
+        self.hue_label = create_slider(row4_frame, "Hue:", self.hue, -60.0, 60.0, 1.0, "0", default_value=0.0)        
         self.saturation_label = create_slider(row4_frame, "Saturation:", self.saturation, 0.5, 1.5, 0.01, "100%", default_value=1.0)
-        self.vibrance_label = create_slider(row4_frame, "Vibrance:", self.vibrance, 0.0, 2.0, 0.01, "100%", default_value=1.0)
-        self.hue_label = create_slider(row4_frame, "Hue:", self.hue, -60.0, 60.0, 1.0, "0", default_value=0.0)
+        self.equalize_label = create_slider(row4_frame, "Equalize:", self.equalize, 0.0, 0.5, 0.005, "0%", default_value=0.0)
         
         # 5줄: 색온도, 틴트, Vignette
         row5_frame = tk.Frame(adjust_frame)
@@ -373,7 +373,7 @@ class FaceExtractPanel(tk.Toplevel):
         
         self.color_temp_label = create_slider(row5_frame, "Color Temp:", self.color_temp, -300.0, 300.0, 1.0, "0", default_value=0.0)
         self.tint_label = create_slider(row5_frame, "Tint:", self.tint, -150.0, 150.0, 1.0, "0", default_value=0.0)
-        self.vignette_label = create_slider(row5_frame, "Vignette:", self.vignette, -100.0, 100.0, 1.0, "0", default_value=0.0)
+        self.noise_reduction_label = create_slider(row5_frame, "DeNoise:", self.noise_reduction, 0.0, 100.0, 1.0, "0", default_value=0.0)
     
     def _create_palette_settings_ui(self, parent):
         """팔레트 설정 UI 생성"""
@@ -458,7 +458,8 @@ class FaceExtractPanel(tk.Toplevel):
         left_frame = tk.Frame(preview_frame)
         left_frame.pack(side=tk.LEFT, padx=5, pady=5)
         
-        tk.Label(left_frame, text="원본 이미지", font=("", 9)).pack()
+        self.label_original = tk.Label(left_frame, text="원본 이미지", font=("", 9))
+        self.label_original.pack()
         self.canvas_original = tk.Canvas(
             left_frame, 
             width=preview_width, 
@@ -479,7 +480,8 @@ class FaceExtractPanel(tk.Toplevel):
         extracted_original_top_frame = tk.Frame(extracted_original_frame)
         extracted_original_top_frame.pack(fill=tk.X)
         
-        tk.Label(extracted_original_top_frame, text="추출 원본", font=("", 9)).pack(side=tk.LEFT)
+        self.label_extracted_original = tk.Label(extracted_original_top_frame, text="추출 원본", font=("", 9))
+        self.label_extracted_original.pack(side=tk.LEFT)
         
         btn_save_extracted_original = tk.Button(extracted_original_top_frame, text="원본 저장", command=self.save_extracted_png, width=12, bg="#4CAF50", fg="white")
         btn_save_extracted_original.pack(side=tk.LEFT, padx=(10, 0))
@@ -499,7 +501,8 @@ class FaceExtractPanel(tk.Toplevel):
         extracted_adjusted_top_frame = tk.Frame(extracted_adjusted_frame)
         extracted_adjusted_top_frame.pack(fill=tk.X)
         
-        tk.Label(extracted_adjusted_top_frame, text="추출 조정", font=("", 9)).pack(side=tk.LEFT)
+        self.label_extracted_adjusted = tk.Label(extracted_adjusted_top_frame, text="추출 조정", font=("", 9))
+        self.label_extracted_adjusted.pack(side=tk.LEFT)
         
         self.canvas_extracted_adjusted = tk.Canvas(
             extracted_adjusted_frame, 
@@ -516,7 +519,8 @@ class FaceExtractPanel(tk.Toplevel):
         right_top_frame = tk.Frame(right_frame)
         right_top_frame.pack(fill=tk.X)
         
-        tk.Label(right_top_frame, text="팔레트 적용", font=("", 9)).pack(side=tk.LEFT)
+        self.label_palette = tk.Label(right_top_frame, text="팔레트 적용", font=("", 9))
+        self.label_palette.pack(side=tk.LEFT)
         
         btn_save_png = tk.Button(right_top_frame, text="PNG 저장", command=self.save_png, width=12, bg="#2196F3", fg="white")
         btn_save_png.pack(side=tk.LEFT, padx=(10, 0))
@@ -528,6 +532,13 @@ class FaceExtractPanel(tk.Toplevel):
             bg="gray"
         )
         self.canvas_palette.pack(padx=5, pady=5)
+    
+    def _update_preview_titles(self, filename):
+        """미리보기 타이틀에 파일명 추가 (원본 이미지만)"""
+        if filename:
+            self.label_original.config(text=f"원본 이미지 ({filename})")
+        else:
+            self.label_original.config(text="원본 이미지")
     
     def on_setting_change(self, value=None):
         """설정 변경 시 호출"""
@@ -857,6 +868,9 @@ class FaceExtractPanel(tk.Toplevel):
                     self.file_listbox.selection_set(i)
                     self.file_listbox.see(i)
                     break
+            
+            # 미리보기 타이틀 업데이트
+            self._update_preview_titles(filename)
             
             # 얼굴 추출
             self.extract_face()

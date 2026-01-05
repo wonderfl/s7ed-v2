@@ -533,10 +533,11 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             
             # 크롭 영역 좌표 계산
             # Y축은 눈높이 추정값 사용 (자동 감지와 동일한 기준)
+            # 눈높이를 추출 이미지 높이의 3/5 지점에 맞추기 위해
             crop_center_x = face_center_x + center_offset_x
             crop_center_y = estimated_eye_y + center_offset_y
             x_start = crop_center_x - crop_width // 2
-            y_start = crop_center_y - crop_height // 2
+            y_start = crop_center_y - (crop_height * 2 // 5)
             
             # 경계 조정
             if crop_width > img_width:
@@ -546,8 +547,20 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
                 crop_height = img_height
                 crop_width = int(crop_height * target_ratio)
             
-            x_start = max(0, min(x_start, img_width - crop_width))
-            y_start = max(0, min(y_start, img_height - crop_height))
+            # crop_width, crop_height가 변경되었으므로 좌표 재계산
+            x_start = crop_center_x - crop_width // 2
+            y_start = crop_center_y - (crop_height * 2 // 5)
+            
+            # 경계를 벗어난 경우 중심점을 조정 (96:120 비율은 유지)
+            if x_start < 0:
+                x_start = 0
+            elif x_start + crop_width > img_width:
+                x_start = img_width - crop_width
+            
+            if y_start < 0:
+                y_start = 0
+            elif y_start + crop_height > img_height:
+                y_start = img_height - crop_height
             
             x_end = x_start + crop_width
             y_end = y_start + crop_height
@@ -724,8 +737,11 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         
         # 크롭 영역 좌표 계산 (눈높이 또는 얼굴 중심 + 오프셋 기준)
         # crop_center_x, crop_center_y는 위에서 이미 계산됨
+        # 눈높이를 추출 이미지 높이의 3/5 지점에 맞추기 위해
+        # 크롭 영역의 상단에서 crop_height * 3/5 지점에 눈높이가 오도록 설정
         x_start = crop_center_x - crop_width // 2
-        y_start = crop_center_y - crop_height // 2
+        # crop_center_y는 눈높이 위치이므로, 크롭 시작점은 눈높이에서 3/5 지점만큼 위로
+        y_start = crop_center_y - (crop_height * 2 // 5)
         
         # 경계를 벗어난 경우 조정 (크롭 영역을 이미지 내부로 이동)
         # 단, 96:120 비율은 절대 유지
@@ -739,8 +755,9 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         
         # 크롭 영역 좌표 재계산 (눈높이 또는 얼굴 중심 + 오프셋 기준)
         # crop_center_x, crop_center_y는 위에서 이미 계산됨
+        # 눈높이를 추출 이미지 높이의 3/5 지점에 맞추기 위해
         x_start = crop_center_x - crop_width // 2
-        y_start = crop_center_y - crop_height // 2
+        y_start = crop_center_y - (crop_height * 2 // 5)
         
         # 경계를 벗어난 경우 중심점을 조정 (96:120 비율은 유지)
         if x_start < 0:
