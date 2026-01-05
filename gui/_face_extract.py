@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 
 import utils.kaodata_image as kaodata_image
+import utils.image_adjustments as image_adjustments
 import gui.frame_basic as _basic
 
 class FaceExtractPanel(tk.Toplevel):
@@ -102,8 +103,41 @@ class FaceExtractPanel(tk.Toplevel):
         top_frame = tk.Frame(main_frame)
         top_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # 왼쪽: 파일 선택 프레임
-        file_frame = tk.LabelFrame(top_frame, text="이미지 파일 선택", padx=5, pady=5)
+        # 왼쪽: 파일 선택 UI
+        file_frame = self._create_file_selection_ui(top_frame)
+        
+        # 오른쪽: 설정 프레임
+        settings_frame = tk.LabelFrame(top_frame, text="face Area Settings", padx=5, pady=5)
+        settings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # 얼굴 영역 설정 UI
+        self._create_face_area_settings_ui(settings_frame)
+        
+        # 이미지 조정 UI
+        self._create_image_adjustment_ui(settings_frame)
+        
+        # 팔레트 설정 UI
+        self._create_palette_settings_ui(settings_frame)
+        
+        # 수동 영역 설정 UI
+        self._create_manual_region_ui(settings_frame)
+        
+        # 미리보기 UI
+        self._create_preview_ui(main_frame)
+        
+        # 상태 표시
+        self.status_label = tk.Label(main_frame, text="준비됨", fg="gray", anchor="w")
+        self.status_label.pack(fill=tk.X, pady=(5, 0))
+        
+        # 위젯 생성 완료 후 파일 목록 로드
+        self.after(100, self.refresh_file_list)
+        
+        # 라벨 매핑 초기화 (라벨들이 모두 생성된 후)
+        self._init_label_mapping()
+    
+    def _create_file_selection_ui(self, parent):
+        """파일 선택 UI 생성"""
+        file_frame = tk.LabelFrame(parent, text="이미지 파일 선택", padx=5, pady=5)
         file_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
         # 파일 목록 프레임
@@ -134,16 +168,16 @@ class FaceExtractPanel(tk.Toplevel):
         
         btn_browse = tk.Button(button_frame, text="찾아보기...", command=self.browse_file, width=12)
         btn_browse.pack(side=tk.LEFT)
-
-        scaled_length = 240
-        label_width = 12        
         
-        # 오른쪽: 설정 프레임
-        settings_frame = tk.LabelFrame(top_frame, text="face Area Settings", padx=5, pady=5)
-        settings_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        return file_frame
+    
+    def _create_face_area_settings_ui(self, parent):
+        """얼굴 영역 설정 UI 생성"""
+        scaled_length = 240
+        label_width = 12
         
         # 얼굴 영역 설정 슬라이더 (한 줄에 배치)
-        face_area_frame = tk.Frame(settings_frame)
+        face_area_frame = tk.Frame(parent)
         face_area_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 크기 비율 설정
@@ -235,10 +269,14 @@ class FaceExtractPanel(tk.Toplevel):
         
         self.offset_y_label = tk.Label(offset_y_frame, text="0", width=6)
         self.offset_y_label.pack(side=tk.LEFT)
-
-       
+    
+    def _create_image_adjustment_ui(self, parent):
+        """이미지 조정 UI 생성"""
+        scaled_length = 240
+        label_width = 12
+        
         # 밝기/대비 조정 프레임
-        adjust_frame = tk.LabelFrame(settings_frame, text="Image Processing", padx=5, pady=5)
+        adjust_frame = tk.LabelFrame(parent, text="Image Processing", padx=5, pady=5)
         adjust_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 초기화 버튼
@@ -336,9 +374,11 @@ class FaceExtractPanel(tk.Toplevel):
         self.color_temp_label = create_slider(row5_frame, "Color Temp:", self.color_temp, -300.0, 300.0, 1.0, "0", default_value=0.0)
         self.tint_label = create_slider(row5_frame, "Tint:", self.tint, -150.0, 150.0, 1.0, "0", default_value=0.0)
         self.vignette_label = create_slider(row5_frame, "Vignette:", self.vignette, -100.0, 100.0, 1.0, "0", default_value=0.0)
-        
+    
+    def _create_palette_settings_ui(self, parent):
+        """팔레트 설정 UI 생성"""
         # 팔레트 변환 설정 프레임
-        palette_frame = tk.LabelFrame(settings_frame, text="팔레트 변환 설정", padx=5, pady=5)
+        palette_frame = tk.LabelFrame(parent, text="팔레트 변환 설정", padx=5, pady=5)
         palette_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 팔레트 적용 체크박스
@@ -361,9 +401,11 @@ class FaceExtractPanel(tk.Toplevel):
             command=self.on_palette_setting_change
         )
         method_combo.pack(side=tk.LEFT)
-        
+    
+    def _create_manual_region_ui(self, parent):
+        """수동 영역 설정 UI 생성"""
         # 수동 영역 설정 프레임
-        manual_frame = tk.LabelFrame(settings_frame, text="수동 영역 설정", padx=5, pady=5)
+        manual_frame = tk.LabelFrame(parent, text="수동 영역 설정", padx=5, pady=5)
         manual_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 수동 영역 사용 체크박스
@@ -401,9 +443,11 @@ class FaceExtractPanel(tk.Toplevel):
         
         btn_apply_detected = tk.Button(coord_frame, text="감지된 값 적용", command=self.apply_detected_region, width=12)
         btn_apply_detected.pack(side=tk.LEFT, padx=(10, 0))
-        
+    
+    def _create_preview_ui(self, parent):
+        """미리보기 UI 생성"""
         # 이미지 미리보기 프레임 (4개 이미지 나란히 표시)
-        preview_frame = tk.LabelFrame(main_frame, text="미리보기", padx=5, pady=5)
+        preview_frame = tk.LabelFrame(parent, text="미리보기", padx=5, pady=5)
         preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # 이미지 크기: 288x360
@@ -484,26 +528,6 @@ class FaceExtractPanel(tk.Toplevel):
             bg="gray"
         )
         self.canvas_palette.pack(padx=5, pady=5)
-        
-        # 얼굴 번호 입력 프레임 (나중에 사용 예정)
-        # face_frame = tk.LabelFrame(main_frame, text="저장 위치", padx=5, pady=5)
-        # face_frame.pack(fill=tk.X, pady=(0, 10))
-        # 
-        # tk.Label(face_frame, text="얼굴 번호:").pack(side=tk.LEFT, padx=(0, 5))
-        # 
-        # self.face_entry = tk.Entry(face_frame, width=10)
-        # self.face_entry.pack(side=tk.LEFT, padx=(0, 5))
-        # self.face_entry.insert(0, "0")
-        # self.face_entry.bind("<Return>", lambda e: self.save_image())
-        # 
-        # tk.Label(face_frame, text="(0~647)", fg="gray").pack(side=tk.LEFT)
-        
-        # 상태 표시
-        self.status_label = tk.Label(main_frame, text="준비됨", fg="gray", anchor="w")
-        self.status_label.pack(fill=tk.X, pady=(5, 0))
-        
-        # 위젯 생성 완료 후 파일 목록 로드
-        self.after(100, self.refresh_file_list)
     
     def on_setting_change(self, value=None):
         """설정 변경 시 호출"""
@@ -630,53 +654,63 @@ class FaceExtractPanel(tk.Toplevel):
             self.show_extracted_adjusted()
             self.update_palette_preview()
     
+    def _get_adjustment_values(self):
+        """모든 이미지 조정 값을 딕셔너리로 반환"""
+        return {
+            'equalize': self.equalize.get(),
+            'brightness': self.brightness.get(),
+            'contrast': self.contrast.get(),
+            'noise_reduction': self.noise_reduction.get(),
+            'clarity': self.clarity.get(),
+            'dehaze': self.dehaze.get(),
+            'saturation': self.saturation.get(),
+            'vibrance': self.vibrance.get(),
+            'hue': self.hue.get(),
+            'color_temp': self.color_temp.get(),
+            'tint': self.tint.get(),
+            'gamma': self.gamma.get(),
+            'exposure': self.exposure.get(),
+            'sharpness': self.sharpness.get(),
+            'vignette': self.vignette.get(),
+        }
+    
+    def _init_label_mapping(self):
+        """라벨-변수 매핑 딕셔너리 초기화"""
+        # 포맷 함수 정의
+        def format_percent(value):
+            return f"{int(value * 100)}%"
+        
+        def format_int(value):
+            return f"{int(value)}"
+        
+        # 라벨-변수-포맷 매핑
+        self._label_mapping = {
+            'brightness': (self.brightness, self.brightness_label, format_percent),
+            'contrast': (self.contrast, self.contrast_label, format_percent),
+            'saturation': (self.saturation, self.saturation_label, format_percent),
+            'sharpness': (self.sharpness, self.sharpness_label, format_percent),
+            'exposure': (self.exposure, self.exposure_label, format_percent),
+            'equalize': (self.equalize, self.equalize_label, format_percent),
+            'gamma': (self.gamma, self.gamma_label, format_percent),
+            'vibrance': (self.vibrance, self.vibrance_label, format_percent),
+            'color_temp': (self.color_temp, self.color_temp_label, format_int),
+            'hue': (self.hue, self.hue_label, format_int),
+            'clarity': (self.clarity, self.clarity_label, format_int),
+            'dehaze': (self.dehaze, self.dehaze_label, format_int),
+            'tint': (self.tint, self.tint_label, format_int),
+            'noise_reduction': (self.noise_reduction, self.noise_reduction_label, format_int),
+            'vignette': (self.vignette, self.vignette_label, format_int),
+        }
+    
     def on_adjust_change(self, value=None):
         """밝기/대비/색온도/채도 조정 시 호출"""
-        # 라벨 업데이트
-        brightness_value = self.brightness.get()
-        self.brightness_label.config(text=f"{int(brightness_value * 100)}%")
+        # 라벨 업데이트 (자동화)
+        if not hasattr(self, '_label_mapping'):
+            self._init_label_mapping()
         
-        contrast_value = self.contrast.get()
-        self.contrast_label.config(text=f"{int(contrast_value * 100)}%")
-        
-        color_temp_value = self.color_temp.get()
-        self.color_temp_label.config(text=f"{int(color_temp_value)}")
-        
-        saturation_value = self.saturation.get()
-        self.saturation_label.config(text=f"{int(saturation_value * 100)}%")
-        
-        hue_value = self.hue.get()
-        self.hue_label.config(text=f"{int(hue_value)}")
-        
-        sharpness_value = self.sharpness.get()
-        self.sharpness_label.config(text=f"{int(sharpness_value * 100)}%")
-        
-        exposure_value = self.exposure.get()
-        self.exposure_label.config(text=f"{int(exposure_value * 100)}%")
-        
-        equalize_value = self.equalize.get()
-        self.equalize_label.config(text=f"{int(equalize_value * 100)}%")
-        
-        gamma_value = self.gamma.get()
-        self.gamma_label.config(text=f"{int(gamma_value * 100)}%")
-        
-        vibrance_value = self.vibrance.get()
-        self.vibrance_label.config(text=f"{int(vibrance_value * 100)}%")
-        
-        clarity_value = self.clarity.get()
-        self.clarity_label.config(text=f"{int(clarity_value)}")
-        
-        dehaze_value = self.dehaze.get()
-        self.dehaze_label.config(text=f"{int(dehaze_value)}")
-        
-        tint_value = self.tint.get()
-        self.tint_label.config(text=f"{int(tint_value)}")
-        
-        noise_reduction_value = self.noise_reduction.get()
-        self.noise_reduction_label.config(text=f"{int(noise_reduction_value)}")
-        
-        vignette_value = self.vignette.get()
-        self.vignette_label.config(text=f"{int(vignette_value)}")
+        for key, (variable, label, formatter) in self._label_mapping.items():
+            value = variable.get()
+            label.config(text=formatter(value))
         
         # 이미지가 로드되어 있으면 미리보기 업데이트
         if self.extracted_image is not None:
@@ -1069,346 +1103,16 @@ class FaceExtractPanel(tk.Toplevel):
             return
         
         try:
-            # 이미지 조정 적용
-            from PIL import ImageEnhance
-            
-            # 이미지 복사
-            display_img = self.extracted_image.copy()
-            
-            # RGB 모드로 변환 (밝기/대비 조정을 위해)
-            if display_img.mode != 'RGB':
-                if display_img.mode == 'RGBA':
-                    background = Image.new('RGB', display_img.size, (0, 0, 0))
-                    background.paste(display_img, mask=display_img.split()[3])
-                    display_img = background
-                else:
-                    display_img = display_img.convert('RGB')
-            
-            # 평탄화 (Histogram Equalization) - 강도 조절 가능
-            equalize_value = self.equalize.get()
-            if equalize_value > 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # 원본 이미지 저장
-                    original_img = display_img.copy()
-                    # PIL Image를 numpy array로 변환
-                    img_array = np.array(display_img)
-                    # RGB를 BGR로 변환 (OpenCV는 BGR 사용)
-                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                    # YUV 색공간으로 변환하여 밝기 채널만 평탄화
-                    img_yuv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YUV)
-                    img_yuv[:, :, 0] = cv2.equalizeHist(img_yuv[:, :, 0])
-                    # 다시 BGR로 변환
-                    img_bgr = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
-                    # BGR을 RGB로 변환하여 PIL Image로 복원
-                    img_array = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                    equalized_img = Image.fromarray(img_array)
-                    # 원본과 평탄화된 이미지를 강도에 따라 블렌딩
-                    if equalize_value < 1.0:
-                        # 블렌딩: (1 - equalize_value) * 원본 + equalize_value * 평탄화
-                        display_img = Image.blend(original_img, equalized_img, equalize_value)
-                    else:
-                        display_img = equalized_img
-                except ImportError:
-                    # OpenCV가 없으면 PIL의 ImageOps.equalize 사용
-                    try:
-                        from PIL import ImageOps
-                        original_img = display_img.copy()
-                        equalized_img = ImageOps.equalize(display_img)
-                        if equalize_value < 1.0:
-                            display_img = Image.blend(original_img, equalized_img, equalize_value)
-                        else:
-                            display_img = equalized_img
-                    except Exception as e:
-                        print(f"[얼굴추출] 평탄화 실패: {e}")
-                except Exception as e:
-                    print(f"[얼굴추출] 평탄화 실패: {e}")
-            
-            # 밝기 조정
-            brightness_value = self.brightness.get()
-            if brightness_value != 1.0:
-                enhancer = ImageEnhance.Brightness(display_img)
-                display_img = enhancer.enhance(brightness_value)
-            
-            # 대비 조정
-            contrast_value = self.contrast.get()
-            if contrast_value != 1.0:
-                enhancer = ImageEnhance.Contrast(display_img)
-                display_img = enhancer.enhance(contrast_value)
-            
-            # Noise Reduction 조정 (Clarity 전)
-            noise_reduction_value = self.noise_reduction.get()
-            if noise_reduction_value > 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
-                    # noise_reduction_value를 필터 파라미터로 변환
-                    # d: 필터 크기 (9 고정)
-                    # sigmaColor: 색상 공간 표준편차 (0~100 -> 0~50)
-                    # sigmaSpace: 좌표 공간 표준편차 (0~100 -> 0~50)
-                    sigma_color = noise_reduction_value * 0.5
-                    sigma_space = noise_reduction_value * 0.5
-                    img_array = np.array(display_img, dtype=np.uint8)
-                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
-                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
-                    display_img = Image.fromarray(img_array)
-                except ImportError:
-                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
-            
-            # Clarity 조정 (대비 다음)
-            clarity_value = self.clarity.get()
-            if clarity_value != 0.0:
-                try:
-                    from PIL import ImageFilter
-                    import numpy as np
-                    # Unsharp Mask 필터 사용 (중간 톤 대비 강조)
-                    # clarity_value를 0~2 범위로 정규화 (0~100 -> 0~2)
-                    amount = abs(clarity_value) / 50.0
-                    if clarity_value > 0:
-                        # 선명도 향상
-                        blurred = display_img.filter(ImageFilter.GaussianBlur(radius=1.0))
-                        img_array = np.array(display_img, dtype=np.float32)
-                        blur_array = np.array(blurred, dtype=np.float32)
-                        # Unsharp mask: 원본 + (원본 - 블러) * amount
-                        img_array = img_array + (img_array - blur_array) * amount
-                        img_array = np.clip(img_array, 0, 255)
-                        display_img = Image.fromarray(img_array.astype(np.uint8))
-                    else:
-                        # 선명도 감소 (블러)
-                        blur_radius = abs(clarity_value) / 50.0
-                        display_img = display_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-                except ImportError:
-                    print("[얼굴추출] PIL ImageFilter가 없어 Clarity 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Clarity 조정 실패: {e}")
-            
-            # Dehaze 조정 (Clarity 다음)
-            dehaze_value = self.dehaze.get()
-            if dehaze_value != 0.0:
-                try:
-                    from PIL import ImageEnhance
-                    import numpy as np
-                    # Dehaze: 대비 향상 + 약간의 선명도 향상
-                    # dehaze_value를 0~1 범위로 정규화 (0~100 -> 0~1)
-                    amount = abs(dehaze_value) / 100.0
-                    if dehaze_value > 0:
-                        # 안개 제거: 대비 향상
-                        enhancer = ImageEnhance.Contrast(display_img)
-                        display_img = enhancer.enhance(1.0 + amount * 0.5)
-                    else:
-                        # 안개 추가: 대비 감소
-                        enhancer = ImageEnhance.Contrast(display_img)
-                        display_img = enhancer.enhance(1.0 - amount * 0.3)
-                except Exception as e:
-                    print(f"[얼굴추출] Dehaze 조정 실패: {e}")
-            
-            # 채도 조정
-            saturation_value = self.saturation.get()
-            if saturation_value != 1.0:
-                enhancer = ImageEnhance.Color(display_img)
-                display_img = enhancer.enhance(saturation_value)
-            
-            # Vibrance 조정 (채도 다음)
-            vibrance_value = self.vibrance.get()
-            if vibrance_value != 1.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    img_array = np.array(display_img, dtype=np.float32)
-                    img_hsv = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
-                    
-                    # Vibrance: 채도와 유사하지만 피부톤 범위(약 0~30, 150~180)는 덜 조정
-                    # 피부톤 범위를 덜 강조하기 위해 가중치 적용
-                    saturation_channel = img_hsv[:, :, 1]
-                    hue_channel = img_hsv[:, :, 0]
-                    
-                    # 피부톤 범위 체크 (Hue: 0~30, 150~180)
-                    skin_mask = ((hue_channel >= 0) & (hue_channel <= 30)) | ((hue_channel >= 150) & (hue_channel <= 180))
-                    
-                    # 피부톤은 50%만 조정, 나머지는 100% 조정
-                    weight = np.where(skin_mask, 0.5, 1.0)
-                    adjustment = (vibrance_value - 1.0) * weight
-                    
-                    saturation_channel = saturation_channel + adjustment * 50
-                    saturation_channel = np.clip(saturation_channel, 0, 255)
-                    
-                    img_hsv[:, :, 1] = saturation_channel
-                    img_array = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
-                    display_img = Image.fromarray(img_array)
-                except ImportError:
-                    # OpenCV가 없으면 일반 채도 조정 사용
-                    enhancer = ImageEnhance.Color(display_img)
-                    display_img = enhancer.enhance(vibrance_value)
-                except Exception as e:
-                    print(f"[얼굴추출] Vibrance 조정 실패: {e}")
-            
-            # 색조 조정
-            hue_value = self.hue.get()
-            if hue_value != 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # PIL Image를 numpy array로 변환
-                    img_array = np.array(display_img, dtype=np.uint8)
-                    # RGB를 HSV로 변환
-                    img_hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-                    # Hue 채널 조정 (-180 ~ 180 범위를 0 ~ 180으로 변환하여 조정)
-                    # HSV의 Hue는 0~180 범위이므로, -180~180 범위를 더해서 조정
-                    img_hsv[:, :, 0] = (img_hsv[:, :, 0].astype(np.int16) + int(hue_value)) % 180
-                    # 다시 RGB로 변환
-                    img_array = cv2.cvtColor(img_hsv, cv2.COLOR_HSV2RGB)
-                    display_img = Image.fromarray(img_array)
-                except ImportError:
-                    print("[얼굴추출] OpenCV가 없어 색조 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] 색조 조정 실패: {e}")
-            
-            # 색온도 조정
-            color_temp_value = self.color_temp.get()
-            if color_temp_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(display_img, dtype=np.float32)
-                    
-                    # 색온도 조정 (따뜻하게=양수: 빨강/노랑 증가, 차갑게=음수: 파랑 증가)
-                    # -100 ~ 100 범위를 -0.3 ~ 0.3으로 정규화
-                    temp_factor = color_temp_value / 100.0 * 0.3
-                    
-                    if temp_factor > 0:
-                        # 따뜻하게: 빨강, 초록 증가
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + temp_factor * 50, 0, 255)  # R 증가
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] + temp_factor * 30, 0, 255)  # G 증가
-                    else:
-                        # 차갑게: 파랑 증가
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] - temp_factor * 50, 0, 255)  # B 증가
-                    
-                    display_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 색온도 조정을 건너뜁니다.")
-            
-            # 틴트 조정 (색온도 다음)
-            tint_value = self.tint.get()
-            if tint_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(display_img, dtype=np.float32)
-                    
-                    # 틴트 조정 (마젠타=양수: 빨강/파랑 증가, 초록 감소, 녹색=음수: 초록 증가, 빨강/파랑 감소)
-                    # -150 ~ 150 범위를 -0.3 ~ 0.3으로 정규화
-                    tint_factor = tint_value / 150.0 * 0.3
-                    
-                    if tint_factor > 0:
-                        # 마젠타: 빨강, 파랑 증가, 초록 감소
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)  # R 증가
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)  # G 감소
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)  # B 증가
-                    else:
-                        # 녹색: 초록 증가, 빨강, 파랑 감소
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)  # R 감소
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)  # G 증가
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)  # B 감소
-                    
-                    display_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 틴트 조정을 건너뜁니다.")
-            
-            # 감마 보정 (노출 전)
-            gamma_value = self.gamma.get()
-            if gamma_value != 1.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(display_img, dtype=np.float32)
-                    
-                    # 감마 보정: output = 255 * (input / 255) ^ (1 / gamma)
-                    img_array = img_array / 255.0
-                    img_array = np.power(img_array, 1.0 / gamma_value)
-                    img_array = img_array * 255.0
-                    img_array = np.clip(img_array, 0, 255)
-                    
-                    display_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 감마 보정을 건너뜁니다.")
-            
-            # 노출 조정
-            exposure_value = self.exposure.get()
-            if exposure_value != 1.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(display_img, dtype=np.float32)
-                    
-                    # 노출 조정: 지수 함수 사용 (exposure > 1.0: 밝게, < 1.0: 어둡게)
-                    # 0.0 ~ 2.0 범위를 0.25 ~ 4.0 지수 범위로 변환
-                    # exposure = 0.0 -> factor = 0.25 (매우 어둡게)
-                    # exposure = 1.0 -> factor = 1.0 (원본)
-                    # exposure = 2.0 -> factor = 4.0 (매우 밝게)
-                    exposure_factor = 0.25 * (4.0 ** exposure_value)
-                    
-                    img_array = img_array * exposure_factor
-                    img_array = np.clip(img_array, 0, 255)
-                    
-                    display_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 노출 조정을 건너뜁니다.")
-            
-            # 이미지 리사이즈 (288x360)
-            preview_size = (288, 360)
-            resized = display_img.resize(preview_size, Image.LANCZOS)
-            
-            # 선명도 조정 (리사이즈 이후)
-            sharpness_value = self.sharpness.get()
-            if sharpness_value != 1.0:
-                enhancer = ImageEnhance.Sharpness(resized)
-                resized = enhancer.enhance(sharpness_value)
-            
-            # Vignette 조정 (마지막 효과)
-            vignette_value = self.vignette.get()
-            if vignette_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(resized, dtype=np.float32)
-                    height, width = img_array.shape[:2]
-                    
-                    # 중앙 좌표
-                    center_x = width / 2.0
-                    center_y = height / 2.0
-                    
-                    # 최대 거리 (중앙에서 모서리까지)
-                    max_distance = np.sqrt(center_x ** 2 + center_y ** 2)
-                    
-                    # 각 픽셀의 중앙으로부터의 거리 계산
-                    y_coords, x_coords = np.ogrid[:height, :width]
-                    distances = np.sqrt((x_coords - center_x) ** 2 + (y_coords - center_y) ** 2)
-                    
-                    # 거리를 0~1 범위로 정규화
-                    normalized_distances = distances / max_distance
-                    
-                    # Vignette 마스크 생성 (거리에 따라 0~1 범위)
-                    # 양수: 주변부 밝게 (마스크를 더함)
-                    # 음수: 주변부 어둡게 (마스크를 뺌)
-                    vignette_strength = abs(vignette_value) / 100.0
-                    if vignette_value > 0:
-                        # 주변부 밝게: 거리에 따라 밝기 증가
-                        mask = (1.0 - normalized_distances) * vignette_strength
-                        img_array = img_array + mask[:, :, np.newaxis] * 50.0
-                    else:
-                        # 주변부 어둡게: 거리에 따라 밝기 감소
-                        mask = normalized_distances * vignette_strength
-                        img_array = img_array - mask[:, :, np.newaxis] * 50.0
-                    
-                    img_array = np.clip(img_array, 0, 255)
-                    resized = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 Vignette 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Vignette 조정 실패: {e}")
+            # 이미지 조정 파이프라인 적용
+            adjustments = self._get_adjustment_values()
+            result = image_adjustments.process_image_pipeline(
+                self.extracted_image.copy(),
+                adjustments,
+                resize_after=(288, 360)  # Sharpness 전에 리사이즈
+            )
             
             # PhotoImage로 변환
-            self.tk_image_extracted_adjusted = ImageTk.PhotoImage(resized)
+            self.tk_image_extracted_adjusted = ImageTk.PhotoImage(result)
             
             # Canvas에 표시
             if self.image_created_extracted_adjusted:
@@ -1501,329 +1205,12 @@ class FaceExtractPanel(tk.Toplevel):
             dither = (method == 'dither')
             
             # 1단계: 이미지 전처리 (팔레트 적용 전)
-            # 추출된 이미지 복사
-            processed_img = self.extracted_image.copy()
-            
-            # RGB 모드로 확실히 변환 (전처리 단계)
-            if processed_img.mode != 'RGB':
-                if processed_img.mode == 'RGBA':
-                    # 알파 채널이 있는 경우 배경을 검은색으로 설정
-                    background = Image.new('RGB', processed_img.size, (0, 0, 0))
-                    background.paste(processed_img, mask=processed_img.split()[3])
-                    processed_img = background
-                else:
-                    processed_img = processed_img.convert('RGB')
-            
-            # 평탄화 (Histogram Equalization) - 강도 조절 가능
-            equalize_value = self.equalize.get()
-            if equalize_value > 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # 원본 이미지 저장
-                    original_img = processed_img.copy()
-                    # PIL Image를 numpy array로 변환
-                    img_array = np.array(processed_img)
-                    # RGB를 BGR로 변환 (OpenCV는 BGR 사용)
-                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                    # YUV 색공간으로 변환하여 밝기 채널만 평탄화
-                    img_yuv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2YUV)
-                    img_yuv[:, :, 0] = cv2.equalizeHist(img_yuv[:, :, 0])
-                    # 다시 BGR로 변환
-                    img_bgr = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
-                    # BGR을 RGB로 변환하여 PIL Image로 복원
-                    img_array = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                    equalized_img = Image.fromarray(img_array)
-                    # 원본과 평탄화된 이미지를 강도에 따라 블렌딩
-                    if equalize_value < 1.0:
-                        # 블렌딩: (1 - equalize_value) * 원본 + equalize_value * 평탄화
-                        processed_img = Image.blend(original_img, equalized_img, equalize_value)
-                    else:
-                        processed_img = equalized_img
-                except ImportError:
-                    # OpenCV가 없으면 PIL의 ImageOps.equalize 사용
-                    try:
-                        from PIL import ImageOps
-                        original_img = processed_img.copy()
-                        equalized_img = ImageOps.equalize(processed_img)
-                        if equalize_value < 1.0:
-                            processed_img = Image.blend(original_img, equalized_img, equalize_value)
-                        else:
-                            processed_img = equalized_img
-                    except Exception as e:
-                        print(f"[얼굴추출] 평탄화 실패: {e}")
-                except Exception as e:
-                    print(f"[얼굴추출] 평탄화 실패: {e}")
-            
-            # 리사이즈 (96x120) - 평탄화 직후
-            processed_img = processed_img.resize(
-                (kaodata_image.FACE_WIDTH, kaodata_image.FACE_HEIGHT),
-                Image.LANCZOS
+            adjustments = self._get_adjustment_values()
+            processed_img = image_adjustments.process_image_pipeline(
+                self.extracted_image.copy(),
+                adjustments,
+                resize_before=(kaodata_image.FACE_WIDTH, kaodata_image.FACE_HEIGHT)  # Equalize 후 리사이즈
             )
-            
-            # 밝기/대비 조정 적용
-            from PIL import ImageEnhance
-            
-            brightness_value = self.brightness.get()
-            if brightness_value != 1.0:
-                enhancer = ImageEnhance.Brightness(processed_img)
-                processed_img = enhancer.enhance(brightness_value)
-            
-            contrast_value = self.contrast.get()
-            if contrast_value != 1.0:
-                enhancer = ImageEnhance.Contrast(processed_img)
-                processed_img = enhancer.enhance(contrast_value)
-            
-            # Noise Reduction 조정 (Clarity 전)
-            noise_reduction_value = self.noise_reduction.get()
-            if noise_reduction_value > 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
-                    sigma_color = noise_reduction_value * 0.5
-                    sigma_space = noise_reduction_value * 0.5
-                    img_array = np.array(processed_img, dtype=np.uint8)
-                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
-                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
-                    processed_img = Image.fromarray(img_array)
-                except ImportError:
-                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
-            
-            # Clarity 조정 (대비 다음)
-            clarity_value = self.clarity.get()
-            if clarity_value != 0.0:
-                try:
-                    from PIL import ImageFilter
-                    import numpy as np
-                    amount = abs(clarity_value) / 50.0
-                    if clarity_value > 0:
-                        blurred = processed_img.filter(ImageFilter.GaussianBlur(radius=1.0))
-                        img_array = np.array(processed_img, dtype=np.float32)
-                        blur_array = np.array(blurred, dtype=np.float32)
-                        img_array = img_array + (img_array - blur_array) * amount
-                        img_array = np.clip(img_array, 0, 255)
-                        processed_img = Image.fromarray(img_array.astype(np.uint8))
-                    else:
-                        blur_radius = abs(clarity_value) / 50.0
-                        processed_img = processed_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-                except ImportError:
-                    print("[얼굴추출] PIL ImageFilter가 없어 Clarity 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Clarity 조정 실패: {e}")
-            
-            # Dehaze 조정 (Clarity 다음)
-            dehaze_value = self.dehaze.get()
-            if dehaze_value != 0.0:
-                try:
-                    from PIL import ImageEnhance
-                    amount = abs(dehaze_value) / 100.0
-                    if dehaze_value > 0:
-                        enhancer = ImageEnhance.Contrast(processed_img)
-                        processed_img = enhancer.enhance(1.0 + amount * 0.5)
-                    else:
-                        enhancer = ImageEnhance.Contrast(processed_img)
-                        processed_img = enhancer.enhance(1.0 - amount * 0.3)
-                except Exception as e:
-                    print(f"[얼굴추출] Dehaze 조정 실패: {e}")
-            
-            # Noise Reduction 조정 (Clarity 전)
-            noise_reduction_value = self.noise_reduction.get()
-            if noise_reduction_value > 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # OpenCV의 bilateralFilter 사용 (엣지 보존 노이즈 제거)
-                    sigma_color = noise_reduction_value * 0.5
-                    sigma_space = noise_reduction_value * 0.5
-                    img_array = np.array(processed_img, dtype=np.uint8)
-                    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-                    filtered = cv2.bilateralFilter(img_bgr, d=9, sigmaColor=sigma_color, sigmaSpace=sigma_space)
-                    img_array = cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
-                    processed_img = Image.fromarray(img_array)
-                except ImportError:
-                    print("[얼굴추출] OpenCV가 없어 Noise Reduction 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Noise Reduction 조정 실패: {e}")
-            
-            # 채도 조정
-            saturation_value = self.saturation.get()
-            if saturation_value != 1.0:
-                enhancer = ImageEnhance.Color(processed_img)
-                processed_img = enhancer.enhance(saturation_value)
-            
-            # Vibrance 조정 (채도 다음)
-            vibrance_value = self.vibrance.get()
-            if vibrance_value != 1.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    img_hsv = cv2.cvtColor(img_array.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
-                    saturation_channel = img_hsv[:, :, 1]
-                    hue_channel = img_hsv[:, :, 0]
-                    skin_mask = ((hue_channel >= 0) & (hue_channel <= 30)) | ((hue_channel >= 150) & (hue_channel <= 180))
-                    weight = np.where(skin_mask, 0.5, 1.0)
-                    adjustment = (vibrance_value - 1.0) * weight
-                    saturation_channel = saturation_channel + adjustment * 50
-                    saturation_channel = np.clip(saturation_channel, 0, 255)
-                    img_hsv[:, :, 1] = saturation_channel
-                    img_array = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
-                    processed_img = Image.fromarray(img_array)
-                except ImportError:
-                    enhancer = ImageEnhance.Color(processed_img)
-                    processed_img = enhancer.enhance(vibrance_value)
-                except Exception as e:
-                    print(f"[얼굴추출] Vibrance 조정 실패: {e}")
-            
-            # 색조 조정
-            hue_value = self.hue.get()
-            if hue_value != 0.0:
-                try:
-                    import cv2
-                    import numpy as np
-                    # PIL Image를 numpy array로 변환
-                    img_array = np.array(processed_img, dtype=np.uint8)
-                    # RGB를 HSV로 변환
-                    img_hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-                    # Hue 채널 조정 (-180 ~ 180 범위를 0 ~ 180으로 변환하여 조정)
-                    # HSV의 Hue는 0~180 범위이므로, -180~180 범위를 더해서 조정
-                    img_hsv[:, :, 0] = (img_hsv[:, :, 0].astype(np.int16) + int(hue_value)) % 180
-                    # 다시 RGB로 변환
-                    img_array = cv2.cvtColor(img_hsv, cv2.COLOR_HSV2RGB)
-                    processed_img = Image.fromarray(img_array)
-                except ImportError:
-                    print("[얼굴추출] OpenCV가 없어 색조 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] 색조 조정 실패: {e}")
-            
-            # 색온도 조정
-            color_temp_value = self.color_temp.get()
-            if color_temp_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    
-                    # 색온도 조정 (따뜻하게=양수: 빨강/노랑 증가, 차갑게=음수: 파랑 증가)
-                    # -100 ~ 100 범위를 -0.3 ~ 0.3으로 정규화
-                    temp_factor = color_temp_value / 100.0 * 0.3
-                    
-                    if temp_factor > 0:
-                        # 따뜻하게: 빨강, 초록 증가
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + temp_factor * 50, 0, 255)  # R 증가
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] + temp_factor * 30, 0, 255)  # G 증가
-                    else:
-                        # 차갑게: 파랑 증가
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] - temp_factor * 50, 0, 255)  # B 증가
-                    
-                    processed_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 색온도 조정을 건너뜁니다.")
-            
-            # 틴트 조정 (색온도 다음)
-            tint_value = self.tint.get()
-            if tint_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    tint_factor = tint_value / 150.0 * 0.3
-                    if tint_factor > 0:
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)
-                    else:
-                        img_array[:, :, 0] = np.clip(img_array[:, :, 0] + tint_factor * 40, 0, 255)
-                        img_array[:, :, 1] = np.clip(img_array[:, :, 1] - tint_factor * 40, 0, 255)
-                        img_array[:, :, 2] = np.clip(img_array[:, :, 2] + tint_factor * 40, 0, 255)
-                    processed_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 틴트 조정을 건너뜁니다.")
-            
-            # 감마 보정 (노출 전)
-            gamma_value = self.gamma.get()
-            if gamma_value != 1.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    img_array = img_array / 255.0
-                    img_array = np.power(img_array, 1.0 / gamma_value)
-                    img_array = img_array * 255.0
-                    img_array = np.clip(img_array, 0, 255)
-                    processed_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 감마 보정을 건너뜁니다.")
-            
-            # 노출 조정
-            exposure_value = self.exposure.get()
-            if exposure_value != 1.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    
-                    # 노출 조정: 지수 함수 사용 (exposure > 1.0: 밝게, < 1.0: 어둡게)
-                    # 0.0 ~ 2.0 범위를 0.25 ~ 4.0 지수 범위로 변환
-                    # exposure = 0.0 -> factor = 0.25 (매우 어둡게)
-                    # exposure = 1.0 -> factor = 1.0 (원본)
-                    # exposure = 2.0 -> factor = 4.0 (매우 밝게)
-                    exposure_factor = 0.25 * (4.0 ** exposure_value)
-                    
-                    img_array = img_array * exposure_factor
-                    img_array = np.clip(img_array, 0, 255)
-                    
-                    processed_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 노출 조정을 건너뜁니다.")
-            
-            # 선명도 조정 (리사이즈 이후)
-            sharpness_value = self.sharpness.get()
-            if sharpness_value != 1.0:
-                enhancer = ImageEnhance.Sharpness(processed_img)
-                processed_img = enhancer.enhance(sharpness_value)
-            
-            # Vignette 조정 (마지막 효과, 팔레트 적용 전)
-            vignette_value = self.vignette.get()
-            if vignette_value != 0.0:
-                try:
-                    import numpy as np
-                    img_array = np.array(processed_img, dtype=np.float32)
-                    height, width = img_array.shape[:2]
-                    
-                    # 중앙 좌표
-                    center_x = width / 2.0
-                    center_y = height / 2.0
-                    
-                    # 최대 거리 (중앙에서 모서리까지)
-                    max_distance = np.sqrt(center_x ** 2 + center_y ** 2)
-                    
-                    # 각 픽셀의 중앙으로부터의 거리 계산
-                    y_coords, x_coords = np.ogrid[:height, :width]
-                    distances = np.sqrt((x_coords - center_x) ** 2 + (y_coords - center_y) ** 2)
-                    
-                    # 거리를 0~1 범위로 정규화
-                    normalized_distances = distances / max_distance
-                    
-                    # Vignette 마스크 생성 (거리에 따라 0~1 범위)
-                    # 양수: 주변부 밝게 (마스크를 더함)
-                    # 음수: 주변부 어둡게 (마스크를 뺌)
-                    vignette_strength = abs(vignette_value) / 100.0
-                    if vignette_value > 0:
-                        # 주변부 밝게: 거리에 따라 밝기 증가
-                        mask = (1.0 - normalized_distances) * vignette_strength
-                        img_array = img_array + mask[:, :, np.newaxis] * 50.0
-                    else:
-                        # 주변부 어둡게: 거리에 따라 밝기 감소
-                        mask = normalized_distances * vignette_strength
-                        img_array = img_array - mask[:, :, np.newaxis] * 50.0
-                    
-                    img_array = np.clip(img_array, 0, 255)
-                    processed_img = Image.fromarray(img_array.astype(np.uint8))
-                except ImportError:
-                    print("[얼굴추출] numpy가 없어 Vignette 조정을 건너뜁니다.")
-                except Exception as e:
-                    print(f"[얼굴추출] Vignette 조정 실패: {e}")
             
             # 2단계: 마지막에 팔레트 적용
             self.palette_applied_image = kaodata_image.convert_to_palette_colors(
@@ -1881,8 +1268,6 @@ class FaceExtractPanel(tk.Toplevel):
             )
         except Exception as e:
             print(f"[얼굴추출] 팔레트 미리보기 표시 실패: {e}")
-            import traceback
-            traceback.print_exc()
             if self.image_created_palette:
                 self.canvas_palette.delete(self.image_created_palette)
                 self.image_created_palette = None

@@ -28,7 +28,6 @@ def load_config():
         if 'save_file_dir' in config:
             gl._save_file_dir = config['save_file_dir']
             
-        print(f"[설정] 설정 파일을 불러왔습니다: {CONFIG_FILE}")
     except Exception as e:
         print(f"[설정] 설정 파일 로드 실패: {e}")
 
@@ -47,7 +46,6 @@ def save_config():
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
             
-        print(f"[설정] 설정 파일에 저장했습니다: {CONFIG_FILE}")
     except Exception as e:
         print(f"[설정] 설정 파일 저장 실패: {e}")
 

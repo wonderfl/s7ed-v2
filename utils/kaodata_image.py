@@ -503,16 +503,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         # 이미지 크기 (먼저 정의)
         img_height, img_width = img_rgb.shape[:2]
         
-        # 디버그: 함수 호출 추적
-        import traceback
-        if manual_region is not None:
-            print(f"[얼굴이미지] DEBUG: extract_face_region 호출됨 (수동 영역 모드)")
-            print(f"[얼굴이미지] DEBUG: 호출 스택:")
-            for line in traceback.format_stack()[-3:-1]:
-                print(f"[얼굴이미지] DEBUG: {line.strip()}")
-        else:
-            print(f"[얼굴이미지] DEBUG: extract_face_region 호출됨 (자동 감지 모드)")
-        
         # 수동 영역이 지정된 경우 자동 감지 건너뛰기
         if manual_region is not None:
             x, y, w, h = manual_region
@@ -522,7 +512,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             w = max(1, min(w, img_width - x))
             h = max(1, min(h, img_height - y))
             
-            print(f"[얼굴이미지] 수동 영역 사용: 위치=({x}, {y}), 크기=({w}, {h})")
             
             # 수동 영역을 얼굴로 간주하고 크롭
             # X축은 얼굴 중심, Y축은 눈높이 추정
@@ -567,7 +556,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             face_region = img_rgb[y_start:y_end, x_start:x_end]
             face_image = Image.fromarray(face_region)
             
-            print(f"[얼굴이미지] 크롭 영역: ({x_start}, {y_start}) ~ ({x_end}, {y_end})")
             
             # 얼굴 영역 좌표 반환 여부 확인
             if return_face_region:
@@ -606,14 +594,12 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         
         # 얼굴을 찾은 경우
         if len(faces) > 0:
-            print(f"[얼굴이미지] {len(faces)}개의 얼굴 감지됨")
             
             # 가장 큰 얼굴 선택 (여러 얼굴이 있는 경우)
             largest_face = max(faces, key=lambda f: f[2] * f[3])
             x, y, w, h = largest_face
             detected_face_region = (x, y, w, h)  # 감지된 얼굴 영역 저장
             
-            print(f"[얼굴이미지] 선택된 얼굴: 위치=({x}, {y}), 크기=({w}, {h})")
             
             # 얼굴 영역 내에서 눈 감지 (더 정확함)
             if not eye_cascade.empty():
@@ -640,26 +626,21 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
                     # 얼굴 중심 X 좌표
                     face_center_x = x + w // 2
                     
-                    print(f"[얼굴이미지] {len(eyes)}개의 눈 감지됨")
                     for i, (ex, ey, ew, eh) in enumerate(eyes):
                         eye_abs_x = x + ex
                         eye_abs_y = y + ey
-                        print(f"[얼굴이미지] 눈 {i+1}: 위치=({eye_abs_x}, {eye_abs_y}), 크기=({ew}, {eh})")
-                    print(f"[얼굴이미지] 눈높이: {eye_center_y}, 얼굴 중심 X: {face_center_x}")
                     
                     # Y축은 눈높이, X축은 얼굴 중심 기준으로 중심점 설정
                     crop_center_x = face_center_x + center_offset_x
                     crop_center_y = eye_center_y + center_offset_y
                 else:
                     # 눈을 찾지 못하면 얼굴 중심점 사용
-                    print(f"[얼굴이미지] 눈을 찾을 수 없어 얼굴 중심점 사용 (감지된 눈: {len(eyes)}개)")
                     face_center_x = x + w // 2
                     face_center_y = y + h // 2
                     crop_center_x = face_center_x + center_offset_x
                     crop_center_y = face_center_y + center_offset_y
             else:
                 # 눈 감지 분류기를 로드할 수 없으면 얼굴 중심점 사용
-                print("[얼굴이미지] 눈 감지 분류기를 로드할 수 없어 얼굴 중심점 사용")
                 face_center_x = x + w // 2
                 face_center_y = y + h // 2
                 crop_center_x = face_center_x + center_offset_x
@@ -667,7 +648,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         
         # 얼굴을 못 찾은 경우 - 전체 이미지에서 눈 감지 시도 (fallback)
         elif not eye_cascade.empty():
-            print("[얼굴이미지] 얼굴을 찾지 못해 전체 이미지에서 눈 감지 시도")
             eyes = eye_cascade.detectMultiScale(
                 gray,
                 scaleFactor=1.1,
@@ -704,22 +684,15 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
                 h = min(img_height - y, estimated_face_height)
                 detected_face_region = (x, y, w, h)  # 감지된 얼굴 영역 저장
                 
-                print(f"[얼굴이미지] 전체 이미지에서 {len(eyes)}개의 눈 감지됨")
-                for i, (ex, ey, ew, eh) in enumerate(eyes):
-                    print(f"[얼굴이미지] 눈 {i+1}: 위치=({ex}, {ey}), 크기=({ew}, {eh})")
-                print(f"[얼굴이미지] 눈높이: {eye_center_y}, 추정 얼굴 중심 X: {face_center_x}")
-                print(f"[얼굴이미지] 추정 얼굴 영역: 위치=({x}, {y}), 크기=({w}, {h})")
                 
                 # Y축은 눈높이, X축은 얼굴 중심 기준으로 중심점 설정
                 crop_center_x = face_center_x + center_offset_x
                 crop_center_y = eye_center_y + center_offset_y
             else:
                 # 얼굴도 눈도 못 찾은 경우
-                print(f"[얼굴이미지] 얼굴과 눈을 모두 찾을 수 없습니다. 이미지 크기: {image.size}")
                 raise ValueError("얼굴과 눈을 모두 찾을 수 없습니다. 얼굴 인식 체크박스를 해제하거나 다른 이미지를 사용하세요.")
         else:
             # 얼굴도 눈도 못 찾은 경우
-            print(f"[얼굴이미지] 얼굴과 눈을 모두 찾을 수 없습니다. 이미지 크기: {image.size}")
             raise ValueError("얼굴과 눈을 모두 찾을 수 없습니다. 얼굴 인식 체크박스를 해제하거나 다른 이미지를 사용하세요.")
         
         # 목표 비율 (96:120 = 0.8)
@@ -788,11 +761,7 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         if crop_height > 0:
             final_ratio = crop_width / crop_height
             if abs(final_ratio - target_ratio) > 0.001:  # 0.1% 이상 차이나면 경고
-                print(f"[얼굴이미지] 경고: 크롭 비율이 목표 비율과 다릅니다. (실제: {final_ratio:.3f}, 목표: {target_ratio:.3f})")
         
-        print(f"[얼굴이미지] 원본 이미지 크기: {img_width}x{img_height}")
-        print(f"[얼굴이미지] 크롭 크기: {crop_width}x{crop_height} (비율: {crop_width/crop_height:.3f}, 목표: {target_ratio:.3f})")
-        print(f"[얼굴이미지] 크롭 영역: ({x_start}, {y_start}) ~ ({x_end}, {y_end})")
         
         # 얼굴 영역 크롭
         face_region = img_rgb[y_start:y_end, x_start:x_end]
@@ -803,7 +772,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         # numpy 배열을 PIL Image로 변환
         face_image = Image.fromarray(face_region)
         
-        print(f"[얼굴이미지] 얼굴 영역 추출 완료: {face_image.size} (원본: {image.size})")
         
         # 얼굴 영역 좌표 반환 여부 확인
         if return_face_region:
@@ -910,8 +878,6 @@ def import_faces_from_png(png_dir=None, pattern='face*.png', verbose=True):
     results = {'success': 0, 'failed': 0, 'errors': []}
     
     if verbose:
-        print(f"[얼굴이미지] {len(png_files)}개의 PNG 파일 발견")
-        print(f"[얼굴이미지] Kaodata.s7에 반영 시작...")
     
     for png_file in sorted(png_files):
         try:
