@@ -3,6 +3,7 @@
 """
 import os
 import glob
+import re
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
@@ -1644,7 +1645,9 @@ class FaceExtractPanel(tk.Toplevel):
             # 원본 이미지 파일명 가져오기
             original_filename = os.path.basename(self.current_image_path)
             base_name = os.path.splitext(original_filename)[0]
-            png_filename = f"{base_name}_palette.png"
+            # 앞부분의 영문자와 '_' 제거 (예: ABC_something -> something)
+            base_name = re.sub(r'^[A-Za-z]+_', '', base_name)
+            png_filename = f"{base_name}_s7.png"
             
             # faces 폴더 경로 (원본 이미지와 같은 디렉토리의 faces 폴더)
             original_dir = os.path.dirname(self.current_image_path)
