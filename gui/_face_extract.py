@@ -11,6 +11,7 @@ from PIL import Image, ImageTk
 import utils.kaodata_image as kaodata_image
 import utils.image_adjustments as image_adjustments
 import gui.frame_basic as _basic
+import utils.config as config
 
 class FaceExtractPanel(tk.Toplevel):
     """얼굴 추출 전용 패널 - 얼굴 인식이 항상 활성화"""
@@ -88,6 +89,10 @@ class FaceExtractPanel(tk.Toplevel):
         self.drag_original_x = None
         self.drag_original_y = None
         self.is_dragging = False
+        
+        # 얼굴 추출 폴더 경로 (config에서 로드) - 불러오기와 저장 모두 이 폴더 사용
+        import globals as gl
+        self.face_extract_dir = gl._face_extract_dir if gl._face_extract_dir else None
         
         self.create_widgets()
         
@@ -199,7 +204,7 @@ class FaceExtractPanel(tk.Toplevel):
             scale_frame,
             from_=0.5,
             to=5.0,
-            resolution=0.05,
+            resolution=0.01,
             orient=tk.HORIZONTAL,
             variable=self.crop_scale,
             command=self.on_setting_change,
@@ -406,13 +411,13 @@ class FaceExtractPanel(tk.Toplevel):
     def _create_manual_region_ui(self, parent):
         """수동 영역 설정 UI 생성"""
         # 수동 영역 설정 프레임
-        manual_frame = tk.LabelFrame(parent, text="수동 영역 설정", padx=5, pady=5)
+        manual_frame = tk.LabelFrame(parent, text="Manual Area Settings", padx=5, pady=5)
         manual_frame.pack(fill=tk.X, pady=(0, 5))
         
         # 수동 영역 사용 체크박스
         manual_check = tk.Checkbutton(
             manual_frame,
-            text="수동 영역 사용",
+            text="수동 영역",
             variable=self.use_manual_region,
             command=self.on_manual_region_toggle
         )
@@ -442,7 +447,12 @@ class FaceExtractPanel(tk.Toplevel):
         self.manual_h_entry.pack(side=tk.LEFT, padx=(0, 5))
         self.manual_h_entry.bind("<KeyRelease>", lambda e: self.on_manual_region_change())
         
-        btn_apply_detected = tk.Button(coord_frame, text="감지된 값 적용", command=self.apply_detected_region, width=12)
+        # 화면 비율 표시
+        tk.Label(coord_frame, text="화면 비율:").pack(side=tk.LEFT, padx=(10, 2))
+        self.face_percentage_label = tk.Label(coord_frame, text="0.0%", width=8, fg="blue")
+        self.face_percentage_label.pack(side=tk.LEFT, padx=(0, 5))
+        
+        btn_apply_detected = tk.Button(coord_frame, text="감지된 값 적용", command=self.apply_detected_region, width=15)
         btn_apply_detected.pack(side=tk.LEFT, padx=(10, 0))
     
     def _create_preview_ui(self, parent):
@@ -472,6 +482,7 @@ class FaceExtractPanel(tk.Toplevel):
         # 마우스 드래그 이벤트 바인딩 (수동 영역 모드일 때만)
         self.canvas_original.bind("<Button-1>", self.on_canvas_click)
         self.canvas_original.bind("<B1-Motion>", self.on_canvas_drag)
+        self.canvas_original.bind("<ButtonRelease-1>", self.on_canvas_release)
         self.canvas_original.bind("<ButtonRelease-1>", self.on_canvas_release)
         
         # 2. 추출 원본 (조정 전)
@@ -629,9 +640,35 @@ class FaceExtractPanel(tk.Toplevel):
     def on_manual_region_change(self):
         """수동 영역 입력 필드 변경 시 호출"""
         if self.use_manual_region.get() and self.current_image is not None:
-            self.extract_face()
-            # 크롭 영역 테두리 업데이트
-            self.draw_crop_region_on_original()
+            # 수동 영역 변경 시 즉시 재계산
+            try:
+                # 수동 영역 좌표 가져오기
+                x = int(self.manual_x.get())
+                y = int(self.manual_y.get())
+                w = int(self.manual_w.get())
+                h = int(self.manual_h.get())
+                
+                # extract_face() 호출
+                self.extract_face()
+                
+                # UI 강제 업데이트 (extract_face()에서 업데이트되지만 확실히 하기 위해)
+                self.update_idletasks()
+                
+                # 화면 비율 강제 재계산 및 UI 업데이트 (크롭된 이미지 사용)
+                if self.detected_face_region is not None and self.extracted_image is not None:
+                    crop_scale = self.crop_scale.get()
+                    offset_x = self.center_offset_x.get()
+                    offset_y = self.center_offset_y.get()
+                    face_percentage = self._calculate_face_percentage(self.detected_face_region, crop_scale, offset_x, offset_y, self.extracted_image)
+                    if hasattr(self, 'face_percentage_label'):
+                        self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
+                        self.face_percentage_label.update_idletasks()
+                
+                # 크롭 영역 테두리 업데이트
+                self.draw_crop_region_on_original()
+            except (ValueError, tk.TclError):
+                # 유효하지 않은 값이면 무시
+                pass
     
     def on_palette_setting_change(self, value=None):
         """팔레트 설정 변경 시 호출"""
@@ -747,8 +784,11 @@ class FaceExtractPanel(tk.Toplevel):
         """파일 목록 새로고침"""
         self.file_listbox.delete(0, tk.END)
         
-        # 이미지 디렉토리 경로 가져오기
-        png_dir = kaodata_image.get_png_dir()
+        # 이미지 디렉토리 경로 가져오기 (얼굴 추출 패널 폴더가 있으면 사용, 없으면 png_dir 사용)
+        if self.face_extract_dir and os.path.exists(self.face_extract_dir):
+            png_dir = self.face_extract_dir
+        else:
+            png_dir = kaodata_image.get_png_dir()
         
         if not os.path.exists(png_dir):
             self.file_listbox.insert(0, f"디렉토리를 찾을 수 없습니다: {png_dir}")
@@ -804,8 +844,11 @@ class FaceExtractPanel(tk.Toplevel):
         index = selection[0]
         filename = self.file_listbox.get(index)
         
-        # 파일 경로 구성
-        png_dir = kaodata_image.get_png_dir()
+        # 파일 경로 구성 (얼굴 추출 패널 폴더가 있으면 사용, 없으면 png_dir 사용)
+        if self.face_extract_dir and os.path.exists(self.face_extract_dir):
+            png_dir = self.face_extract_dir
+        else:
+            png_dir = kaodata_image.get_png_dir()
         file_path = os.path.join(png_dir, filename)
         
         if os.path.exists(file_path):
@@ -813,10 +856,13 @@ class FaceExtractPanel(tk.Toplevel):
     
     def browse_file(self):
         """파일 선택 대화상자"""
-        # 저장된 이미지 디렉토리 경로 가져오기
-        initial_dir = kaodata_image.get_png_dir()
-        if not os.path.exists(initial_dir):
-            initial_dir = None
+        # 저장된 이미지 디렉토리 경로 가져오기 (얼굴 추출 패널 폴더가 있으면 사용)
+        if self.face_extract_dir and os.path.exists(self.face_extract_dir):
+            initial_dir = self.face_extract_dir
+        else:
+            initial_dir = kaodata_image.get_png_dir()
+            if not os.path.exists(initial_dir):
+                initial_dir = None
         
         file_path = filedialog.askopenfilename(
             title="이미지 파일 선택",
@@ -830,11 +876,16 @@ class FaceExtractPanel(tk.Toplevel):
         )
         
         if file_path:
-            # 선택한 파일의 디렉토리 경로 저장
-            png_dir = os.path.dirname(file_path)
-            kaodata_image.set_png_dir(png_dir)
-            # 설정 파일에 저장
+            # 선택한 파일의 디렉토리 경로 저장 (얼굴 추출 패널 폴더에 저장, png_dir은 변경하지 않음)
+            import globals as gl
             import utils.config as config
+            source_dir = os.path.dirname(file_path)
+            if not os.path.isabs(source_dir):
+                source_dir = os.path.abspath(source_dir)
+            # 얼굴 추출 패널 폴더 업데이트 (불러오기와 저장 모두 이 폴더 사용)
+            self.face_extract_dir = source_dir
+            gl._face_extract_dir = source_dir
+            # 설정 파일에 저장
             config.save_config()
             
             # 파일 목록 새로고침
@@ -850,6 +901,215 @@ class FaceExtractPanel(tk.Toplevel):
                     break
             
             self.load_image(file_path)
+    
+    def _get_or_select_extract_folder(self):
+        """얼굴 추출 이미지 저장 폴더 가져오기 (없으면 선택)"""
+        import globals as gl
+        import utils.config as config
+        
+        # 이미 설정된 폴더가 있으면 반환
+        if self.face_extract_dir and os.path.exists(self.face_extract_dir):
+            return self.face_extract_dir
+        
+        # 폴더 선택 대화상자
+        initial_dir = self.face_extract_dir if self.face_extract_dir else None
+        if initial_dir and not os.path.exists(initial_dir):
+            initial_dir = None
+        
+        folder_path = filedialog.askdirectory(
+            title="얼굴 추출 이미지 저장 폴더 선택",
+            initialdir=initial_dir
+        )
+        
+        if folder_path:
+            # 절대 경로로 변환
+            if not os.path.isabs(folder_path):
+                folder_path = os.path.abspath(folder_path)
+            
+            # 저장
+            self.face_extract_dir = folder_path
+            gl._face_extract_dir = folder_path
+            config.save_config()
+            
+            return folder_path
+        
+        return None
+    
+    def _load_image_params(self, image_path):
+        """이미지별 파라미터를 불러와서 적용"""
+        if not image_path:
+            return
+        
+        params = config.load_face_extract_params(image_path)
+        if not params:
+            return
+        
+        try:
+            # 팔레트 설정
+            if 'palette_method' in params:
+                self.palette_method.set(params['palette_method'])
+            if 'use_palette' in params:
+                self.use_palette.set(params['use_palette'])
+            
+            # 위치/배율 설정
+            if 'crop_scale' in params:
+                self.crop_scale.set(params['crop_scale'])
+            if 'center_offset_x' in params:
+                self.center_offset_x.set(params['center_offset_x'])
+            if 'center_offset_y' in params:
+                self.center_offset_y.set(params['center_offset_y'])
+            
+            # 이미지 조정 설정
+            if 'brightness' in params:
+                self.brightness.set(params['brightness'])
+            if 'contrast' in params:
+                self.contrast.set(params['contrast'])
+            if 'saturation' in params:
+                self.saturation.set(params['saturation'])
+            if 'color_temp' in params:
+                self.color_temp.set(params['color_temp'])
+            if 'hue' in params:
+                self.hue.set(params['hue'])
+            if 'sharpness' in params:
+                self.sharpness.set(params['sharpness'])
+            if 'exposure' in params:
+                self.exposure.set(params['exposure'])
+            if 'equalize' in params:
+                self.equalize.set(params['equalize'])
+            if 'gamma' in params:
+                self.gamma.set(params['gamma'])
+            if 'vibrance' in params:
+                self.vibrance.set(params['vibrance'])
+            if 'clarity' in params:
+                self.clarity.set(params['clarity'])
+            if 'dehaze' in params:
+                self.dehaze.set(params['dehaze'])
+            if 'tint' in params:
+                self.tint.set(params['tint'])
+            if 'noise_reduction' in params:
+                self.noise_reduction.set(params['noise_reduction'])
+            if 'vignette' in params:
+                self.vignette.set(params['vignette'])
+            
+            # 수동 영역 설정
+            if 'use_manual_region' in params:
+                self.use_manual_region.set(params['use_manual_region'])
+            if 'manual_x' in params:
+                self.manual_x.set(params['manual_x'])
+            if 'manual_y' in params:
+                self.manual_y.set(params['manual_y'])
+            if 'manual_w' in params:
+                self.manual_w.set(params['manual_w'])
+            if 'manual_h' in params:
+                self.manual_h.set(params['manual_h'])
+            
+            # 실제 사용된 얼굴 영역 (수동이든 자동이든)
+            if all(key in params for key in ['face_region_x', 'face_region_y', 'face_region_w', 'face_region_h']):
+                if params['face_region_x'] is not None and params['face_region_y'] is not None and \
+                   params['face_region_w'] is not None and params['face_region_h'] is not None:
+                    self.detected_face_region = (
+                        params['face_region_x'],
+                        params['face_region_y'],
+                        params['face_region_w'],
+                        params['face_region_h']
+                    )
+            
+            # 수동 영역 설정 UI 업데이트 (체크박스 상태 및 입력 필드 활성화/비활성화)
+            # extract_face는 load_image에서 호출되므로 여기서는 UI만 업데이트
+            if 'use_manual_region' in params:
+                # 체크박스는 변수 설정만으로 자동 반영됨
+                # 입력 필드 활성화/비활성화는 on_manual_region_toggle에서 처리되지만,
+                # 이미지가 로드되기 전이므로 여기서는 불필요 (load_image에서 extract_face 호출 후 처리됨)
+                pass
+            
+            # UI 업데이트 콜백 호출
+            # 이미지 조정 슬라이더 라벨 업데이트
+            if hasattr(self, '_label_mapping'):
+                for key, (var, label, formatter) in self._label_mapping.items():
+                    if key in params:
+                        label.config(text=formatter(var.get()))
+            
+            # 위치/배율 설정 UI 업데이트 (라벨만, extract_face는 load_image에서 호출)
+            if 'crop_scale' in params or 'center_offset_x' in params or 'center_offset_y' in params:
+                if hasattr(self, 'scale_label'):
+                    scale_value = self.crop_scale.get()
+                    self.scale_label.config(text=f"{int(scale_value * 100)}%")
+                if hasattr(self, 'offset_x_label'):
+                    offset_x = self.center_offset_x.get()
+                    self.offset_x_label.config(text=str(offset_x))
+                if hasattr(self, 'offset_y_label'):
+                    offset_y = self.center_offset_y.get()
+                    self.offset_y_label.config(text=str(offset_y))
+            
+            # 팔레트 설정 UI는 변수 설정만으로 자동 반영됨 (체크박스, 콤보박스)
+            # 팔레트 미리보기는 extract_face 후에 update_palette_preview에서 처리됨
+            
+        except Exception as e:
+            print(f"[얼굴추출] 파라미터 로드 실패: {e}")
+    
+    def _save_image_params(self, image_path):
+        """현재 파라미터를 이미지별 설정 파일로 저장"""
+        if not image_path:
+            return
+        
+        try:
+            # numpy 타입을 기본 Python 타입으로 변환하는 헬퍼 함수
+            def to_python_type(value):
+                """numpy 타입을 기본 Python 타입으로 변환"""
+                import numpy as np
+                if isinstance(value, (np.integer, np.int32, np.int64)):
+                    return int(value)
+                elif isinstance(value, (np.floating, np.float32, np.float64)):
+                    return float(value)
+                elif isinstance(value, np.ndarray):
+                    return value.tolist()
+                else:
+                    return value
+            
+            params = {
+                # 팔레트 설정
+                'palette_method': str(self.palette_method.get()),
+                'use_palette': bool(self.use_palette.get()),
+                
+                # 위치/배율 설정
+                'crop_scale': float(self.crop_scale.get()),
+                'center_offset_x': int(self.center_offset_x.get()),
+                'center_offset_y': int(self.center_offset_y.get()),
+                
+                # 이미지 조정 설정
+                'brightness': float(self.brightness.get()),
+                'contrast': float(self.contrast.get()),
+                'saturation': float(self.saturation.get()),
+                'color_temp': float(self.color_temp.get()),
+                'hue': float(self.hue.get()),
+                'sharpness': float(self.sharpness.get()),
+                'exposure': float(self.exposure.get()),
+                'equalize': float(self.equalize.get()),
+                'gamma': float(self.gamma.get()),
+                'vibrance': float(self.vibrance.get()),
+                'clarity': float(self.clarity.get()),
+                'dehaze': float(self.dehaze.get()),
+                'tint': float(self.tint.get()),
+                'noise_reduction': float(self.noise_reduction.get()),
+                'vignette': float(self.vignette.get()),
+                
+                # 수동 영역 사용 여부 및 좌표
+                'use_manual_region': bool(self.use_manual_region.get()),
+                'manual_x': int(self.manual_x.get()),
+                'manual_y': int(self.manual_y.get()),
+                'manual_w': int(self.manual_w.get()),
+                'manual_h': int(self.manual_h.get()),
+                
+                # 실제 사용된 얼굴 영역 (수동이든 자동이든)
+                'face_region_x': to_python_type(self.detected_face_region[0]) if self.detected_face_region else None,
+                'face_region_y': to_python_type(self.detected_face_region[1]) if self.detected_face_region else None,
+                'face_region_w': to_python_type(self.detected_face_region[2]) if self.detected_face_region else None,
+                'face_region_h': to_python_type(self.detected_face_region[3]) if self.detected_face_region else None,
+            }
+            
+            config.save_face_extract_params(image_path, params)
+        except Exception as e:
+            print(f"[얼굴추출] 파라미터 저장 실패: {e}")
     
     def load_image(self, file_path):
         """이미지 로드 및 얼굴 추출"""
@@ -873,8 +1133,26 @@ class FaceExtractPanel(tk.Toplevel):
             # 미리보기 타이틀 업데이트
             self._update_preview_titles(filename)
             
+            # 이미지별 파라미터 불러오기
+            self._load_image_params(file_path)
+            
             # 얼굴 추출
             self.extract_face()
+            
+            # 수동 영역 설정이 로드된 경우 UI 업데이트 (입력 필드 활성화/비활성화)
+            if hasattr(self, 'use_manual_region') and hasattr(self, 'manual_x_entry'):
+                if self.use_manual_region.get():
+                    # 수동 영역 입력 필드 활성화
+                    self.manual_x_entry.config(state=tk.NORMAL)
+                    self.manual_y_entry.config(state=tk.NORMAL)
+                    self.manual_w_entry.config(state=tk.NORMAL)
+                    self.manual_h_entry.config(state=tk.NORMAL)
+                else:
+                    # 수동 영역 입력 필드 비활성화
+                    self.manual_x_entry.config(state=tk.DISABLED)
+                    self.manual_y_entry.config(state=tk.DISABLED)
+                    self.manual_w_entry.config(state=tk.DISABLED)
+                    self.manual_h_entry.config(state=tk.DISABLED)
             
             # 원본 이미지 미리보기 표시
             self.show_original_preview()
@@ -884,6 +1162,62 @@ class FaceExtractPanel(tk.Toplevel):
         except Exception as e:
             messagebox.showerror("에러", f"이미지를 읽을 수 없습니다:\n{e}")
             self.status_label.config(text=f"에러: {e}", fg="red")
+    
+    def _calculate_face_percentage(self, detected_region, crop_scale, offset_x, offset_y, extracted_image=None):
+        """화면 비율 계산 (헬퍼 함수)
+        
+        Args:
+            detected_region: 얼굴 영역 (x, y, w, h) - 원본 이미지 기준
+            crop_scale: 크롭 배율
+            offset_x: X 오프셋
+            offset_y: Y 오프셋
+            extracted_image: 크롭된 이미지 (None이면 self.extracted_image 사용)
+        """
+        if detected_region is None or self.current_image is None:
+            return 0.0
+        
+        if extracted_image is None:
+            extracted_image = self.extracted_image
+        
+        if extracted_image is None:
+            return 0.0
+        
+        x, y, w, h = detected_region
+        crop_width, crop_height = extracted_image.size
+        orig_width, orig_height = self.current_image.size
+        
+        # 크롭 시작 좌표 계산 (간단화)
+        face_center_x = x + w // 2
+        estimated_eye_y = y + h // 3
+        crop_center_x = face_center_x + offset_x
+        crop_center_y = estimated_eye_y + offset_y
+        target_ratio = 96 / 120
+        
+        # 크롭 크기 계산
+        if w / h > target_ratio:
+            calc_crop_height = int(h * crop_scale)
+            calc_crop_width = int(calc_crop_height * target_ratio)
+        else:
+            calc_crop_width = int(w * crop_scale)
+            calc_crop_height = int(calc_crop_width / target_ratio)
+        
+        # 크롭 시작 좌표 (경계 조정 포함)
+        x_start = max(0, min(crop_center_x - calc_crop_width // 2, orig_width - calc_crop_width))
+        y_start = max(0, min(crop_center_y - calc_crop_height // 2, orig_height - calc_crop_height))
+        
+        # 크롭된 이미지 기준으로 얼굴 영역 변환 (교집합 계산)
+        face_in_crop_x1 = max(0, x - x_start)
+        face_in_crop_y1 = max(0, y - y_start)
+        face_in_crop_x2 = min(crop_width, x + w - x_start)
+        face_in_crop_y2 = min(crop_height, y + h - y_start)
+        
+        # 크롭된 이미지 내에서 얼굴 영역 면적
+        if face_in_crop_x2 > face_in_crop_x1 and face_in_crop_y2 > face_in_crop_y1:
+            face_area = (face_in_crop_x2 - face_in_crop_x1) * (face_in_crop_y2 - face_in_crop_y1)
+            crop_area = crop_width * crop_height
+            return (face_area / crop_area) * 100 if crop_area > 0 else 0.0
+        
+        return 0.0
     
     def extract_face(self):
         """얼굴 추출"""
@@ -928,6 +1262,10 @@ class FaceExtractPanel(tk.Toplevel):
                 # 감지된 영역이 있으면 저장 (수동 영역 사용 시에도 저장)
                 if detected_region is not None:
                     x, y, w, h = detected_region
+                    
+                    # 화면 비율 계산 (헬퍼 함수 사용) - 크롭된 이미지 전달
+                    face_percentage = self._calculate_face_percentage(detected_region, crop_scale, offset_x, offset_y, self.extracted_image)
+                    
                     # 수동 영역을 사용하지 않은 경우에만 감지된 영역 저장 및 입력 필드에 채우기
                     if not self.use_manual_region.get():
                         self.detected_face_region = detected_region
@@ -937,15 +1275,28 @@ class FaceExtractPanel(tk.Toplevel):
                         self.manual_w.set(w)
                         self.manual_h.set(h)
                         # 감지된 위치와 사이즈 출력
-                        status_text = f"얼굴 추출 완료 | 감지된 영역: 위치=({x}, {y}), 크기={w}x{h}"
+                        status_text = f"얼굴 추출 완료 | 감지된 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
                         self.status_label.config(text=status_text, fg="green")
+                        # 화면 비율 UI 업데이트
+                        if hasattr(self, 'face_percentage_label'):
+                            self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
                     else:
                         # 수동 영역 사용 시에도 detected_region을 저장 (테두리 표시용)
                         self.detected_face_region = detected_region
                         # 수동 영역 사용 시
-                        status_text = f"얼굴 추출 완료 | 수동 영역: 위치=({x}, {y}), 크기={w}x{h}"
+                        status_text = f"얼굴 추출 완료 | 수동 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
                         self.status_label.config(text=status_text, fg="green")
+                        # 화면 비율 UI 업데이트 (강제 업데이트)
+                        if hasattr(self, 'face_percentage_label'):
+                            self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
+                            # UI 강제 업데이트
+                            self.face_percentage_label.update_idletasks()
+                            # 창 강제 업데이트
+                            self.update_idletasks()
                 else:
+                    # detected_region이 None인 경우 화면 비율 0%로 표시
+                    if hasattr(self, 'face_percentage_label'):
+                        self.face_percentage_label.config(text="0.0%")
                     self.status_label.config(text="얼굴 추출 완료", fg="green")
             else:
                 # 결과가 이미지만인 경우 (이전 버전 호환)
@@ -1603,9 +1954,12 @@ class FaceExtractPanel(tk.Toplevel):
             base_name = os.path.splitext(original_filename)[0]
             png_filename = f"{base_name}_extracted.png"
             
-            # faces 폴더 경로 (원본 이미지와 같은 디렉토리의 faces 폴더)
-            original_dir = os.path.dirname(self.current_image_path)
-            faces_dir = os.path.join(original_dir, "faces")
+            # 저장 폴더 경로 결정 (설정된 폴더가 있으면 사용, 없으면 선택하거나 원본 이미지와 같은 디렉토리의 faces 폴더)
+            faces_dir = self._get_or_select_extract_folder()
+            if not faces_dir:
+                # 사용자가 취소한 경우, 원본 이미지와 같은 디렉토리의 faces 폴더 사용
+                original_dir = os.path.dirname(self.current_image_path)
+                faces_dir = os.path.join(original_dir, "faces")
             
             # faces 폴더가 없으면 생성
             if not os.path.exists(faces_dir):
@@ -1649,9 +2003,13 @@ class FaceExtractPanel(tk.Toplevel):
             base_name = re.sub(r'^[A-Za-z]+_', '', base_name)
             png_filename = f"{base_name}_s7.png"
             
-            # faces 폴더 경로 (원본 이미지와 같은 디렉토리의 faces 폴더)
-            original_dir = os.path.dirname(self.current_image_path)
-            faces_dir = os.path.join(original_dir, "faces")
+            # 저장 폴더 경로 결정 (설정된 폴더가 있으면 사용, 없으면 선택하거나 원본 이미지와 같은 디렉토리의 faces 폴더)
+            extract_dir = self._get_or_select_extract_folder()
+            if not extract_dir:
+                # 사용자가 취소한 경우, 원본 이미지와 같은 디렉토리의 faces 폴더 사용
+                extract_dir = os.path.dirname(self.current_image_path)
+                
+            faces_dir = os.path.join(extract_dir, "faces")
             
             # faces 폴더가 없으면 생성
             if not os.path.exists(faces_dir):
@@ -1662,6 +2020,9 @@ class FaceExtractPanel(tk.Toplevel):
             
             # PNG로 저장 (팔레트 적용된 이미지)
             self.palette_applied_image.save(file_path, "PNG")
+            
+            # 이미지별 파라미터 저장
+            self._save_image_params(self.current_image_path)
             
             self.status_label.config(
                 text=f"PNG 저장 완료: {png_filename} (팔레트 적용, faces 폴더)",
@@ -1719,6 +2080,60 @@ class FaceExtractPanel(tk.Toplevel):
         # 다음 드래그를 위해 시작 위치 업데이트
         self.drag_start_x = event.x
         self.drag_start_y = event.y
+        
+        # 드래그 중에도 수동 영역 좌표 업데이트 및 재계산 (성능을 위해 제한)
+        # Canvas 좌표를 원본 이미지 좌표로 변환
+        coords = self.canvas_original.coords(self.crop_rect_original)
+        if len(coords) >= 4:
+            rect_x1_canvas, rect_y1_canvas, rect_x2_canvas, rect_y2_canvas = coords[0], coords[1], coords[2], coords[3]
+            
+            # 원본 이미지 크기
+            img_width, img_height = self.current_image.size
+            
+            # 96x120 비율로 크롭된 미리보기 영역 계산
+            target_ratio = 96 / 120  # 0.8
+            if img_width / img_height > target_ratio:
+                preview_crop_height = img_height
+                preview_crop_width = int(preview_crop_height * target_ratio)
+            else:
+                preview_crop_width = img_width
+                preview_crop_height = int(preview_crop_width / target_ratio)
+            
+            # 미리보기 크기 (288x360)
+            preview_width = 288
+            preview_height = 360
+            
+            # Canvas 좌표를 미리보기 좌표로 변환
+            canvas_center_x = 144  # 288 / 2
+            canvas_center_y = 180  # 360 / 2
+            
+            rect_x1_preview = rect_x1_canvas - (canvas_center_x - preview_width // 2)
+            rect_y1_preview = rect_y1_canvas - (canvas_center_y - preview_height // 2)
+            
+            # 미리보기 좌표를 원본 이미지 좌표로 변환
+            scale_x = preview_width / preview_crop_width
+            scale_y = preview_height / preview_crop_height
+            
+            new_x = int(rect_x1_preview / scale_x)
+            new_y = int(rect_y1_preview / scale_y)
+            
+            # 수동 영역 크기 가져오기
+            try:
+                crop_w = int(self.manual_w.get())
+                crop_h = int(self.manual_h.get())
+            except (ValueError, tk.TclError):
+                return
+            
+            # 경계 내로 제한
+            new_x = max(0, min(new_x, preview_crop_width - crop_w))
+            new_y = max(0, min(new_y, preview_crop_height - crop_h))
+            
+            # 수동 영역 입력 필드 업데이트
+            self.manual_x.set(new_x)
+            self.manual_y.set(new_y)
+            
+            # 드래그 중에는 재계산하지 않고, 드래그 종료 시에만 재계산
+            # (성능 문제 방지)
     
     def on_canvas_release(self, event):
         """Canvas 드래그 종료 이벤트"""
@@ -1785,9 +2200,24 @@ class FaceExtractPanel(tk.Toplevel):
         # 테두리 다시 그리기 (경계 조정 반영)
         self.draw_crop_region_on_original()
         
-        # 자동으로 재추출
+        # 자동으로 재추출 (화면 비율도 재계산됨)
+        # 수동 영역 좌표가 업데이트된 후 extract_face() 호출
         if self.current_image is not None:
+            # 수동 영역 변경을 강제로 반영하기 위해 extract_face() 직접 호출
             self.extract_face()
+            
+            # UI 강제 업데이트 (extract_face()에서 업데이트되지만 확실히 하기 위해)
+            self.update_idletasks()
+            
+            # 화면 비율 UI 강제 업데이트 (extract_face()에서 업데이트되지만 확실히 하기 위해)
+            # 크롭된 이미지가 업데이트된 후에 재계산
+            if hasattr(self, 'face_percentage_label') and self.detected_face_region is not None and self.extracted_image is not None:
+                crop_scale = self.crop_scale.get()
+                offset_x = self.center_offset_x.get()
+                offset_y = self.center_offset_y.get()
+                face_percentage = self._calculate_face_percentage(self.detected_face_region, crop_scale, offset_x, offset_y, self.extracted_image)
+                self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
+                self.face_percentage_label.update_idletasks()
     
     def on_close(self):
         """창 닫기"""
