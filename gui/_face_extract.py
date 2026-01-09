@@ -31,11 +31,15 @@ class FaceExtractPanel(tk.Toplevel):
         self.face_detected = False
         self.detected_face_region = None  # (x, y, w, h)
         self.detected_eye_y = None  # 자동 감지 모드에서 감지된 눈높이 (수동 영역 모드에서 사용)
+        self.detected_landmarks = None  # MediaPipe로 감지된 랜드마크 포인트 리스트
+        self.detected_key_landmarks = None  # 주요 랜드마크 딕셔너리
         
         # 설정값
         self.crop_scale = tk.DoubleVar(value=2.0)  # 기본값: 2.0 (200%)
         self.center_offset_x = tk.IntVar(value=0)
         self.center_offset_y = tk.IntVar(value=0)
+        self.use_mediapipe = tk.BooleanVar(value=True)  # MediaPipe 사용 여부 (기본값: True, MediaPipe 사용)
+        self.show_landmarks = tk.BooleanVar(value=False)  # 랜드마크 표시 여부
         
         # 팔레트 변환 설정
         self.palette_method = tk.StringVar(value='nearest')  # 'nearest', 'quantize', 'dither' (기본값: nearest - 더 정확함)
@@ -77,6 +81,7 @@ class FaceExtractPanel(tk.Toplevel):
         self.image_created_extracted_adjusted = None
         self.image_created_palette = None
         self.grid_lines_extracted = []  # 추출 이미지 격자선 ID 저장
+        self.face_center_marker_extracted = None  # 추출 원본 이미지에 그려진 얼굴 중심점 마커
         self.crop_rect_original = None  # 원본 이미지에 그려진 얼굴/수동 영역 테두리
         self.actual_crop_rect_original = None  # 원본 이미지에 그려진 실제 크롭 영역 테두리
         
@@ -131,8 +136,8 @@ class FaceExtractPanel(tk.Toplevel):
         # 미리보기 UI
         self._create_preview_ui(main_frame)
         
-        # 상태 표시
-        self.status_label = tk.Label(main_frame, text="준비됨", fg="gray", anchor="w")
+        # 상태 표시 (에러/경고 메시지만 표시)
+        self.status_label = tk.Label(main_frame, text="", fg="gray", anchor="w")
         self.status_label.pack(fill=tk.X, pady=(5, 0))
         
         # 위젯 생성 완료 후 파일 목록 로드
@@ -411,12 +416,55 @@ class FaceExtractPanel(tk.Toplevel):
     def _create_manual_region_ui(self, parent):
         """수동 영역 설정 UI 생성"""
         # 수동 영역 설정 프레임
-        manual_frame = tk.LabelFrame(parent, text="Manual Area Settings", padx=5, pady=5)
-        manual_frame.pack(fill=tk.X, pady=(0, 5))
+        manual_frame = tk.LabelFrame(parent, text="Face Detect Settings", padx=5, pady=5)
+        manual_frame.pack( fill=tk.X, pady=(0, 5))
+
+        # 체크박스들을 같은 줄에 배치하기 위한 상위 프레임
+        checkbox_frame = tk.Frame(manual_frame)
+        checkbox_frame.pack(fill=tk.X, pady=(5, 0))
+
+        # MediaPipe 옵션 체크박스
+        mediapipe_frame = tk.Frame(checkbox_frame)
+        mediapipe_frame.pack(side=tk.LEFT, padx=(0, 10))
         
+        # MediaPipe 사용 가능 여부 확인
+        try:
+            from utils.face_landmarks import is_available
+            mediapipe_available = is_available()
+        except ImportError:
+            mediapipe_available = False
+        
+        if mediapipe_available:
+            mediapipe_check = tk.Checkbutton(
+                mediapipe_frame,
+                text="MediaPipe 사용",
+                variable=self.use_mediapipe,
+                command=self.on_setting_change
+            )
+            mediapipe_check.pack(side=tk.LEFT)
+            
+            # 랜드마크 표시 체크박스
+            landmarks_check = tk.Checkbutton(
+                mediapipe_frame,
+                text="랜드마크 표시",
+                variable=self.show_landmarks,
+                command=self.on_landmarks_toggle
+            )
+            landmarks_check.pack(side=tk.LEFT, padx=(10, 0))
+        else:
+            mediapipe_label = tk.Label(
+                mediapipe_frame,
+                text="MediaPipe 사용 불가 (설치 필요: pip install mediapipe)",
+                fg="gray"
+            )
+            mediapipe_label.pack(side=tk.LEFT)              
+
         # 수동 영역 사용 체크박스
+        check_frame = tk.Frame(checkbox_frame)
+        check_frame.pack(side=tk.LEFT)
+        
         manual_check = tk.Checkbutton(
-            manual_frame,
+            check_frame,
             text="수동 영역",
             variable=self.use_manual_region,
             command=self.on_manual_region_toggle
@@ -424,7 +472,7 @@ class FaceExtractPanel(tk.Toplevel):
         manual_check.pack(side=tk.LEFT, padx=(0, 10))
         
         # 영역 좌표 입력 필드
-        coord_frame = tk.Frame(manual_frame)
+        coord_frame = tk.Frame(check_frame)
         coord_frame.pack(fill=tk.X, pady=(5, 0))
         
         tk.Label(coord_frame, text="X:").pack(side=tk.LEFT, padx=(0, 2))
@@ -537,6 +585,10 @@ class FaceExtractPanel(tk.Toplevel):
         btn_save_png = tk.Button(right_top_frame, text="PNG 저장", command=self.save_png, width=12, bg="#2196F3", fg="white")
         btn_save_png.pack(side=tk.LEFT, padx=(10, 0))
         
+        # 파라미터 파일 존재 여부 표시 라벨
+        self.params_status_label = tk.Label(right_top_frame, text="", fg="gray", font=("", 8))
+        self.params_status_label.pack(side=tk.LEFT, padx=(5, 0))
+        
         self.canvas_palette = tk.Canvas(
             right_frame, 
             width=preview_width, 
@@ -576,6 +628,12 @@ class FaceExtractPanel(tk.Toplevel):
         if self.extracted_image is not None:
             self.update_palette_preview()
     
+    def on_landmarks_toggle(self):
+        """랜드마크 표시 체크박스 토글"""
+        # 원본 이미지 미리보기 업데이트
+        if self.current_image is not None:
+            self.show_original_preview()
+    
     def on_manual_region_toggle(self):
         """수동 영역 사용 체크박스 토글"""
         if self.use_manual_region.get():
@@ -606,7 +664,8 @@ class FaceExtractPanel(tk.Toplevel):
                         center_offset_x=offset_x,
                         center_offset_y=offset_y,
                         manual_region=None,  # 자동 감지
-                        return_face_region=True
+                        return_face_region=True,
+                        use_mediapipe=self.use_mediapipe.get()
                     )
                     
                     if isinstance(result, tuple):
@@ -938,7 +997,21 @@ class FaceExtractPanel(tk.Toplevel):
     def _load_image_params(self, image_path):
         """이미지별 파라미터를 불러와서 적용"""
         if not image_path:
+            # 파라미터 파일 상태 업데이트
+            if hasattr(self, 'params_status_label'):
+                self.params_status_label.config(text="", fg="gray")
             return
+        
+        # 파라미터 파일 존재 여부 확인
+        config_path = f"{image_path}.s7ed.json"
+        params_exists = os.path.exists(config_path)
+        
+        # 파라미터 파일 상태 표시
+        if hasattr(self, 'params_status_label'):
+            if params_exists:
+                self.params_status_label.config(text="[파라미터 있음]", fg="green")
+            else:
+                self.params_status_label.config(text="[파라미터 없음]", fg="gray")
         
         params = config.load_face_extract_params(image_path)
         if not params:
@@ -1108,6 +1181,10 @@ class FaceExtractPanel(tk.Toplevel):
             }
             
             config.save_face_extract_params(image_path, params)
+            
+            # 파라미터 파일 상태 업데이트
+            if hasattr(self, 'params_status_label'):
+                self.params_status_label.config(text="[파라미터 있음]", fg="green")
         except Exception as e:
             print(f"[얼굴추출] 파라미터 저장 실패: {e}")
     
@@ -1157,7 +1234,8 @@ class FaceExtractPanel(tk.Toplevel):
             # 원본 이미지 미리보기 표시
             self.show_original_preview()
             
-            self.status_label.config(text=f"이미지 로드 완료: {filename}", fg="green")
+            # 파일 이름은 미리보기 타이틀에 이미 표시되므로 상태 라벨에는 표시하지 않음
+            # self.status_label.config(text=f"이미지 로드 완료: {filename}", fg="green")
             
         except Exception as e:
             messagebox.showerror("에러", f"이미지를 읽을 수 없습니다:\n{e}")
@@ -1246,6 +1324,29 @@ class FaceExtractPanel(tk.Toplevel):
                     self.status_label.config(text="경고: 수동 영역 좌표가 유효하지 않습니다.", fg="orange")
                     return
             
+            # MediaPipe를 사용하는 경우 랜드마크 감지
+            if self.use_mediapipe.get():
+                try:
+                    from utils.face_landmarks import detect_face_landmarks, get_key_landmarks, is_available
+                    if is_available():
+                        landmarks, detected = detect_face_landmarks(self.current_image.copy())
+                        if detected and landmarks:
+                            self.detected_landmarks = landmarks
+                            self.detected_key_landmarks = get_key_landmarks(landmarks)
+                        else:
+                            self.detected_landmarks = None
+                            self.detected_key_landmarks = None
+                    else:
+                        self.detected_landmarks = None
+                        self.detected_key_landmarks = None
+                except Exception as e:
+                    print(f"[얼굴추출] 랜드마크 감지 실패: {e}")
+                    self.detected_landmarks = None
+                    self.detected_key_landmarks = None
+            else:
+                self.detected_landmarks = None
+                self.detected_key_landmarks = None
+            
             # 얼굴 추출 (얼굴 영역 좌표도 함께 받기)
             result = kaodata_image.extract_face_region(
                 self.current_image.copy(),
@@ -1253,7 +1354,8 @@ class FaceExtractPanel(tk.Toplevel):
                 center_offset_x=offset_x,
                 center_offset_y=offset_y,
                 manual_region=manual_region,
-                return_face_region=True
+                return_face_region=True,
+                use_mediapipe=self.use_mediapipe.get()
             )
             
             # 결과가 튜플인 경우 (이미지, 얼굴영역)
@@ -1274,18 +1376,18 @@ class FaceExtractPanel(tk.Toplevel):
                         self.manual_y.set(y)
                         self.manual_w.set(w)
                         self.manual_h.set(h)
-                        # 감지된 위치와 사이즈 출력
-                        status_text = f"얼굴 추출 완료 | 감지된 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
-                        self.status_label.config(text=status_text, fg="green")
+                        # 감지된 위치와 사이즈는 UI에 이미 표시되므로 상태 라벨에는 표시하지 않음
+                        # status_text = f"얼굴 추출 완료 | 감지된 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
+                        # self.status_label.config(text=status_text, fg="green")
                         # 화면 비율 UI 업데이트
                         if hasattr(self, 'face_percentage_label'):
                             self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
                     else:
                         # 수동 영역 사용 시에도 detected_region을 저장 (테두리 표시용)
                         self.detected_face_region = detected_region
-                        # 수동 영역 사용 시
-                        status_text = f"얼굴 추출 완료 | 수동 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
-                        self.status_label.config(text=status_text, fg="green")
+                        # 수동 영역 사용 시 - 정보는 UI에 이미 표시되므로 상태 라벨에는 표시하지 않음
+                        # status_text = f"얼굴 추출 완료 | 수동 영역: 위치=({x}, {y}), 크기={w}x{h} | 화면 비율: {face_percentage:.1f}%"
+                        # self.status_label.config(text=status_text, fg="green")
                         # 화면 비율 UI 업데이트 (강제 업데이트)
                         if hasattr(self, 'face_percentage_label'):
                             self.face_percentage_label.config(text=f"{face_percentage:.1f}%")
@@ -1297,12 +1399,14 @@ class FaceExtractPanel(tk.Toplevel):
                     # detected_region이 None인 경우 화면 비율 0%로 표시
                     if hasattr(self, 'face_percentage_label'):
                         self.face_percentage_label.config(text="0.0%")
-                    self.status_label.config(text="얼굴 추출 완료", fg="green")
+                    # 완료 메시지는 UI에 이미 표시되므로 상태 라벨에는 표시하지 않음
+                    # self.status_label.config(text="얼굴 추출 완료", fg="green")
             else:
                 # 결과가 이미지만인 경우 (이전 버전 호환)
                 self.extracted_image = result
                 self.detected_face_region = None
-                self.status_label.config(text="얼굴 추출 완료", fg="green")
+                # 완료 메시지는 UI에 이미 표시되므로 상태 라벨에는 표시하지 않음
+                # self.status_label.config(text="얼굴 추출 완료", fg="green")
             
             self.face_detected = True
             
@@ -1363,7 +1467,8 @@ class FaceExtractPanel(tk.Toplevel):
                         center_offset_x=offset_x,
                         center_offset_y=offset_y,
                         manual_region=manual_region,
-                        return_face_region=True
+                        return_face_region=True,
+                        use_mediapipe=self.use_mediapipe.get()
                     )
                     
                     if isinstance(result, tuple):
@@ -1423,6 +1528,14 @@ class FaceExtractPanel(tk.Toplevel):
             if self.image_created_extracted_original:
                 self.canvas_extracted_original.delete(self.image_created_extracted_original)
                 self.image_created_extracted_original = None
+            # 얼굴 중심점 마커도 삭제
+            if self.face_center_marker_extracted:
+                try:
+                    for marker_id in self.face_center_marker_extracted:
+                        self.canvas_extracted_original.delete(marker_id)
+                except:
+                    pass
+                self.face_center_marker_extracted = None
             return
         
         try:
@@ -1457,6 +1570,9 @@ class FaceExtractPanel(tk.Toplevel):
             
             # 3x3 격자 그리기
             self.draw_grid_extracted()
+            
+            # 얼굴 중심점 표시
+            self.draw_face_center_marker()
         except Exception as e:
             print(f"[얼굴추출] 추출 원본 이미지 미리보기 표시 실패: {e}")
     
@@ -1544,6 +1660,108 @@ class FaceExtractPanel(tk.Toplevel):
                 tags="grid"
             )
             self.grid_lines_extracted.append(line_id)
+    
+    def draw_face_center_marker(self):
+        """추출 원본 이미지에 얼굴 중심점 표시"""
+        # 기존 마커 삭제
+        if self.face_center_marker_extracted:
+            try:
+                for marker_id in self.face_center_marker_extracted:
+                    self.canvas_extracted_original.delete(marker_id)
+            except:
+                pass
+            self.face_center_marker_extracted = None
+        
+        if self.extracted_image is None or self.image_created_extracted_original is None:
+            return
+        
+        try:
+            # 얼굴 중심점 계산
+            face_center_x = None
+            face_center_y = None
+            
+            # MediaPipe 랜드마크가 있으면 사용
+            if self.detected_key_landmarks and self.detected_key_landmarks.get('face_center'):
+                # 원본 이미지의 얼굴 중심점
+                orig_face_center = self.detected_key_landmarks['face_center']
+                orig_face_center_x, orig_face_center_y = orig_face_center
+                
+                # 원본 이미지 크기
+                orig_width, orig_height = self.current_image.size
+                
+                # 추출된 이미지 크기 (96x120)
+                extracted_width, extracted_height = self.extracted_image.size
+                
+                # 크롭 시작 좌표 계산 (extract_face_region 로직과 동일하게)
+                crop_scale = self.crop_scale.get()
+                offset_x = self.center_offset_x.get()
+                offset_y = self.center_offset_y.get()
+                
+                if self.detected_face_region:
+                    x, y, w, h = self.detected_face_region
+                    detected_face_center_x = x + w // 2
+                    detected_face_center_y = y + h // 2
+                    
+                    crop_center_x = detected_face_center_x + offset_x
+                    crop_center_y = detected_face_center_y + offset_y
+                    
+                    target_ratio = 96 / 120
+                    if w / h > target_ratio:
+                        crop_height = int(h * crop_scale)
+                        crop_width = int(crop_height * target_ratio)
+                    else:
+                        crop_width = int(w * crop_scale)
+                        crop_height = int(crop_width / target_ratio)
+                    
+                    x_start = max(0, min(crop_center_x - crop_width // 2, orig_width - crop_width))
+                    y_start = max(0, min(crop_center_y - crop_height // 2, orig_height - crop_height))
+                    
+                    # 원본 이미지의 얼굴 중심점을 추출된 이미지 좌표로 변환
+                    face_center_x = orig_face_center_x - x_start
+                    face_center_y = orig_face_center_y - y_start
+                    
+                    # 추출된 이미지 범위 내에 있는지 확인
+                    if 0 <= face_center_x < extracted_width and 0 <= face_center_y < extracted_height:
+                        # 미리보기 좌표로 변환 (96x120 -> 288x360)
+                        scale_x = 288 / extracted_width
+                        scale_y = 360 / extracted_height
+                        
+                        preview_x = face_center_x * scale_x
+                        preview_y = face_center_y * scale_y
+                        
+                        # Canvas 좌표로 변환 (이미지가 중앙에 배치됨)
+                        canvas_center_x = 144  # 288 / 2
+                        canvas_center_y = 180  # 360 / 2
+                        
+                        marker_x = canvas_center_x - 288 // 2 + preview_x
+                        marker_y = canvas_center_y - 360 // 2 + preview_y
+                        
+                        # 십자가 모양으로 표시 (노란색)
+                        cross_size = 10
+                        # 수평선
+                        line1 = self.canvas_extracted_original.create_line(
+                            marker_x - cross_size, marker_y,
+                            marker_x + cross_size, marker_y,
+                            fill="yellow", width=2, tags="face_center"
+                        )
+                        # 수직선
+                        line2 = self.canvas_extracted_original.create_line(
+                            marker_x, marker_y - cross_size,
+                            marker_x, marker_y + cross_size,
+                            fill="yellow", width=2, tags="face_center"
+                        )
+                        # # 중심점
+                        # point = self.canvas_extracted_original.create_oval(
+                        #     marker_x - 3, marker_y - 3,
+                        #     marker_x + 3, marker_y + 3,
+                        #     fill="yellow", outline="yellow", tags="face_center"
+                        # )
+                        
+                        # 마커 ID 저장 (나중에 삭제하기 위해)
+                        # self.face_center_marker_extracted = (line1, line2, point)
+            
+        except Exception as e:
+            print(f"[얼굴추출] 얼굴 중심점 표시 실패: {e}")
     
     def update_palette_preview(self):
         """팔레트 적용 이미지 계산 및 미리보기 업데이트"""
@@ -1678,6 +1896,39 @@ class FaceExtractPanel(tk.Toplevel):
             
             # 크롭
             cropped = self.current_image.crop((x_start, y_start, x_end, y_end))
+            
+            # 랜드마크 표시 옵션이 켜져 있고 랜드마크가 있으면 그리기
+            if self.show_landmarks.get() and self.detected_landmarks is not None:
+                try:
+                    from utils.face_landmarks import draw_landmarks
+                    # 랜드마크 좌표를 크롭된 영역에 맞게 조정
+                    adjusted_landmarks = []
+                    for x, y in self.detected_landmarks:
+                        # 크롭 영역 기준으로 좌표 조정
+                        adjusted_x = x - x_start
+                        adjusted_y = y - y_start
+                        adjusted_landmarks.append((adjusted_x, adjusted_y))
+                    
+                    # 주요 랜드마크도 조정
+                    adjusted_key_landmarks = None
+                    if self.detected_key_landmarks:
+                        adjusted_key_landmarks = {}
+                        for key, value in self.detected_key_landmarks.items():
+                            if value:
+                                x, y = value
+                                adjusted_key_landmarks[key] = (x - x_start, y - y_start)
+                            else:
+                                adjusted_key_landmarks[key] = None
+                    
+                    # 랜드마크 그리기
+                    cropped = draw_landmarks(
+                        cropped, 
+                        adjusted_landmarks, 
+                        adjusted_key_landmarks,
+                        show_all_points=False
+                    )
+                except Exception as e:
+                    print(f"[얼굴추출] 랜드마크 그리기 실패: {e}")
             
             # 이미지 리사이즈 (미리보기용, 288x360)
             preview_size = (288, 360)
@@ -1824,16 +2075,14 @@ class FaceExtractPanel(tk.Toplevel):
                 else:
                     crop_height = int(crop_width / target_ratio)
             
-            # 얼굴 중심점 계산
-            # X축은 얼굴 중심, Y축은 눈높이 추정 (얼굴 상단 1/3 지점)
+            # 감지된 얼굴 영역의 중심점 계산
             # extract_face_region과 동일한 로직 사용
-            face_center_x = face_x + face_w // 2
-            # 눈은 일반적으로 얼굴 상단 1/3 지점에 위치
-            estimated_eye_y = face_y + face_h // 3
+            detected_face_center_x = face_x + face_w // 2
+            detected_face_center_y = face_y + face_h // 2
             
             # 크롭 중심점 계산 (오프셋 적용)
-            crop_center_x = face_center_x + offset_x
-            crop_center_y = estimated_eye_y + offset_y
+            crop_center_x = detected_face_center_x + offset_x
+            crop_center_y = detected_face_center_y + offset_y
             
             # 크롭 영역 좌표 계산
             actual_crop_x = crop_center_x - crop_width // 2
@@ -1925,10 +2174,11 @@ class FaceExtractPanel(tk.Toplevel):
             # 저장
             kaodata_image.save_face_image(faceno, self.extracted_image)
             
-            self.status_label.config(
-                text=f"저장 완료: 얼굴 번호 {faceno}에 저장되었습니다.",
-                fg="green"
-            )
+            # 완료 메시지는 messagebox로 표시되므로 상태 라벨에는 표시하지 않음
+            # self.status_label.config(
+            #     text=f"저장 완료: 얼굴 번호 {faceno}에 저장되었습니다.",
+            #     fg="green"
+            # )
             
             messagebox.showinfo("완료", f"얼굴 번호 {faceno}에 저장되었습니다.")
             
@@ -1971,10 +2221,11 @@ class FaceExtractPanel(tk.Toplevel):
             # PNG로 저장 (추출된 원본 이미지)
             self.extracted_image.save(file_path, "PNG")
             
-            self.status_label.config(
-                text=f"원본 저장 완료: {png_filename} (faces 폴더)",
-                fg="green"
-            )
+            # 완료 메시지는 상태 라벨에 표시하지 않음 (에러/경고만 표시)
+            # self.status_label.config(
+            #     text=f"원본 저장 완료: {png_filename} (faces 폴더)",
+            #     fg="green"
+            # )
         
         except Exception as e:
             messagebox.showerror("에러", f"PNG 저장 실패:\n{e}")
@@ -2024,10 +2275,11 @@ class FaceExtractPanel(tk.Toplevel):
             # 이미지별 파라미터 저장
             self._save_image_params(self.current_image_path)
             
-            self.status_label.config(
-                text=f"PNG 저장 완료: {png_filename} (팔레트 적용, faces 폴더)",
-                fg="green"
-            )
+            # 완료 메시지는 상태 라벨에 표시하지 않음 (에러/경고만 표시)
+            # self.status_label.config(
+            #     text=f"PNG 저장 완료: {png_filename} (팔레트 적용, faces 폴더)",
+            #     fg="green"
+            # )
         
         except Exception as e:
             messagebox.showerror("에러", f"PNG 저장 실패:\n{e}")

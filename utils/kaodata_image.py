@@ -15,6 +15,15 @@ except ImportError:
     _cv2_available = False
     print("[얼굴이미지] OpenCV가 설치되지 않았습니다. 얼굴 인식 기능을 사용하려면 'pip install opencv-python'을 실행하세요.")
 
+# MediaPipe 선택적 import (없어도 동작)
+try:
+    import mediapipe as mp
+    from utils.face_landmarks import detect_face_landmarks, get_key_landmarks, is_available as landmarks_available
+    _mediapipe_available = landmarks_available()
+except ImportError:
+    _mediapipe_available = False
+    mp = None
+
 # globals 모듈 import
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -461,9 +470,9 @@ def _resize_with_aspect_ratio(image, target_size):
     
     return result
 
-def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_y=0, manual_region=None, return_face_region=False):
+def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_y=0, manual_region=None, return_face_region=False, use_mediapipe=False):
     """
-    이미지에서 얼굴 영역을 추출합니다. (OpenCV 사용)
+    이미지에서 얼굴 영역을 추출합니다. (OpenCV 또는 MediaPipe 사용)
     
     디버그: 함수 호출 추적
     
@@ -474,6 +483,7 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         center_offset_y: 중심점 Y 오프셋 (픽셀 단위, 기본값: 0)
         manual_region: 수동 영역 지정 (x, y, width, height) 튜플 또는 None
         return_face_region: True일 경우 (이미지, 얼굴영역) 튜플 반환, False일 경우 이미지만 반환
+        use_mediapipe: True일 경우 MediaPipe를 사용하여 얼굴 감지 (기본값: False, OpenCV 사용)
     
     Returns:
         PIL.Image 또는 (PIL.Image, (x, y, w, h)): 얼굴 영역이 크롭된 이미지 (얼굴을 찾지 못하면 에러 발생)
@@ -482,6 +492,7 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
     Note:
         OpenCV가 설치되지 않았으면 원본 이미지를 반환합니다.
         manual_region이 지정되면 자동 감지를 건너뛰고 지정된 영역을 사용합니다.
+        use_mediapipe=True일 때 MediaPipe가 없거나 실패하면 OpenCV 방식으로 폴백합니다.
     """
     if not _cv2_available:
         print("[얼굴이미지] OpenCV가 없어 얼굴 인식을 건너뜁니다.")
@@ -578,6 +589,158 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             else:
                 return face_image
         
+        # MediaPipe를 사용하는 경우
+        if use_mediapipe and _mediapipe_available:
+            try:
+                # PIL Image로 변환 (MediaPipe는 PIL Image를 받음)
+                img_pil = Image.fromarray(img_rgb)
+                
+                # 랜드마크 감지
+                landmarks, detected = detect_face_landmarks(img_pil)
+                
+                if detected and landmarks:
+                    # 주요 랜드마크 추출
+                    key_landmarks = get_key_landmarks(landmarks)
+                    
+                    if key_landmarks and key_landmarks.get('left_eye') and key_landmarks.get('right_eye'):
+                        # 랜드마크 포인트들의 실제 min/max 값을 사용하여 얼굴 영역 계산
+                        # 모든 랜드마크 포인트의 X, Y 좌표 추출
+                        all_x = [point[0] for point in landmarks]
+                        all_y = [point[1] for point in landmarks]
+                        
+                        # 얼굴 윤곽선(FACE_OVAL) 포인트만 사용하여 더 정확한 영역 계산
+                        try:
+                            if mp is not None:
+                                mp_face_mesh = mp.solutions.face_mesh
+                                face_oval_indices = [idx for connection in mp_face_mesh.FACEMESH_FACE_OVAL for idx in connection]
+                                face_oval_x = [landmarks[idx][0] for idx in face_oval_indices if idx < len(landmarks)]
+                                face_oval_y = [landmarks[idx][1] for idx in face_oval_indices if idx < len(landmarks)]
+                                
+                                if face_oval_x and face_oval_y:
+                                    # 얼굴 윤곽선 포인트의 min/max 사용
+                                    min_x = min(face_oval_x)
+                                    max_x = max(face_oval_x)
+                                    min_y = min(face_oval_y)
+                                    max_y = max(face_oval_y)
+                                else:
+                                    # 얼굴 윤곽선 포인트가 없으면 모든 랜드마크 사용
+                                    min_x = min(all_x)
+                                    max_x = max(all_x)
+                                    min_y = min(all_y)
+                                    max_y = max(all_y)
+                            else:
+                                # MediaPipe가 없으면 모든 랜드마크 사용
+                                min_x = min(all_x)
+                                max_x = max(all_x)
+                                min_y = min(all_y)
+                                max_y = max(all_y)
+                        except Exception as e:
+                            # MediaPipe 상수를 가져올 수 없으면 모든 랜드마크 사용
+                            print(f"[얼굴이미지] 얼굴 윤곽선 계산 실패, 모든 랜드마크 사용: {e}")
+                            min_x = min(all_x)
+                            max_x = max(all_x)
+                            min_y = min(all_y)
+                            max_y = max(all_y)
+                        
+                        # 얼굴 영역 계산 (실제 랜드마크 범위 사용)
+                        x = max(0, int(min_x))
+                        y = max(0, int(min_y))
+                        w = min(img_width - x, int(max_x - min_x))
+                        h = min(img_height - y, int(max_y - min_y))
+                        
+                        # 경계 조정
+                        if x + w > img_width:
+                            w = img_width - x
+                        if y + h > img_height:
+                            h = img_height - y
+                        
+                        if w > 0 and h > 0:
+                            detected_face_region = (x, y, w, h)
+                            
+                            # 감지된 얼굴 영역의 중심점 계산
+                            detected_face_center_x = x + w // 2
+                            detected_face_center_y = y + h // 2
+                            
+                            # 크롭 중심점 계산 (감지된 얼굴 영역의 중심 기준)
+                            crop_center_x = detected_face_center_x + center_offset_x
+                            crop_center_y = detected_face_center_y + center_offset_y
+                            
+                            # 목표 비율 (96:120 = 0.8)
+                            target_ratio = FACE_WIDTH / FACE_HEIGHT  # 96/120 = 0.8
+                            
+                            # 감지된 얼굴 영역의 크기를 기준으로 96:120 비율로 크롭할 크기 계산
+                            if w / h > target_ratio:
+                                crop_height = int(h * crop_scale)
+                                crop_width = int(crop_height * target_ratio)
+                            else:
+                                crop_width = int(w * crop_scale)
+                                crop_height = int(crop_width / target_ratio)
+                            
+                            # 96:120 비율 보장 (반올림 오차 보정)
+                            actual_ratio = crop_width / crop_height if crop_height > 0 else target_ratio
+                            if abs(actual_ratio - target_ratio) > 0.01:
+                                if w / h > target_ratio:
+                                    crop_width = int(crop_height * target_ratio)
+                                else:
+                                    crop_height = int(crop_width / target_ratio)
+                            
+                            # 감지된 얼굴 영역의 중심점을 기준으로 크롭 영역 계산 (오프셋 적용)
+                            crop_center_x = detected_face_center_x + center_offset_x
+                            crop_center_y = detected_face_center_y + center_offset_y
+                            
+                            # 크롭 영역 좌표 계산 (감지된 얼굴 중심 기준)
+                            x_start = crop_center_x - crop_width // 2
+                            y_start = crop_center_y - crop_height // 2
+                            
+                            # 경계 조정
+                            if crop_width > img_width:
+                                crop_width = img_width
+                                crop_height = int(crop_width / target_ratio)
+                            if crop_height > img_height:
+                                crop_height = img_height
+                                crop_width = int(crop_height * target_ratio)
+                            
+                            # 좌표 재계산
+                            x_start = crop_center_x - crop_width // 2
+                            y_start = crop_center_y - crop_height // 2
+                            
+                            # 경계를 벗어난 경우 중심점을 조정
+                            if x_start < 0:
+                                x_start = 0
+                            elif x_start + crop_width > img_width:
+                                x_start = img_width - crop_width
+                            
+                            if y_start < 0:
+                                y_start = 0
+                            elif y_start + crop_height > img_height:
+                                y_start = img_height - crop_height
+                            
+                            # 최종 크롭 영역
+                            x_end = x_start + crop_width
+                            y_end = y_start + crop_height
+                            
+                            # 얼굴 영역 크롭
+                            face_region = img_rgb[y_start:y_end, x_start:x_end]
+                            
+                            if face_region.size == 0:
+                                raise ValueError(f"크롭된 영역이 비어있습니다. 크롭 영역: ({x_start}, {y_start}) ~ ({x_end}, {y_end})")
+                            
+                            # numpy 배열을 PIL Image로 변환
+                            face_image = Image.fromarray(face_region)
+                            
+                            # 얼굴 영역 좌표 반환 여부 확인
+                            if return_face_region:
+                                return face_image, detected_face_region
+                            else:
+                                return face_image
+                
+                # MediaPipe로 얼굴을 찾지 못한 경우 OpenCV로 폴백
+                print("[얼굴이미지] MediaPipe로 얼굴을 찾지 못했습니다. OpenCV 방식으로 폴백합니다.")
+            except Exception as e:
+                # MediaPipe 실패 시 OpenCV로 폴백
+                print(f"[얼굴이미지] MediaPipe 얼굴 감지 실패: {e}, OpenCV 방식으로 폴백합니다.")
+        
+        # OpenCV 방식 (기본 또는 MediaPipe 실패 시)
         # 그레이스케일로 변환 (얼굴 인식용)
         gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         
@@ -605,59 +768,13 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
         eyes_detected = False
         
-        # 얼굴을 찾은 경우
+                # 얼굴을 찾은 경우
         if len(faces) > 0:
             
             # 가장 큰 얼굴 선택 (여러 얼굴이 있는 경우)
             largest_face = max(faces, key=lambda f: f[2] * f[3])
             x, y, w, h = largest_face
             detected_face_region = (x, y, w, h)  # 감지된 얼굴 영역 저장
-            
-            
-            # 얼굴 영역 내에서 눈 감지 (더 정확함)
-            if not eye_cascade.empty():
-                roi_gray = gray[y:y+h, x:x+w]
-                eyes = eye_cascade.detectMultiScale(
-                    roi_gray,
-                    scaleFactor=1.1,
-                    minNeighbors=3,
-                    minSize=(10, 10)
-                )
-                
-                if len(eyes) >= 2:
-                    # 두 눈의 중심점 계산
-                    eye_centers = []
-                    for (ex, ey, ew, eh) in eyes:
-                        eye_center_x = x + ex + ew // 2
-                        eye_center_y = y + ey + eh // 2
-                        eye_centers.append((eye_center_x, eye_center_y))
-                    
-                    # 두 눈의 Y 좌표 중 더 작은 값
-                    eye_centers_y = [ec[1] for ec in eye_centers]
-                    eye_center_y = min(eye_centers_y)
-                    
-                    # 얼굴 중심 X 좌표
-                    face_center_x = x + w // 2
-                    
-                    for i, (ex, ey, ew, eh) in enumerate(eyes):
-                        eye_abs_x = x + ex
-                        eye_abs_y = y + ey
-                    
-                    # Y축은 눈높이, X축은 얼굴 중심 기준으로 중심점 설정
-                    crop_center_x = face_center_x + center_offset_x
-                    crop_center_y = eye_center_y + center_offset_y
-                else:
-                    # 눈을 찾지 못하면 얼굴 중심점 사용
-                    face_center_x = x + w // 2
-                    face_center_y = y + h // 2
-                    crop_center_x = face_center_x + center_offset_x
-                    crop_center_y = face_center_y + center_offset_y
-            else:
-                # 눈 감지 분류기를 로드할 수 없으면 얼굴 중심점 사용
-                face_center_x = x + w // 2
-                face_center_y = y + h // 2
-                crop_center_x = face_center_x + center_offset_x
-                crop_center_y = face_center_y + center_offset_y
         
         # 얼굴을 못 찾은 경우 - 전체 이미지에서 눈 감지 시도 (fallback)
         elif not eye_cascade.empty():
@@ -696,11 +813,6 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
                 w = min(img_width - x, estimated_face_width)
                 h = min(img_height - y, estimated_face_height)
                 detected_face_region = (x, y, w, h)  # 감지된 얼굴 영역 저장
-                
-                
-                # Y축은 눈높이, X축은 얼굴 중심 기준으로 중심점 설정
-                crop_center_x = face_center_x + center_offset_x
-                crop_center_y = eye_center_y + center_offset_y
             else:
                 # 얼굴도 눈도 못 찾은 경우
                 raise ValueError("얼굴과 눈을 모두 찾을 수 없습니다. 얼굴 인식 체크박스를 해제하거나 다른 이미지를 사용하세요.")
@@ -714,7 +826,11 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
         # 이미지 크기
         img_height, img_width = img_rgb.shape[:2]
         
-        # 얼굴 영역을 중심으로 96:120 비율로 크롭할 크기 계산
+        # 감지된 얼굴 영역의 중심점 계산
+        detected_face_center_x = x + w // 2
+        detected_face_center_y = y + h // 2
+        
+        # 감지된 얼굴 영역의 크기를 기준으로 96:120 비율로 크롭할 크기 계산
         # 얼굴 크기(w, h)를 기준으로 더 큰 쪽을 사용하여 크롭 영역 결정
         # 얼굴이 더 넓으면 높이 기준, 더 높으면 너비 기준
         # 항상 96:120 비율을 유지
@@ -735,12 +851,12 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             else:
                 crop_height = int(crop_width / target_ratio)
         
-        # 크롭 영역 좌표 계산 (눈높이 또는 얼굴 중심 + 오프셋 기준)
-        # crop_center_x, crop_center_y는 위에서 이미 계산됨
-        # 눈높이를 추출 이미지 높이의 3/5 지점에 맞추기 위해
-        # 크롭 영역의 상단에서 crop_height * 3/5 지점에 눈높이가 오도록 설정
+        # 감지된 얼굴 영역의 중심점을 기준으로 크롭 영역 계산 (오프셋 적용)
+        crop_center_x = detected_face_center_x + center_offset_x
+        crop_center_y = detected_face_center_y + center_offset_y
+        
+        # 크롭 영역 좌표 계산 (감지된 얼굴 중심 기준)
         x_start = crop_center_x - crop_width // 2
-        # crop_center_y는 눈높이 위치이므로, 크롭 시작점은 눈높이에서 3/5 지점만큼 위로
         y_start = crop_center_y - crop_height // 2
         
         # 경계를 벗어난 경우 조정 (크롭 영역을 이미지 내부로 이동)
@@ -753,9 +869,7 @@ def extract_face_region(image, crop_scale=2.0, center_offset_x=0, center_offset_
             crop_height = img_height
             crop_width = int(crop_height * target_ratio)  # 96:120 비율 유지
         
-        # 크롭 영역 좌표 재계산 (눈높이 또는 얼굴 중심 + 오프셋 기준)
-        # crop_center_x, crop_center_y는 위에서 이미 계산됨
-        # 눈높이를 추출 이미지 높이의 3/5 지점에 맞추기 위해
+        # 크롭 영역 좌표 재계산 (크롭 크기가 변경되었을 수 있음)
         x_start = crop_center_x - crop_width // 2
         y_start = crop_center_y - crop_height // 2
         

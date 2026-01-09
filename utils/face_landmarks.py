@@ -8,6 +8,9 @@ from PIL import Image
 # MediaPipe 선택적 import
 try:
     import mediapipe as mp
+    # MediaPipe 경고 메시지 억제
+    import absl.logging
+    absl.logging.set_verbosity(absl.logging.ERROR)  # ERROR 레벨 이상만 표시
     _mediapipe_available = True
 except ImportError:
     _mediapipe_available = False
@@ -210,3 +213,218 @@ def align_face(image, landmarks=None):
     except Exception as e:
         print(f"[얼굴랜드마크] 얼굴 정렬 실패: {e}")
         return image, 0.0
+
+
+def draw_landmarks(image, landmarks, key_landmarks=None, show_all_points=False):
+    """
+    이미지에 랜드마크를 그립니다.
+    
+    Args:
+        image: PIL.Image 객체
+        landmarks: 랜드마크 포인트 리스트 [(x, y), ...] (468개)
+        key_landmarks: 주요 랜드마크 딕셔너리 (get_key_landmarks 결과)
+        show_all_points: True면 모든 468개 포인트 표시, False면 주요 포인트만 표시
+    
+    Returns:
+        PIL.Image: 랜드마크가 그려진 이미지
+    """
+    if landmarks is None or len(landmarks) < 468:
+        return image
+    
+    try:
+        # PIL Image를 numpy 배열로 변환
+        if image.mode != 'RGB':
+            img_array = np.array(image.convert('RGB'))
+        else:
+            img_array = np.array(image)
+        
+        # OpenCV 사용 (선택적)
+        try:
+            import cv2
+            _cv2_available = True
+        except ImportError:
+            _cv2_available = False
+        
+        if _cv2_available:
+            # OpenCV로 그리기
+            img_copy = img_array.copy()
+            
+            # MediaPipe 공식 상수 사용
+            if _mediapipe_available:
+                mp_face_mesh = mp.solutions.face_mesh
+                FACE_OVAL = mp_face_mesh.FACEMESH_FACE_OVAL
+                LEFT_EYEBROW = mp_face_mesh.FACEMESH_LEFT_EYEBROW
+                RIGHT_EYEBROW = mp_face_mesh.FACEMESH_RIGHT_EYEBROW
+                LEFT_EYE = mp_face_mesh.FACEMESH_LEFT_EYE
+                RIGHT_EYE = mp_face_mesh.FACEMESH_RIGHT_EYE
+                NOSE = mp_face_mesh.FACEMESH_NOSE
+                LIPS = mp_face_mesh.FACEMESH_LIPS
+            else:
+                # MediaPipe가 없으면 빈 리스트 (그리지 않음)
+                FACE_OVAL = []
+                LEFT_EYEBROW = []
+                RIGHT_EYEBROW = []
+                LEFT_EYE = []
+                RIGHT_EYE = []
+                NOSE = []
+                LIPS = []
+            
+            if show_all_points:
+                # 모든 포인트를 작은 점으로 표시
+                for point in landmarks:
+                    x, y = point
+                    cv2.circle(img_copy, (x, y), 1, (255, 255, 255), -1)
+            
+            # 중심점은 표시하지 않음 (윤곽선만 표시)
+            
+            # MediaPipe 공식 상수를 사용하여 윤곽선 그리기
+            # 각 상수는 [(시작점, 끝점), ...] 형태의 튜플 리스트
+            
+            # 1. 얼굴 윤곽선 (하늘색 선)
+            for connection in FACE_OVAL:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (0, 255, 255), 2)  # 하늘색 (BGR), 두께 2
+            
+            # 2. 왼쪽 눈썹 (보라색 선)
+            for connection in LEFT_EYEBROW:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (255, 0, 255), 2)  # 보라색, 두께 2
+            
+            # 3. 오른쪽 눈썹 (분홍색 선)
+            for connection in RIGHT_EYEBROW:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (255, 192, 203), 2)  # 분홍색, 두께 2
+            
+            # 4. 왼쪽 눈 윤곽선 (빨간색 선)
+            for connection in LEFT_EYE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (255, 0, 0), 2)  # 빨간색 (BGR), 두께 2
+            
+            # 5. 오른쪽 눈 윤곽선 (빨간색 선)
+            for connection in RIGHT_EYE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (255, 0, 0), 2)  # 빨간색 (BGR), 두께 2
+            
+            # 6. 코 윤곽선 (파란색 선)
+            for connection in NOSE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (0, 0, 255), 2)  # 파란색 (BGR), 두께 2
+            
+            # 7. 입술 윤곽선 (초록색 선)
+            for connection in LIPS:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    cv2.line(img_copy, pt1, pt2, (0, 255, 0), 2)  # 초록색, 두께 2
+            
+            # numpy 배열을 PIL Image로 변환
+            return Image.fromarray(img_copy)
+        else:
+            # OpenCV가 없으면 PIL로 직접 그리기
+            from PIL import ImageDraw
+            img_copy = image.copy()
+            draw = ImageDraw.Draw(img_copy)
+            
+            # MediaPipe 공식 상수 사용
+            if _mediapipe_available:
+                mp_face_mesh = mp.solutions.face_mesh
+                FACE_OVAL = mp_face_mesh.FACEMESH_FACE_OVAL
+                LEFT_EYEBROW = mp_face_mesh.FACEMESH_LEFT_EYEBROW
+                RIGHT_EYEBROW = mp_face_mesh.FACEMESH_RIGHT_EYEBROW
+                LEFT_EYE = mp_face_mesh.FACEMESH_LEFT_EYE
+                RIGHT_EYE = mp_face_mesh.FACEMESH_RIGHT_EYE
+                NOSE = mp_face_mesh.FACEMESH_NOSE
+                LIPS = mp_face_mesh.FACEMESH_LIPS
+            else:
+                # MediaPipe가 없으면 빈 리스트 (그리지 않음)
+                FACE_OVAL = []
+                LEFT_EYEBROW = []
+                RIGHT_EYEBROW = []
+                LEFT_EYE = []
+                RIGHT_EYE = []
+                NOSE = []
+                LIPS = []
+            
+            # 중심점은 표시하지 않음 (윤곽선만 표시)
+            
+            # MediaPipe 공식 상수를 사용하여 윤곽선 그리기
+            # 1. 얼굴 윤곽선 (하늘색 선)
+            for connection in FACE_OVAL:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(255, 255, 0), width=2)  # RGB 형식
+            
+            # 2. 왼쪽 눈썹 (보라색 선)
+            for connection in LEFT_EYEBROW:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(255, 0, 255), width=2)
+            
+            # 3. 오른쪽 눈썹 (분홍색 선)
+            for connection in RIGHT_EYEBROW:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(203, 192, 255), width=2)  # RGB 형식
+            
+            # 4. 왼쪽 눈 윤곽선 (빨간색 선)
+            for connection in LEFT_EYE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(0, 0, 255), width=2)  # RGB 형식
+            
+            # 5. 오른쪽 눈 윤곽선 (빨간색 선)
+            for connection in RIGHT_EYE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(0, 0, 255), width=2)  # RGB 형식
+            
+            # 6. 코 윤곽선 (파란색 선)
+            for connection in NOSE:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(255, 0, 0), width=2)  # RGB 형식
+            
+            # 7. 입술 윤곽선 (초록색 선)
+            for connection in LIPS:
+                idx1, idx2 = connection
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    pt1 = landmarks[idx1]
+                    pt2 = landmarks[idx2]
+                    draw.line([pt1, pt2], fill=(0, 255, 0), width=2)
+            
+            return img_copy
+            
+    except Exception as e:
+        print(f"[얼굴랜드마크] 랜드마크 그리기 실패: {e}")
+        return image
