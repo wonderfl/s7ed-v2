@@ -1,5 +1,24 @@
 import sys
 import re
+import os
+
+# MediaPipe 경고 메시지 억제 (가장 먼저 설정)
+os.environ['GLOG_minloglevel'] = '3'  # FATAL만 표시 (0=INFO, 1=WARNING, 2=ERROR, 3=FATAL)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # TensorFlow 로그 완전 억제
+
+# absl.logging 억제 (MediaPipe가 import되기 전에 설정)
+try:
+    import absl.logging
+    absl.logging.set_verbosity(absl.logging.ERROR)
+    # absl.logging 핸들러 비활성화
+    import logging
+    logging.getLogger('absl').setLevel(logging.ERROR)
+except ImportError:
+    pass
+
+# warnings 억제
+import warnings
+warnings.filterwarnings('ignore')
 
 import globals
 from globals import ActionMenu

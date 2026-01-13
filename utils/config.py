@@ -7,6 +7,28 @@ import json
 # 설정 파일 경로
 CONFIG_FILE = 'config.json'
 
+
+def _get_parameters_dir(image_path):
+    """이미지 파일이 있는 디렉토리의 parameters 폴더 경로 반환"""
+    image_dir = os.path.dirname(image_path)
+    parameters_dir = os.path.join(image_dir, 'parameters')
+    # parameters 폴더가 없으면 생성
+    if not os.path.exists(parameters_dir):
+        try:
+            os.makedirs(parameters_dir, exist_ok=True)
+        except Exception as e:
+            print(f"[설정] parameters 폴더 생성 실패: {e}")
+    return parameters_dir
+
+
+def _get_parameters_filename(image_path):
+    """이미지 파일명을 기반으로 파라미터 파일명 생성"""
+    # 이미지 파일명 (확장자 포함)
+    image_filename = os.path.basename(image_path)
+    # 파라미터 파일명: {이미지파일명}.s7ed.json
+    params_filename = f"{image_filename}.s7ed.json"
+    return params_filename
+
 def load_config():
     """설정 파일을 불러옵니다."""
     import globals as gl
@@ -64,8 +86,10 @@ def load_face_extract_params(image_path):
     if not image_path:
         return None
     
-    # 설정 파일 경로 생성: 원본파일명.s7ed.json
-    config_path = f"{image_path}.s7ed.json"
+    # 설정 파일 경로 생성: parameters 폴더 내
+    parameters_dir = _get_parameters_dir(image_path)
+    params_filename = _get_parameters_filename(image_path)
+    config_path = os.path.join(parameters_dir, params_filename)
     
     if not os.path.exists(config_path):
         return None
@@ -88,8 +112,10 @@ def save_face_extract_params(image_path, params):
     if not image_path:
         return
     
-    # 설정 파일 경로 생성: 원본파일명.s7ed.json
-    config_path = f"{image_path}.s7ed.json"
+    # 설정 파일 경로 생성: parameters 폴더 내
+    parameters_dir = _get_parameters_dir(image_path)
+    params_filename = _get_parameters_filename(image_path)
+    config_path = os.path.join(parameters_dir, params_filename)
     
     try:
         with open(config_path, 'w', encoding='utf-8') as f:

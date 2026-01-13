@@ -17,6 +17,28 @@ except ImportError:
 
 # MediaPipe 선택적 import (없어도 동작)
 try:
+    # MediaPipe 경고 메시지 억제 (import 전에 설정)
+    import os
+    
+    # 환경 변수 설정 (이미 main.py에서 설정되었을 수 있지만, 여기서도 확실히 설정)
+    if 'GLOG_minloglevel' not in os.environ:
+        os.environ['GLOG_minloglevel'] = '3'  # FATAL만 표시
+    if 'TF_CPP_MIN_LOG_LEVEL' not in os.environ:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    
+    # absl.logging 억제
+    try:
+        import absl.logging
+        absl.logging.set_verbosity(absl.logging.ERROR)
+        import logging
+        logging.getLogger('absl').setLevel(logging.ERROR)
+    except:
+        pass
+    
+    # warnings 필터 설정
+    import warnings
+    warnings.filterwarnings('ignore')
+    
     import mediapipe as mp
     from utils.face_landmarks import detect_face_landmarks, get_key_landmarks, is_available as landmarks_available
     _mediapipe_available = landmarks_available()

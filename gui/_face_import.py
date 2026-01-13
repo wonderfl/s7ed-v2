@@ -7,7 +7,7 @@ from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 
 import utils.kaodata_image as kaodata_image
-import gui.frame_basic as _basic
+from gui.frame import basic as _basic
 
 class FaceImportPanel(tk.Toplevel):
     """PNG 파일을 읽어서 Kaodata.s7에 저장하는 패널"""

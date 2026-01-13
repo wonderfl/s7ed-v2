@@ -9,11 +9,12 @@ from tkinter import filedialog, messagebox
 import gui._general as _gnl
 import gui._item as _item
 import gui._popup as _popup
-import gui.frame_button as _button
+from gui.frame import button as _button
 import gui._face_import as _face_import
-import gui._face_extract as _face_extract
-import gui._face_edit as _face_edit
+from gui import face_extract as _face_extract
+from gui.face_edit import show_face_edit_panel
 import gui._face_generate as _face_generate
+import gui._face_similar as _face_similar
 
 import commands.files as file
 
@@ -288,8 +289,9 @@ def app():
     file_menu.add_command(label="얼굴 파일 열기...", command=open_face_file)
     file_menu.add_command(label="얼굴 이미지 가져오기...", command=lambda: _face_import.show_face_import_panel(_root))
     file_menu.add_command(label="얼굴 추출...", command=lambda: _face_extract.show_face_extract_panel(_root))
-    file_menu.add_command(label="얼굴 편집...", command=lambda: _face_edit.show_face_edit_panel(_root))
+    file_menu.add_command(label="얼굴 편집...", command=lambda: show_face_edit_panel(_root))
     file_menu.add_command(label="얼굴 생성...", command=lambda: _face_generate.show_face_generate_panel(_root))
+    file_menu.add_command(label="비슷한 얼굴 찾기...", command=lambda: _face_similar.show_face_similar_panel(_root))
 
     file_menu.add_separator()
     file_menu.add_command(label="Exit", command=_root.quit)
@@ -321,6 +323,7 @@ def app():
     menu_bar.add_cascade(label="Reload", command=reload_file)    
     menu_bar.add_cascade(label="City/Item", command=info_open) 
     menu_bar.add_cascade(label="Face Extract", command=lambda: _face_extract.show_face_extract_panel(_root))
+    menu_bar.add_cascade(label="Face Morph", command=lambda: show_face_edit_panel(_root))
 
     _root.config(menu=menu_bar)
     

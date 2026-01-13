@@ -10,12 +10,12 @@ import globals as gl
 from . import _city
 from . import _realm
 from . import _popup
-from . import frame_listup as _listup
-from . import frame_basic as _basic
-from . import frame_skill as _skill
-from . import frame_equip as _equip
-from . import frame_personality as _personality
-from . import frame_button as _button
+from .frame import listup as _listup
+from .frame import basic as _basic
+from .frame import skill as _skill
+from .frame import equip as _equip
+from .frame import personality as _personality
+from .frame import button as _button
 from . import update
 
 from . import gui
