@@ -12,7 +12,7 @@ import gui._popup as _popup
 from gui.frame import button as _button
 import gui._face_import as _face_import
 from gui import face_extract as _face_extract
-from gui.face_edit import show_face_edit_panel
+from gui.face_edit import show_face_edit_panel, show_face_edit_panel_v2
 import gui._face_generate as _face_generate
 import gui._face_similar as _face_similar
 
@@ -290,6 +290,7 @@ def app():
     file_menu.add_command(label="얼굴 이미지 가져오기...", command=lambda: _face_import.show_face_import_panel(_root))
     file_menu.add_command(label="얼굴 추출...", command=lambda: _face_extract.show_face_extract_panel(_root))
     file_menu.add_command(label="얼굴 편집...", command=lambda: show_face_edit_panel(_root))
+    file_menu.add_command(label="얼굴 편집 V2 (실험)...", command=lambda: show_face_edit_panel_v2(_root))
     file_menu.add_command(label="얼굴 생성...", command=lambda: _face_generate.show_face_generate_panel(_root))
     file_menu.add_command(label="비슷한 얼굴 찾기...", command=lambda: _face_similar.show_face_similar_panel(_root))
 
@@ -329,6 +330,9 @@ def app():
     
     # 설정 파일 로드
     config.load_config()
+    
+    # 로깅 설정 로드 및 적용
+    config.load_logging_config()
     
     # 파일 변경 감지 시작 (1초마다 체크)
     _root.after(1000, check_and_reload_file)

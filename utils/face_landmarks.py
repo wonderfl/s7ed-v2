@@ -6,6 +6,17 @@ import math
 import numpy as np
 from PIL import Image
 
+# 로거 (지연 로딩)
+_logger = None
+
+def _get_logger():
+    """로거 가져오기 (지연 로딩)"""
+    global _logger
+    if _logger is None:
+        from utils.logger import get_logger
+        _logger = get_logger('얼굴랜드마크')
+    return _logger
+
 try:
     import cv2
     _cv2_available = True
@@ -44,7 +55,13 @@ try:
     _mediapipe_available = True
 except ImportError:
     _mediapipe_available = False
-    print("[얼굴랜드마크] MediaPipe가 설치되지 않았습니다. 얼굴 랜드마크 기능을 사용하려면 'pip install mediapipe'를 실행하세요.")
+    # 로거는 나중에 import (순환 참조 방지)
+    try:
+        from utils.logger import get_logger
+        logger = get_logger('얼굴랜드마크')
+        logger.warning("MediaPipe가 설치되지 않았습니다. 얼굴 랜드마크 기능을 사용하려면 'pip install mediapipe'를 실행하세요.")
+    except:
+        print("[얼굴랜드마크] MediaPipe가 설치되지 않았습니다. 얼굴 랜드마크 기능을 사용하려면 'pip install mediapipe'를 실행하세요.")
 
 
 def is_available():
@@ -107,8 +124,16 @@ def detect_face_landmarks(image):
             return None, False
             
     except Exception as e:
-        print(f"[얼굴랜드마크] 랜드마크 감지 실패: {e}")
+        _get_logger().error(f"랜드마크 감지 실패: {e}", exc_info=True)
         return None, False
+
+
+# MediaPipe Face Mesh의 주요 랜드마크 인덱스
+# 참고: https://github.com/google/mediapipe/blob/master/mediapipe/python/solutions/face_mesh.py
+LEFT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+RIGHT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+NOSE_TIP_INDEX = 4
+MOUTH_INDICES = [61, 146, 91, 181, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318]
 
 
 def get_key_landmarks(landmarks):
@@ -128,13 +153,6 @@ def get_key_landmarks(landmarks):
     """
     if landmarks is None or len(landmarks) < 468:
         return None
-    
-    # MediaPipe Face Mesh의 주요 랜드마크 인덱스
-    # 참고: https://github.com/google/mediapipe/blob/master/mediapipe/python/solutions/face_mesh.py
-    LEFT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-    RIGHT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-    NOSE_TIP_INDEX = 4
-    MOUTH_INDICES = [61, 146, 91, 181, 84, 17, 314, 405, 320, 307, 375, 321, 308, 324, 318]
     
     # 눈 중심 계산
     left_eye_points = [landmarks[i] for i in LEFT_EYE_INDICES if i < len(landmarks)]
@@ -241,7 +259,7 @@ def align_face(image, landmarks=None):
         return aligned_image, angle
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 얼굴 정렬 실패: {e}")
+        _get_logger().error(f"얼굴 정렬 실패: {e}", exc_info=True)
         return image, 0.0
 
 
@@ -456,7 +474,7 @@ def draw_landmarks(image, landmarks, key_landmarks=None, show_all_points=False):
             return img_copy
             
     except Exception as e:
-        print(f"[얼굴랜드마크] 랜드마크 그리기 실패: {e}")
+        _get_logger().error(f"랜드마크 그리기 실패: {e}", exc_info=True)
         return image
 
 
@@ -570,7 +588,7 @@ def extract_face_features_vector(image, landmarks=None):
         return np.array(features, dtype=np.float32)
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 특징 벡터 추출 실패: {e}")
+        _get_logger().error(f"특징 벡터 추출 실패: {e}", exc_info=True)
         return None
 
 
@@ -617,7 +635,7 @@ def calculate_face_similarity(features1, features2):
         return float(similarity)
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 유사도 계산 실패: {e}")
+        _get_logger().error(f"유사도 계산 실패: {e}", exc_info=True)
         return 0.0
 
 
@@ -717,7 +735,7 @@ def extract_clothing_region(image, landmarks=None):
         return clothing_region
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 옷 영역 추출 실패: {e}")
+        _get_logger().error(f"옷 영역 추출 실패: {e}", exc_info=True)
         return None
 
 
@@ -789,7 +807,7 @@ def extract_clothing_features_vector(image, landmarks=None):
         return np.array(features, dtype=np.float32)
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 옷 특징 벡터 추출 실패: {e}")
+        _get_logger().error(f"옷 특징 벡터 추출 실패: {e}", exc_info=True)
         return None
 
 
@@ -842,7 +860,7 @@ def calculate_clothing_similarity(features1, features2):
         return float(similarity)
         
     except Exception as e:
-        print(f"[얼굴랜드마크] 옷 유사도 계산 실패: {e}")
+        _get_logger().error(f"옷 유사도 계산 실패: {e}", exc_info=True)
         return 0.0
 
 

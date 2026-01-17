@@ -1,6 +1,6 @@
 """
 얼굴 편집 패널 - 캔버스 이벤트 처리 Mixin
-드래그, 확대/축소 관련 기능을 담당
+확대/축소 및 이미지 저장 관련 기능을 담당
 """
 import os
 import tkinter as tk
@@ -10,299 +10,462 @@ from tkinter import messagebox
 class CanvasEventHandlerMixin:
     """캔버스 이벤트 처리 기능 Mixin"""
     
-    def on_canvas_original_drag_start(self, event):
-        """원본 이미지 캔버스 드래그 시작"""
-        if self.image_created_original is None:
-            return
-        
-        # 드래그 시작 위치 저장 (마우스 클릭 위치)
-        self.canvas_original_drag_start_x = event.x
-        self.canvas_original_drag_start_y = event.y
-        
-        # 현재 이미지의 실제 위치를 캔버스에서 가져오기
-        preview_width = 384
-        preview_height = 480
-        
-        try:
-            coords = self.canvas_original.coords(self.image_created_original)
-            if coords and len(coords) >= 2 and coords[0] is not None and coords[1] is not None:
-                # coords에서 위치를 가져옴
-                self.canvas_original_drag_start_image_x = coords[0]
-                self.canvas_original_drag_start_image_y = coords[1]
-                # 저장된 위치도 업데이트
-                self.canvas_original_pos_x = coords[0]
-                self.canvas_original_pos_y = coords[1]
-            else:
-                # coords가 없거나 None이면 저장된 위치 사용
-                if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
-                    self.canvas_original_drag_start_image_x = self.canvas_original_pos_x
-                    self.canvas_original_drag_start_image_y = self.canvas_original_pos_y
-                else:
-                    # 저장된 위치도 없으면 중앙 위치 사용
-                    self.canvas_original_drag_start_image_x = preview_width // 2
-                    self.canvas_original_drag_start_image_y = preview_height // 2
-                    self.canvas_original_pos_x = preview_width // 2
-                    self.canvas_original_pos_y = preview_height // 2
-        except Exception as e:
-            print(f"[얼굴편집] 드래그 시작 시 위치 가져오기 실패: {e}")
-            # 실패 시 저장된 위치 또는 중앙 위치 사용
-            if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
-                self.canvas_original_drag_start_image_x = self.canvas_original_pos_x
-                self.canvas_original_drag_start_image_y = self.canvas_original_pos_y
-            else:
-                self.canvas_original_drag_start_image_x = preview_width // 2
-                self.canvas_original_drag_start_image_y = preview_height // 2
-                self.canvas_original_pos_x = preview_width // 2
-                self.canvas_original_pos_y = preview_height // 2
     
-    def on_canvas_original_drag(self, event):
-        """원본 이미지 캔버스 드래그 중"""
-        if (self.canvas_original_drag_start_x is None or 
-            self.canvas_original_drag_start_y is None or
-            self.image_created_original is None):
-            return
-        
-        # 드래그 시작 시 이미지 위치가 없으면 현재 위치에서 가져오기
-        if (self.canvas_original_drag_start_image_x is None or 
-            self.canvas_original_drag_start_image_y is None):
-            try:
-                coords = self.canvas_original.coords(self.image_created_original)
-                if coords and len(coords) >= 2:
-                    self.canvas_original_drag_start_image_x = coords[0]
-                    self.canvas_original_drag_start_image_y = coords[1]
-                else:
-                    # coords가 없으면 중앙 위치 사용
-                    preview_width = 480
-                    preview_height = 600
-                    self.canvas_original_drag_start_image_x = preview_width // 2
-                    self.canvas_original_drag_start_image_y = preview_height // 2
-            except Exception as e:
-                print(f"[얼굴편집] 드래그 중 위치 가져오기 실패: {e}")
-                preview_width = 384
-                preview_height = 480
-                self.canvas_original_drag_start_image_x = preview_width // 2
-                self.canvas_original_drag_start_image_y = preview_height // 2
-        
-        # 이동 거리 계산
-        dx = event.x - self.canvas_original_drag_start_x
-        dy = event.y - self.canvas_original_drag_start_y
-        
-        # 새로운 이미지 위치 계산 (드래그 시작 위치 + 이동 거리)
-        new_x = self.canvas_original_drag_start_image_x + dx
-        new_y = self.canvas_original_drag_start_image_y + dy
-        
-        # 드래그 중에는 경계 제한 없이 자유롭게 이동
-        # 경계 제한은 드래그 종료 시에만 적용
-        
-        # 이미지 위치 업데이트
-        try:
-            self.canvas_original.coords(self.image_created_original, new_x, new_y)
-            self.canvas_original_pos_x = new_x
-            self.canvas_original_pos_y = new_y
-        except Exception as e:
-            print(f"[얼굴편집] 원본 이미지 위치 업데이트 실패: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def on_canvas_original_drag_end(self, event):
-        """원본 이미지 캔버스 드래그 종료"""
-        # 드래그 종료 시 현재 위치를 저장만 하고 경계 제한은 적용하지 않음
-        # 사용자가 드래그한 위치를 그대로 유지
-        if self.image_created_original is not None:
-            try:
-                coords = self.canvas_original.coords(self.image_created_original)
-                if coords and len(coords) >= 2:
-                    # 현재 위치를 저장만 함 (경계 제한 없이)
-                    self.canvas_original_pos_x = coords[0]
-                    self.canvas_original_pos_y = coords[1]
-                    # 편집된 이미지도 동일한 위치로 동기화
-                    if self.image_created_edited is not None:
-                        self.canvas_edited.coords(self.image_created_edited, coords[0], coords[1])
-                        self.canvas_edited_pos_x = coords[0]
-                        self.canvas_edited_pos_y = coords[1]
-            except Exception as e:
-                print(f"[얼굴편집] 드래그 종료 시 위치 저장 실패: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        self.canvas_original_drag_start_x = None
-        self.canvas_original_drag_start_y = None
-        self.canvas_original_drag_start_image_x = None
-        self.canvas_original_drag_start_image_y = None
-    
-    def zoom_in_original(self):
-        """원본 이미지 확대"""
+    def zoom_in_original(self, mouse_x=None, mouse_y=None):
+        """원본 이미지 확대 (마우스 위치를 중심으로)"""
         if self.current_image is None:
             return
         
-        # 확대 제한 (최대 8배)
-        if self.zoom_scale_original < 8.0:
-            # 현재 이미지 위치 저장
-            if self.image_created_original:
-                try:
-                    coords = self.canvas_original.coords(self.image_created_original)
-                    if coords and len(coords) >= 2:
-                        self.canvas_original_pos_x = coords[0]
-                        self.canvas_original_pos_y = coords[1]
-                except Exception as e:
-                    print(f"[얼굴편집] 확대 시 위치 저장 실패: {e}")
-            
-            self.zoom_scale_original = min(self.zoom_scale_original * 1.5, 8.0)
-            self.show_original_preview()
-            # 편집된 이미지도 동일하게 확대/축소 및 위치 동기화
-            self.show_edited_preview()
+        # 확대 제한
+        max_scale = getattr(self, 'zoom_max_scale', 8.0)  # 최대 확대 비율
+        if self.zoom_scale_original >= max_scale:
+            return
+        
+        # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
+        if mouse_x is None or mouse_y is None:
+            mouse_x = getattr(self, '_last_mouse_x_original', None)
+            mouse_y = getattr(self, '_last_mouse_y_original', None)
+            if mouse_x is None or mouse_y is None:
+                # 캔버스 중앙 사용
+                canvas_width = self.canvas_original.winfo_width()
+                canvas_height = self.canvas_original.winfo_height()
+                mouse_x = canvas_width // 2
+                mouse_y = canvas_height // 2
+        
+        # 현재 이미지 위치와 크기 가져오기
+        old_img_x = self.canvas_original_pos_x
+        old_img_y = self.canvas_original_pos_y
+        old_scale = self.zoom_scale_original
+        
+        # 이미지 표시 크기 계산
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
+        old_display_width = int(preview_width * old_scale)
+        old_display_height = int(preview_height * old_scale)
+        
+        # 마우스 위치에서 이미지 중심까지의 거리
+        img_mouse_x = mouse_x - old_img_x
+        img_mouse_y = mouse_y - old_img_y
+        
+        # 확대 비율 업데이트
+        new_scale = min(old_scale * 1.1, max_scale)
+        scale_ratio = new_scale / old_scale
+        
+        # 새로운 이미지 크기
+        new_display_width = int(old_display_width * scale_ratio)
+        new_display_height = int(old_display_height * scale_ratio)
+        
+        # 마우스 위치를 중심으로 이미지 위치 조정
+        new_img_x = mouse_x - img_mouse_x * scale_ratio
+        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        
+        # 위치 저장
+        self.zoom_scale_original = new_scale
+        self.canvas_original_pos_x = new_img_x
+        self.canvas_original_pos_y = new_img_y
+        # 편집된 이미지도 동일한 위치로 동기화
+        self.canvas_edited_pos_x = new_img_x
+        self.canvas_edited_pos_y = new_img_y
+        
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
+        self._is_zooming = True
+        
+        self.show_original_preview()
+        # 편집된 이미지도 동일하게 확대/축소 및 위치 동기화
+        self.show_edited_preview()
+        
+        # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_zoom():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_zoom)
     
-    def zoom_out_original(self):
-        """원본 이미지 축소"""
+    def zoom_out_original(self, mouse_x=None, mouse_y=None):
+        """원본 이미지 축소 (마우스 위치를 중심으로)"""
         if self.current_image is None:
             return
         
-        # 축소 제한 (최소 0.2배)
-        if self.zoom_scale_original > 0.2:
-            # 현재 이미지 위치 저장
-            if self.image_created_original:
-                try:
-                    coords = self.canvas_original.coords(self.image_created_original)
-                    if coords and len(coords) >= 2:
-                        self.canvas_original_pos_x = coords[0]
-                        self.canvas_original_pos_y = coords[1]
-                except Exception as e:
-                    print(f"[얼굴편집] 축소 시 위치 저장 실패: {e}")
-            
-            self.zoom_scale_original = max(self.zoom_scale_original / 1.5, 0.2)
-            self.show_original_preview()
-            # 편집된 이미지도 동일하게 확대/축소 및 위치 동기화
-            self.show_edited_preview()
+        # 축소 제한
+        min_scale = getattr(self, 'zoom_min_scale', 0.2)  # 최소 축소 비율
+        if self.zoom_scale_original <= min_scale:
+            return
+        
+        # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
+        if mouse_x is None or mouse_y is None:
+            mouse_x = getattr(self, '_last_mouse_x_original', None)
+            mouse_y = getattr(self, '_last_mouse_y_original', None)
+            if mouse_x is None or mouse_y is None:
+                # 캔버스 중앙 사용
+                canvas_width = self.canvas_original.winfo_width()
+                canvas_height = self.canvas_original.winfo_height()
+                mouse_x = canvas_width // 2
+                mouse_y = canvas_height // 2
+        
+        # 현재 이미지 위치와 크기 가져오기
+        old_img_x = self.canvas_original_pos_x
+        old_img_y = self.canvas_original_pos_y
+        old_scale = self.zoom_scale_original
+        
+        # 이미지 표시 크기 계산
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
+        old_display_width = int(preview_width * old_scale)
+        old_display_height = int(preview_height * old_scale)
+        
+        # 마우스 위치에서 이미지 중심까지의 거리
+        img_mouse_x = mouse_x - old_img_x
+        img_mouse_y = mouse_y - old_img_y
+        
+        # 축소 비율 업데이트
+        new_scale = max(old_scale / 1.1, min_scale)
+        scale_ratio = new_scale / old_scale
+        
+        # 새로운 이미지 크기
+        new_display_width = int(old_display_width * scale_ratio)
+        new_display_height = int(old_display_height * scale_ratio)
+        
+        # 마우스 위치를 중심으로 이미지 위치 조정
+        new_img_x = mouse_x - img_mouse_x * scale_ratio
+        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        
+        # 위치 저장
+        self.zoom_scale_original = new_scale
+        self.canvas_original_pos_x = new_img_x
+        self.canvas_original_pos_y = new_img_y
+        # 편집된 이미지도 동일한 위치로 동기화
+        self.canvas_edited_pos_x = new_img_x
+        self.canvas_edited_pos_y = new_img_y
+        
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
+        self._is_zooming = True
+        
+        self.show_original_preview()
+        # 편집된 이미지도 동일하게 확대/축소 및 위치 동기화
+        self.show_edited_preview()
+        
+        # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_zoom():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_zoom)
     
     def zoom_reset_original(self):
         """원본 이미지 확대/축소 초기화"""
         if self.current_image is None:
             return
         
+        # "원래대로" 버튼 플래그 설정
+        self.is_resetting_position = True
+        
         self.zoom_scale_original = 1.0
         # 위치를 중앙으로 초기화
-        preview_width = 384
-        preview_height = 480
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
         self.canvas_original_pos_x = preview_width // 2
         self.canvas_original_pos_y = preview_height // 2
+        
+        # 확대/축소 중 플래그 설정
+        self._is_zooming = True
+        
         self.show_original_preview()
         # 편집된 이미지도 동일하게 초기화 및 위치 동기화
         self.show_edited_preview()
+
+        # 플래그 해제
+        self.is_resetting_position = False
+        
+        # 확대/축소 초기화 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_reset():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_reset)
     
-    def on_canvas_edited_drag_start(self, event):
-        """편집된 이미지 캔버스 드래그 시작"""
-        if self.image_created_edited is None:
+    def zoom_in_edited(self, mouse_x=None, mouse_y=None):
+        """편집된 이미지 확대 (마우스 위치를 중심으로)"""
+        if self.edited_image is None:
             return
         
-        # 드래그 시작 위치 저장 (마우스 클릭 위치)
-        self.canvas_edited_drag_start_x = event.x
-        self.canvas_edited_drag_start_y = event.y
-        
-        # 현재 이미지의 실제 위치를 캔버스에서 가져오기
-        preview_width = 384
-        preview_height = 480
-        
-        try:
-            coords = self.canvas_edited.coords(self.image_created_edited)
-            if coords and len(coords) >= 2 and coords[0] is not None and coords[1] is not None:
-                # coords에서 위치를 가져옴
-                self.canvas_edited_drag_start_image_x = coords[0]
-                self.canvas_edited_drag_start_image_y = coords[1]
-                # 저장된 위치도 업데이트
-                self.canvas_edited_pos_x = coords[0]
-                self.canvas_edited_pos_y = coords[1]
-            else:
-                # coords가 없거나 None이면 저장된 위치 사용
-                if self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
-                    self.canvas_edited_drag_start_image_x = self.canvas_edited_pos_x
-                    self.canvas_edited_drag_start_image_y = self.canvas_edited_pos_y
-                else:
-                    # 저장된 위치도 없으면 중앙 위치 사용
-                    self.canvas_edited_drag_start_image_x = preview_width // 2
-                    self.canvas_edited_drag_start_image_y = preview_height // 2
-                    self.canvas_edited_pos_x = preview_width // 2
-                    self.canvas_edited_pos_y = preview_height // 2
-        except Exception as e:
-            print(f"[얼굴편집] 드래그 시작 시 위치 가져오기 실패: {e}")
-            # 실패 시 저장된 위치 또는 중앙 위치 사용
-            if self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
-                self.canvas_edited_drag_start_image_x = self.canvas_edited_pos_x
-                self.canvas_edited_drag_start_image_y = self.canvas_edited_pos_y
-            else:
-                self.canvas_edited_drag_start_image_x = preview_width // 2
-                self.canvas_edited_drag_start_image_y = preview_height // 2
-                self.canvas_edited_pos_x = preview_width // 2
-                self.canvas_edited_pos_y = preview_height // 2
-    
-    def on_canvas_edited_drag(self, event):
-        """편집된 이미지 캔버스 드래그 중"""
-        if (self.canvas_edited_drag_start_x is None or 
-            self.canvas_edited_drag_start_y is None or
-            self.image_created_edited is None):
+        # 원본과 동일한 확대 비율 사용
+        max_scale = getattr(self, 'zoom_max_scale', 8.0)
+        if self.zoom_scale_original >= max_scale:
             return
         
-        # 드래그 시작 시 이미지 위치가 없으면 현재 위치에서 가져오기
-        if (self.canvas_edited_drag_start_image_x is None or 
-            self.canvas_edited_drag_start_image_y is None):
-            try:
-                coords = self.canvas_edited.coords(self.image_created_edited)
-                if coords and len(coords) >= 2:
-                    self.canvas_edited_drag_start_image_x = coords[0]
-                    self.canvas_edited_drag_start_image_y = coords[1]
-                else:
-                    # coords가 없으면 중앙 위치 사용
-                    preview_width = 480
-                    preview_height = 600
-                    self.canvas_edited_drag_start_image_x = preview_width // 2
-                    self.canvas_edited_drag_start_image_y = preview_height // 2
-            except Exception as e:
-                print(f"[얼굴편집] 드래그 중 위치 가져오기 실패: {e}")
-                preview_width = 384
-                preview_height = 480
-                self.canvas_edited_drag_start_image_x = preview_width // 2
-                self.canvas_edited_drag_start_image_y = preview_height // 2
+        # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
+        if mouse_x is None or mouse_y is None:
+            mouse_x = getattr(self, '_last_mouse_x_edited', None)
+            mouse_y = getattr(self, '_last_mouse_y_edited', None)
+            if mouse_x is None or mouse_y is None:
+                # 캔버스 중앙 사용
+                canvas_width = self.canvas_edited.winfo_width()
+                canvas_height = self.canvas_edited.winfo_height()
+                mouse_x = canvas_width // 2
+                mouse_y = canvas_height // 2
         
-        # 이동 거리 계산
-        dx = event.x - self.canvas_edited_drag_start_x
-        dy = event.y - self.canvas_edited_drag_start_y
+        # 현재 이미지 위치와 크기 가져오기
+        old_img_x = self.canvas_edited_pos_x
+        old_img_y = self.canvas_edited_pos_y
+        old_scale = self.zoom_scale_original
         
-        # 새로운 이미지 위치 계산 (드래그 시작 위치 + 이동 거리)
-        new_x = self.canvas_edited_drag_start_image_x + dx
-        new_y = self.canvas_edited_drag_start_image_y + dy
+        # 이미지 표시 크기 계산
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
+        old_display_width = int(preview_width * old_scale)
+        old_display_height = int(preview_height * old_scale)
         
-        # 드래그 중에는 경계 제한 없이 자유롭게 이동
-        # 경계 제한은 드래그 종료 시에만 적용
+        # 마우스 위치에서 이미지 중심까지의 거리
+        img_mouse_x = mouse_x - old_img_x
+        img_mouse_y = mouse_y - old_img_y
         
-        # 이미지 위치 업데이트
-        try:
-            self.canvas_edited.coords(self.image_created_edited, new_x, new_y)
-            self.canvas_edited_pos_x = new_x
-            self.canvas_edited_pos_y = new_y
-        except Exception as e:
-            print(f"[얼굴편집] 편집된 이미지 위치 업데이트 실패: {e}")
-            import traceback
-            traceback.print_exc()
+        # 확대 비율 업데이트
+        new_scale = min(old_scale * 1.1, max_scale)
+        scale_ratio = new_scale / old_scale
+        
+        # 새로운 이미지 크기
+        new_display_width = int(old_display_width * scale_ratio)
+        new_display_height = int(old_display_height * scale_ratio)
+        
+        # 마우스 위치를 중심으로 이미지 위치 조정
+        new_img_x = mouse_x - img_mouse_x * scale_ratio
+        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        
+        # 위치 저장
+        self.zoom_scale_original = new_scale
+        self.canvas_edited_pos_x = new_img_x
+        self.canvas_edited_pos_y = new_img_y
+        # 원본 이미지도 동일한 위치로 동기화
+        self.canvas_original_pos_x = new_img_x
+        self.canvas_original_pos_y = new_img_y
+        
+        # 확대/축소 중 플래그 설정
+        self._is_zooming = True
+        
+        self.show_original_preview()
+        self.show_edited_preview()
+        
+        # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_zoom():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_zoom)
     
-    def on_canvas_edited_drag_end(self, event):
-        """편집된 이미지 캔버스 드래그 종료"""
-        # 드래그 종료 시 현재 위치를 저장만 하고 경계 제한은 적용하지 않음
-        # 사용자가 드래그한 위치를 그대로 유지
-        if self.image_created_edited is not None:
-            try:
-                coords = self.canvas_edited.coords(self.image_created_edited)
-                if coords and len(coords) >= 2:
-                    # 현재 위치를 저장만 함 (경계 제한 없이)
-                    self.canvas_edited_pos_x = coords[0]
-                    self.canvas_edited_pos_y = coords[1]
-            except Exception as e:
-                print(f"[얼굴편집] 드래그 종료 시 위치 저장 실패: {e}")
-                import traceback
-                traceback.print_exc()
+    def zoom_out_edited(self, mouse_x=None, mouse_y=None):
+        """편집된 이미지 축소 (마우스 위치를 중심으로)"""
+        if self.edited_image is None:
+            return
         
-        self.canvas_edited_drag_start_x = None
-        self.canvas_edited_drag_start_y = None
-        self.canvas_edited_drag_start_image_x = None
-        self.canvas_edited_drag_start_image_y = None
+        # 원본과 동일한 축소 비율 사용
+        min_scale = getattr(self, 'zoom_min_scale', 0.2)
+        if self.zoom_scale_original <= min_scale:
+            return
+        
+        # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
+        if mouse_x is None or mouse_y is None:
+            mouse_x = getattr(self, '_last_mouse_x_edited', None)
+            mouse_y = getattr(self, '_last_mouse_y_edited', None)
+            if mouse_x is None or mouse_y is None:
+                # 캔버스 중앙 사용
+                canvas_width = self.canvas_edited.winfo_width()
+                canvas_height = self.canvas_edited.winfo_height()
+                mouse_x = canvas_width // 2
+                mouse_y = canvas_height // 2
+        
+        # 현재 이미지 위치와 크기 가져오기
+        old_img_x = self.canvas_edited_pos_x
+        old_img_y = self.canvas_edited_pos_y
+        old_scale = self.zoom_scale_original
+        
+        # 이미지 표시 크기 계산
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
+        old_display_width = int(preview_width * old_scale)
+        old_display_height = int(preview_height * old_scale)
+        
+        # 마우스 위치에서 이미지 중심까지의 거리
+        img_mouse_x = mouse_x - old_img_x
+        img_mouse_y = mouse_y - old_img_y
+        
+        # 축소 비율 업데이트
+        new_scale = max(old_scale / 1.1, min_scale)
+        scale_ratio = new_scale / old_scale
+        
+        # 새로운 이미지 크기
+        new_display_width = int(old_display_width * scale_ratio)
+        new_display_height = int(old_display_height * scale_ratio)
+        
+        # 마우스 위치를 중심으로 이미지 위치 조정
+        new_img_x = mouse_x - img_mouse_x * scale_ratio
+        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        
+        # 위치 저장
+        self.zoom_scale_original = new_scale
+        self.canvas_edited_pos_x = new_img_x
+        self.canvas_edited_pos_y = new_img_y
+        # 원본 이미지도 동일한 위치로 동기화
+        self.canvas_original_pos_x = new_img_x
+        self.canvas_original_pos_y = new_img_y
+        
+        # 확대/축소 중 플래그 설정
+        self._is_zooming = True
+        
+        self.show_original_preview()
+        self.show_edited_preview()
+        
+        # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_zoom():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_zoom)
+    
+    def zoom_reset_edited(self):
+        """편집된 이미지 확대/축소 초기화"""
+        if self.edited_image is None:
+            return
+        
+        # "원래대로" 버튼 플래그 설정
+        self.is_resetting_position = True
+        
+        self.zoom_scale_original = 1.0
+        # 위치를 중앙으로 초기화
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
+        self.canvas_edited_pos_x = preview_width // 2
+        self.canvas_edited_pos_y = preview_height // 2
+        
+        # 확대/축소 중 플래그 설정
+        self._is_zooming = True
+        
+        self.show_original_preview()
+        self.show_edited_preview()
+
+        # 플래그 해제
+        self.is_resetting_position = False
+        
+        # 확대/축소 초기화 완료 후 랜드마크 다시 그리기 (지연 처리)
+        def update_landmarks_after_reset():
+            self._is_zooming = False
+            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                # 기존 랜드마크 제거 (중복 방지)
+                if hasattr(self, 'clear_landmarks_display'):
+                    self.clear_landmarks_display()
+                # 연결선 및 폴리곤도 제거
+                for item_id in list(self.landmark_polygon_items_original):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                for item_id in list(self.landmark_polygon_items_edited):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 랜드마크 다시 그리기
+                if hasattr(self, 'update_face_features_display'):
+                    self.update_face_features_display()
+        
+        self.after(100, update_landmarks_after_reset)
+    
     
     def save_png(self):
         """편집된 이미지를 PNG 파일로 저장"""
@@ -340,3 +503,4 @@ class CanvasEventHandlerMixin:
         except Exception as e:
             messagebox.showerror("에러", f"PNG 저장 실패:\n{e}")
             self.status_label.config(text=f"에러: {e}", fg="red")
+    

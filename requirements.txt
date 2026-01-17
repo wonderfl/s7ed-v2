@@ -7,3 +7,6 @@ opencv-python>=4.8.0
 
 # 선택적 패키지 (얼굴 랜드마크 기능 사용 시 필요)
 mediapipe>=0.10.0
+
+# 선택적 패키지 (Delaunay Triangulation 기반 변형 기능 사용 시 필요)
+scipy>=1.10.0

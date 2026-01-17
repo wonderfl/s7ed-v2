@@ -17,6 +17,17 @@ from .canvas import CanvasEventHandlerMixin
 from .save import SaveManagerMixin
 from .params import ParameterManagerMixin
 
+# 로거 (지연 로딩)
+_logger = None
+
+def _get_logger():
+    """로거 가져오기 (지연 로딩)"""
+    global _logger
+    if _logger is None:
+        from utils.logger import get_logger
+        _logger = get_logger('얼굴추출')
+    return _logger
+
 class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandlerMixin, SaveManagerMixin, ParameterManagerMixin, tk.Toplevel):
     """얼굴 추출 전용 패널 - 얼굴 인식이 항상 활성화"""
     
@@ -704,7 +715,7 @@ class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandler
                             return
                 except Exception as e:
                     # 자동 감지 실패는 무시 (사용자가 수동으로 조정할 수 있음)
-                    print(f"[얼굴추출] 자동 감지 실패: {e}")
+                    _get_logger().warning(f"자동 감지 실패: {e}")
         
         # 이미지가 로드되어 있으면 재추출 (수동 영역 모드일 때만)
         if self.current_image is not None:
@@ -1000,7 +1011,7 @@ class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandler
                         self.detected_landmarks = None
                         self.detected_key_landmarks = None
                 except Exception as e:
-                    print(f"[얼굴추출] 랜드마크 감지 실패: {e}")
+                    _get_logger().warning(f"랜드마크 감지 실패: {e}")
                     self.detected_landmarks = None
                     self.detected_key_landmarks = None
             else:
@@ -1209,7 +1220,7 @@ class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandler
         except Exception as e:
             self.face_detected = False
             self.extracted_image = None
-            print(f"[얼굴추출] 얼굴 추출 실패: {e}")
+            _get_logger().error(f"얼굴 추출 실패: {e}", exc_info=True)
             self.status_label.config(text=f"에러: {e}", fg="red")
             messagebox.showerror("에러", f"얼굴 추출 실패:\n{e}")
             # 미리보기 초기화

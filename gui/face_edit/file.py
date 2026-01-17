@@ -17,7 +17,7 @@ class FileManagerMixin:
     def _create_file_selection_ui(self, parent):
         """파일 선택 UI 생성"""
         file_frame = tk.LabelFrame(parent, text="이미지 파일 선택", padx=5, pady=5)
-        file_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        file_frame.pack(fill=tk.BOTH, expand=False)
         
         # 파일 목록 프레임
         list_frame = tk.Frame(file_frame)
@@ -50,6 +50,10 @@ class FileManagerMixin:
     
     def refresh_file_list(self):
         """파일 목록 새로고침"""
+        # file_listbox가 없으면 (팝업창이 아직 열리지 않았으면) 스킵
+        if not hasattr(self, 'file_listbox') or self.file_listbox is None:
+            return
+        
         self.file_listbox.delete(0, tk.END)
         
         # 이미지 디렉토리 경로 가져오기
@@ -157,11 +161,37 @@ class FileManagerMixin:
             self.current_image = img
             self.current_image_path = file_path
             
-            # 확대/축소 초기화
-            self.zoom_scale_original = 1.0
+            # 확대/축소 비율과 위치는 유지 (초기화하지 않음)
+            # zoom_scale_original은 초기화하지 않고 유지
+            if not hasattr(self, 'zoom_scale_original'):
+                self.zoom_scale_original = 1.0
+            
+            # 위치도 유지 (초기화하지 않음)
+            # 위치가 설정되어 있지 않으면 중앙으로 설정
+            preview_width = getattr(self, 'preview_width', 800)
+            preview_height = getattr(self, 'preview_height', 1000)
+            
+            if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:
+                # 캔버스 크기 가져오기 (캔버스가 생성되어 있으면 실제 크기, 없으면 기본값)
+                try:
+                    canvas_width = self.canvas_original.winfo_width()
+                    canvas_height = self.canvas_original.winfo_height()
+                except:
+                    canvas_width = preview_width
+                    canvas_height = preview_height
+                
+                # 중앙 위치 계산 (위치가 없을 때만)
+                self.canvas_original_pos_x = canvas_width // 2
+                self.canvas_original_pos_y = canvas_height // 2
+                self.canvas_edited_pos_x = canvas_width // 2
+                self.canvas_edited_pos_y = canvas_height // 2
+            
             self.original_image_base_size = None
-            self.canvas_original_pos_x = None
-            self.canvas_original_pos_y = None
+            
+            # 랜드마크 초기화 (새 이미지 로드 시)
+            self.original_landmarks = None
+            self.face_landmarks = None
+            self.custom_landmarks = None
             
             # 자동 정렬이 활성화되어 있으면 정렬 적용
             if self.auto_align.get():
@@ -172,8 +202,10 @@ class FileManagerMixin:
                 self.edited_image = img.copy()
             
             # 미리보기 업데이트
-            self.show_original_preview()
-            self.show_edited_preview()
+            if hasattr(self, 'show_original_preview'):
+                self.show_original_preview()
+            if hasattr(self, 'show_edited_preview'):
+                self.show_edited_preview()
             
             filename = os.path.basename(file_path)
             self.status_label.config(text=f"이미지 로드 완료: {filename}", fg="green")

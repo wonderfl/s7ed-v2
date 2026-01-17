@@ -2,11 +2,14 @@
 얼굴 편집 패널 - 미리보기 관리 Mixin
 미리보기 표시 관련 기능을 담당
 """
+import math
 import tkinter as tk
 from PIL import Image, ImageTk
 
 import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
+from .polygon_renderer import PolygonRendererMixin
+from .landmark_display import LandmarkDisplayMixin
 
 
 class PreviewManagerMixin:
@@ -14,12 +17,17 @@ class PreviewManagerMixin:
     
     def _create_preview_ui(self, parent):
         """미리보기 UI 생성"""
-        preview_frame = tk.LabelFrame(parent, text="미리보기", padx=5, pady=5)
-        preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        # parent가 Toplevel이면 전체 창을 사용, 아니면 LabelFrame 사용
+        if isinstance(parent, tk.Toplevel):
+            preview_frame = tk.Frame(parent, padx=10, pady=10)
+            preview_frame.pack(fill=tk.BOTH, expand=True)
+        else:
+            preview_frame = tk.LabelFrame(parent, text="미리보기", padx=5, pady=5)
+            preview_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        # 이미지 크기: 480x600
-        preview_width = 480
-        preview_height = 600
+        # 이미지 크기 (변수에서 가져오기, 없으면 기본값 사용)
+        preview_width = getattr(self, 'preview_width', 800)
+        preview_height = getattr(self, 'preview_height', 1000)
         
         # 좌측: 원본 이미지
         original_frame = tk.Frame(preview_frame)
@@ -85,8 +93,8 @@ class PreviewManagerMixin:
                 if hasattr(self.canvas_original, 'display_size'):
                     old_display_width, old_display_height = self.canvas_original.display_size
                 else:
-                    preview_width = 480
-                    preview_height = 600
+                    preview_width = getattr(self, 'preview_width', 800)
+                    preview_height = getattr(self, 'preview_height', 1000)
                     old_display_width = preview_width
                     old_display_height = preview_height
                 
@@ -94,17 +102,20 @@ class PreviewManagerMixin:
                 img_mouse_x = mouse_x - old_img_x
                 img_mouse_y = mouse_y - old_img_y
                 
-                # 확대/축소 비율 변경
+                # 확대/축소 비율 변경 (더 세밀한 조정: 1.1배씩)
+                zoom_factor = 1.1  # 스크롤 한 번에 10%씩 확대/축소
+                max_scale = getattr(self, 'zoom_max_scale', 8.0)  # 최대 확대 비율
+                min_scale = getattr(self, 'zoom_min_scale', 0.2)  # 최소 축소 비율
                 if event.delta > 0:
                     # 확대
-                    if old_scale < 8.0:
-                        new_scale = min(old_scale * 1.5, 8.0)
+                    if old_scale < max_scale:
+                        new_scale = min(old_scale * zoom_factor, max_scale)
                     else:
                         return
                 elif event.delta < 0:
                     # 축소
-                    if old_scale > 0.2:
-                        new_scale = max(old_scale / 1.5, 0.2)
+                    if old_scale > min_scale:
+                        new_scale = max(old_scale / zoom_factor, min_scale)
                     else:
                         return
                 else:
@@ -123,14 +134,34 @@ class PreviewManagerMixin:
                 new_img_x = mouse_x - img_mouse_x * scale_ratio
                 new_img_y = mouse_y - img_mouse_y * scale_ratio
                 
-                # 위치 저장
+                # 위치 저장 (마우스 휠 확대/축소 시 계산된 위치를 명시적으로 설정)
                 self.canvas_original_pos_x = new_img_x
                 self.canvas_original_pos_y = new_img_y
+                # 편집된 이미지도 동일한 위치로 동기화
+                self.canvas_edited_pos_x = new_img_x
+                self.canvas_edited_pos_y = new_img_y
                 
-                # 이미지 다시 표시
-                self.show_original_preview()
-                # 편집된 이미지도 동일하게 확대/축소 및 위치 동기화
-                self.show_edited_preview()
+                # 성능 최적화: 연속 스크롤 시 debounce 처리
+                if hasattr(self, '_zoom_update_pending') and self._zoom_update_pending:
+                    # 이미 대기 중인 업데이트가 있으면 취소
+                    try:
+                        self.after_cancel(self._zoom_update_id)
+                    except:
+                        pass
+                
+                # 이미지 업데이트를 약간 지연시켜 연속 스크롤 시 성능 향상
+                def update_zoom():
+                    self._zoom_update_pending = False
+                    self.show_original_preview()
+                    self.show_edited_preview()
+                    
+                    # 마우스 휠 확대/축소 후 랜드마크 다시 그리기
+                    if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
+                        if hasattr(self, 'update_face_features_display'):
+                            self.update_face_features_display()
+                
+                self._zoom_update_pending = True
+                self._zoom_update_id = self.after(50, update_zoom)  # 50ms 지연
                 
             except Exception as e:
                 print(f"[얼굴편집] 마우스 휠 확대/축소 실패: {e}")
@@ -185,9 +216,9 @@ class PreviewManagerMixin:
         
         try:
             # 캔버스 크기
-            preview_width = 480
-            preview_height = 600
-            
+            preview_width = getattr(self, 'preview_width', 800)
+            preview_height = getattr(self, 'preview_height', 1000)
+
             # 원본 이미지 크기
             img_width, img_height = self.current_image.size
             img_ratio = img_width / img_height
@@ -213,19 +244,44 @@ class PreviewManagerMixin:
             if self.original_image_base_size is None:
                 self.original_image_base_size = (base_display_width, base_display_height)
             
-            # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
-            resized = self.current_image.resize((display_width, display_height), Image.LANCZOS)
+            # 이미지 리사이즈 캐싱 (성능 최적화)
+            cache_key = (id(self.current_image), display_width, display_height)
+            resize_cache = getattr(self, '_resize_cache', {})
+            
+            if cache_key in resize_cache:
+                resized = resize_cache[cache_key]
+            else:
+                # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
+                # 성능 최적화: 확대 시에는 BILINEAR 사용 (LANCZOS는 너무 느림)
+                # 축소 시에만 LANCZOS 사용하여 품질 유지
+                if display_width > self.current_image.size[0] or display_height > self.current_image.size[1]:
+                    # 확대: BILINEAR 사용 (빠름)
+                    resized = self.current_image.resize((display_width, display_height), Image.BILINEAR)
+                else:
+                    # 축소: LANCZOS 사용 (고품질)
+                    resized = self.current_image.resize((display_width, display_height), Image.LANCZOS)
+                
+                # LRU 캐시 관리
+                resize_cache_max_size = getattr(self, '_resize_cache_max_size', 10)
+                if len(resize_cache) >= resize_cache_max_size:
+                    # 가장 오래된 항목 제거 (FIFO)
+                    oldest_key = next(iter(resize_cache))
+                    del resize_cache[oldest_key]
+                resize_cache[cache_key] = resized
+                self._resize_cache = resize_cache
             
             # PhotoImage로 변환
             self.tk_image_original = ImageTk.PhotoImage(resized)
             
             # Canvas에 표시
             if self.image_created_original:
-                # 기존 이미지의 위치를 가져와서 유지 (위치가 설정되지 않은 경우에만)
+                # 기존 이미지의 위치를 가져와서 유지
+                # 단, 이미 설정된 위치가 있으면 덮어쓰지 않음 (마우스 휠 확대/축소 등)
                 if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:
                     try:
                         old_coords = self.canvas_original.coords(self.image_created_original)
                         if old_coords and len(old_coords) >= 2:
+                            # 캔버스의 실제 위치를 사용
                             self.canvas_original_pos_x = old_coords[0]
                             self.canvas_original_pos_y = old_coords[1]
                     except Exception as e:
@@ -234,11 +290,30 @@ class PreviewManagerMixin:
                 self.canvas_original.delete(self.image_created_original)
             
             # 이미지 위치 결정 (처음 로드 시 또는 위치가 없을 때 중앙 배치)
-            if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:
+            # 단, 0,0은 유효한 위치일 수 있으므로 None일 때만 중앙 배치
+            if self.canvas_original_pos_x is None:
                 self.canvas_original_pos_x = preview_width // 2
+            if self.canvas_original_pos_y is None:
                 self.canvas_original_pos_y = preview_height // 2
             
-            # 경계 제한 제거: 확대/축소 시에도 사용자가 설정한 위치 유지
+            # 이미지가 캔버스 안에 완전히 들어오도록 위치 제한
+            # "원래대로" 버튼을 누른 경우에만 경계 제한 적용
+            if getattr(self, 'is_resetting_position', False):
+                half_width = display_width // 2
+                half_height = display_height // 2
+                
+                # 경계 제한: 이미지가 캔버스 밖으로 나가지 않도록
+                if display_width >= preview_width:
+                    self.canvas_original_pos_x = max(half_width, min(preview_width - half_width, self.canvas_original_pos_x))
+                else:
+                    # 이미지가 캔버스보다 작으면 중앙 배치
+                    self.canvas_original_pos_x = preview_width // 2
+                
+                if display_height >= preview_height:
+                    self.canvas_original_pos_y = max(half_height, min(preview_height - half_height, self.canvas_original_pos_y))
+                else:
+                    # 이미지가 캔버스보다 작으면 중앙 배치
+                    self.canvas_original_pos_y = preview_height // 2
             
             self.image_created_original = self.canvas_original.create_image(
                 self.canvas_original_pos_x,
@@ -253,6 +328,13 @@ class PreviewManagerMixin:
             # 눈 영역 표시 업데이트
             if self.show_eye_region.get():
                 self.update_eye_region_display()
+            # 입술 영역 표시 업데이트
+            if self.show_lip_region.get():
+                self.update_lip_region_display()
+            # 랜드마크 또는 연결선 표시 업데이트 (확대/축소 중이면 스킵)
+            if not getattr(self, '_is_zooming', False):
+                if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
+                    self.update_face_features_display()
         except Exception as e:
             print(f"[얼굴편집] 원본 이미지 표시 실패: {e}")
     
@@ -268,9 +350,9 @@ class PreviewManagerMixin:
         
         try:
             # 캔버스 크기
-            preview_width = 480
-            preview_height = 600
-            
+            preview_width = getattr(self, 'preview_width', 800)
+            preview_height = getattr(self, 'preview_height', 1000)
+
             # 편집된 이미지 크기
             img_width, img_height = self.edited_image.size
             img_ratio = img_width / img_height
@@ -292,33 +374,89 @@ class PreviewManagerMixin:
             display_width = int(base_display_width * self.zoom_scale_original)
             display_height = int(base_display_height * self.zoom_scale_original)
             
-            # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
-            resized = self.edited_image.resize((display_width, display_height), Image.LANCZOS)
+            # 이미지 리사이즈 캐싱 (성능 최적화)
+            cache_key = (id(self.edited_image), display_width, display_height)
+            resize_cache = getattr(self, '_resize_cache', {})
+            
+            if cache_key in resize_cache:
+                resized = resize_cache[cache_key]
+            else:
+                # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
+                # 성능 최적화: 확대 시에는 BILINEAR 사용 (LANCZOS는 너무 느림)
+                # 축소 시에만 LANCZOS 사용하여 품질 유지
+                if display_width > self.edited_image.size[0] or display_height > self.edited_image.size[1]:
+                    # 확대: BILINEAR 사용 (빠름)
+                    resized = self.edited_image.resize((display_width, display_height), Image.BILINEAR)
+                else:
+                    # 축소: LANCZOS 사용 (고품질)
+                    resized = self.edited_image.resize((display_width, display_height), Image.LANCZOS)
+                
+                # LRU 캐시 관리
+                resize_cache_max_size = getattr(self, '_resize_cache_max_size', 10)
+                if len(resize_cache) >= resize_cache_max_size:
+                    # 가장 오래된 항목 제거 (FIFO)
+                    oldest_key = next(iter(resize_cache))
+                    del resize_cache[oldest_key]
+                resize_cache[cache_key] = resized
+                self._resize_cache = resize_cache
             
             # PhotoImage로 변환
             self.tk_image_edited = ImageTk.PhotoImage(resized)
             
             # Canvas에 표시
+            # 위치 결정: 이미 설정된 위치를 절대 덮어쓰지 않음
+            # 1. 먼저 캔버스에서 현재 위치를 가져옴 (이미지가 존재하는 경우)
+            saved_pos_x = None
+            saved_pos_y = None
+            
             if self.image_created_edited:
-                # 기존 이미지의 위치를 가져와서 유지
                 try:
                     old_coords = self.canvas_edited.coords(self.image_created_edited)
                     if old_coords and len(old_coords) >= 2:
-                        self.canvas_edited_pos_x = old_coords[0]
-                        self.canvas_edited_pos_y = old_coords[1]
+                        saved_pos_x = old_coords[0]
+                        saved_pos_y = old_coords[1]
                 except Exception as e:
                     print(f"[얼굴편집] 기존 위치 가져오기 실패: {e}")
                 
                 self.canvas_edited.delete(self.image_created_edited)
             
-            # 원본 이미지와 동일한 위치 사용 (동기화)
-            if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
+            # 위치 결정: 이미 설정된 위치가 있으면 그대로 사용, 없으면 캔버스에서 가져온 위치 사용
+            if self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
+                # 이미 설정된 위치가 있으면 그대로 사용 (절대 변경하지 않음)
+                pass
+            elif saved_pos_x is not None and saved_pos_y is not None:
+                # 캔버스에서 가져온 위치 사용
+                self.canvas_edited_pos_x = saved_pos_x
+                self.canvas_edited_pos_y = saved_pos_y
+            elif self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
+                # 원본 이미지 위치와 동기화
                 self.canvas_edited_pos_x = self.canvas_original_pos_x
                 self.canvas_edited_pos_y = self.canvas_original_pos_y
-            elif self.canvas_edited_pos_x is None or self.canvas_edited_pos_y is None:
+            else:
                 # 위치가 없으면 중앙 배치
-                self.canvas_edited_pos_x = preview_width // 2
-                self.canvas_edited_pos_y = preview_height // 2
+                if self.canvas_edited_pos_x is None:
+                    self.canvas_edited_pos_x = preview_width // 2
+                if self.canvas_edited_pos_y is None:
+                    self.canvas_edited_pos_y = preview_height // 2
+            
+            # 이미지가 캔버스 안에 완전히 들어오도록 위치 제한
+            # "원래대로" 버튼을 누른 경우에만 경계 제한 적용
+            if getattr(self, 'is_resetting_position', False):
+                half_width = display_width // 2
+                half_height = display_height // 2
+                
+                # 경계 제한: 이미지가 캔버스 밖으로 나가지 않도록
+                if display_width >= preview_width:
+                    self.canvas_edited_pos_x = max(half_width, min(preview_width - half_width, self.canvas_edited_pos_x))
+                else:
+                    # 이미지가 캔버스보다 작으면 중앙 배치
+                    self.canvas_edited_pos_x = preview_width // 2
+                
+                if display_height >= preview_height:
+                    self.canvas_edited_pos_y = max(half_height, min(preview_height - half_height, self.canvas_edited_pos_y))
+                else:
+                    # 이미지가 캔버스보다 작으면 중앙 배치
+                    self.canvas_edited_pos_y = preview_height // 2
             
             self.image_created_edited = self.canvas_edited.create_image(
                 self.canvas_edited_pos_x,
@@ -331,6 +469,13 @@ class PreviewManagerMixin:
             self.canvas_edited.display_size = (display_width, display_height)
             
             # 눈 영역 표시는 원본 이미지에만 표시되므로 여기서는 업데이트하지 않음
+            # 입술 영역 표시 업데이트 (편집된 이미지에도 표시)
+            if self.show_lip_region.get():
+                self.update_lip_region_display()
+            # 랜드마크 또는 연결선 표시 업데이트 (편집된 이미지에도 표시, 확대/축소 중이면 스킵)
+            if not getattr(self, '_is_zooming', False):
+                if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
+                    self.update_face_features_display()
         except Exception as e:
             print(f"[얼굴편집] 편집된 이미지 표시 실패: {e}")
     
@@ -536,3 +681,546 @@ class PreviewManagerMixin:
             print(f"[얼굴편집] 눈 영역 표시 실패: {e}")
             import traceback
             traceback.print_exc()
+    
+    def clear_lip_region_display(self):
+        """입술 영역 표시 제거"""
+        # 원본 이미지의 입술 영역 제거
+        for rect_id in self.lip_region_rects_original:
+            try:
+                self.canvas_original.delete(rect_id)
+            except Exception as e:
+                print(f"[얼굴편집] 입술 영역 제거 실패: {e}")
+        self.lip_region_rects_original.clear()
+        
+        # 편집된 이미지의 입술 영역 제거
+        for rect_id in self.lip_region_rects_edited:
+            try:
+                self.canvas_edited.delete(rect_id)
+            except Exception as e:
+                print(f"[얼굴편집] 입술 영역 제거 실패: {e}")
+        self.lip_region_rects_edited.clear()
+    
+    def update_lip_region_display(self):
+        """입술 영역 표시 업데이트"""
+        if not self.show_lip_region.get() or self.current_image is None:
+            return
+        
+        try:
+            # 기존 입술 영역 제거
+            self.clear_lip_region_display()
+            
+            # 랜드마크 감지
+            landmarks, detected = face_landmarks.detect_face_landmarks(self.current_image)
+            if not detected:
+                return
+            
+            key_landmarks = face_landmarks.get_key_landmarks(landmarks)
+            if key_landmarks is None or key_landmarks['mouth'] is None:
+                return
+            
+            mouth_center = key_landmarks['mouth']
+            mouth_center_y = mouth_center[1]
+            
+            # MediaPipe 입술 랜드마크 인덱스
+            ALL_LIP_INDICES = [0, 13, 14, 17, 37, 39, 40, 61, 78, 80, 81, 82, 84, 87, 88, 91, 95, 146, 178, 181, 185, 191, 267, 269, 270, 291, 308, 310, 311, 312, 314, 317, 318, 321, 324, 375, 402, 405, 409, 415]
+            
+            # 윗입술과 아래입술 포인트 분리
+            upper_lip_points = []
+            lower_lip_points = []
+            for i in ALL_LIP_INDICES:
+                if i < len(landmarks):
+                    point = landmarks[i]
+                    if point[1] < mouth_center_y:
+                        upper_lip_points.append(point)
+                    elif point[1] > mouth_center_y:
+                        lower_lip_points.append(point)
+            
+            # 입술 영역 파라미터 가져오기 (개별 적용 여부에 따라)
+            if self.use_individual_lip_region.get():
+                # 개별 적용 모드
+                upper_padding_x = self.upper_lip_region_padding_x.get()
+                upper_padding_y = self.upper_lip_region_padding_y.get()
+                upper_offset_x = self.upper_lip_region_offset_x.get()
+                upper_offset_y = self.upper_lip_region_offset_y.get()
+                lower_padding_x = self.lower_lip_region_padding_x.get()
+                lower_padding_y = self.lower_lip_region_padding_y.get()
+                lower_offset_x = self.lower_lip_region_offset_x.get()
+                lower_offset_y = self.lower_lip_region_offset_y.get()
+            else:
+                # 동기화 모드
+                upper_padding_x = self.upper_lip_region_padding_x.get()
+                upper_padding_y = self.upper_lip_region_padding_y.get()
+                upper_offset_x = self.upper_lip_region_offset_x.get()
+                upper_offset_y = self.upper_lip_region_offset_y.get()
+                lower_padding_x = self.upper_lip_region_padding_x.get()
+                lower_padding_y = self.upper_lip_region_padding_y.get()
+                lower_offset_x = self.upper_lip_region_offset_x.get()
+                lower_offset_y = self.upper_lip_region_offset_y.get()
+            
+            # 원본 이미지에 입술 영역 표시
+            for canvas, image, rects_list, pos_x, pos_y, display_size in [
+                (self.canvas_original, self.current_image, self.lip_region_rects_original, 
+                 self.canvas_original_pos_x, self.canvas_original_pos_y, 
+                 getattr(self.canvas_original, 'display_size', None))
+            ]:
+                if image is None or pos_x is None or pos_y is None or display_size is None:
+                    continue
+                
+                img_width, img_height = image.size
+                display_width, display_height = display_size
+                
+                # 이미지 스케일 계산
+                scale_x = display_width / img_width
+                scale_y = display_height / img_height
+                
+                # 윗입술 영역 표시
+                if upper_lip_points:
+                    upper_x_coords = [p[0] for p in upper_lip_points]
+                    upper_y_coords = [p[1] for p in upper_lip_points]
+                    x_min = int(min(upper_x_coords))
+                    x_max = int(max(upper_x_coords))
+                    y_min = int(min(upper_y_coords))
+                    y_max = min(int(max(upper_y_coords)), int(mouth_center_y))
+                    
+                    # 패딩 추가 (파라미터 적용)
+                    padding_x = int((x_max - x_min) * upper_padding_x)
+                    padding_y = int((y_max - y_min) * upper_padding_y)
+                    x1 = max(0, x_min - padding_x + int(upper_offset_x))
+                    y1 = max(0, y_min - padding_y + int(upper_offset_y))
+                    x2 = min(img_width, x_max + padding_x + int(upper_offset_x))
+                    y2 = min(img_height, y_max + int(upper_offset_y))
+                    
+                    # 캔버스 좌표로 변환
+                    rel_x1 = (x1 - img_width / 2) * scale_x
+                    rel_y1 = (y1 - img_height / 2) * scale_y
+                    rel_x2 = (x2 - img_width / 2) * scale_x
+                    rel_y2 = (y2 - img_height / 2) * scale_y
+                    
+                    canvas_x1 = pos_x + rel_x1
+                    canvas_y1 = pos_y + rel_y1
+                    canvas_x2 = pos_x + rel_x2
+                    canvas_y2 = pos_y + rel_y2
+                    
+                    # 사각형 그리기 (윗입술: 빨간색)
+                    rect_id = canvas.create_rectangle(
+                        canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                        outline="red", width=2, tags="lip_region"
+                    )
+                    rects_list.append(rect_id)
+                
+                # 아래입술 영역 표시
+                if lower_lip_points:
+                    lower_x_coords = [p[0] for p in lower_lip_points]
+                    lower_y_coords = [p[1] for p in lower_lip_points]
+                    x_min = int(min(lower_x_coords))
+                    x_max = int(max(lower_x_coords))
+                    y_min = max(int(min(lower_y_coords)), int(mouth_center_y))
+                    y_max = int(max(lower_y_coords))
+                    
+                    # 패딩 추가 (파라미터 적용)
+                    padding_x = int((x_max - x_min) * lower_padding_x)
+                    padding_y = int((y_max - y_min) * lower_padding_y)
+                    x1 = max(0, x_min - padding_x + int(lower_offset_x))
+                    y1 = max(0, y_min + int(lower_offset_y))
+                    x2 = min(img_width, x_max + padding_x + int(lower_offset_x))
+                    y2 = min(img_height, y_max + padding_y + int(lower_offset_y))
+                    
+                    # 캔버스 좌표로 변환
+                    rel_x1 = (x1 - img_width / 2) * scale_x
+                    rel_y1 = (y1 - img_height / 2) * scale_y
+                    rel_x2 = (x2 - img_width / 2) * scale_x
+                    rel_y2 = (y2 - img_height / 2) * scale_y
+                    
+                    canvas_x1 = pos_x + rel_x1
+                    canvas_y1 = pos_y + rel_y1
+                    canvas_x2 = pos_x + rel_x2
+                    canvas_y2 = pos_y + rel_y2
+                    
+                    # 사각형 그리기 (아래입술: 파란색)
+                    rect_id = canvas.create_rectangle(
+                        canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                        outline="blue", width=2, tags="lip_region"
+                    )
+                    rects_list.append(rect_id)
+            
+            # 편집된 이미지에 입술 영역 표시
+            if self.edited_image is not None:
+                try:
+                    edited_landmarks, edited_detected = face_landmarks.detect_face_landmarks(self.edited_image)
+                    if edited_detected:
+                        edited_key_landmarks = face_landmarks.get_key_landmarks(edited_landmarks)
+                        if edited_key_landmarks is not None and edited_key_landmarks['mouth'] is not None:
+                            edited_mouth_center = edited_key_landmarks['mouth']
+                            edited_mouth_center_y = edited_mouth_center[1]
+                            
+                            # 편집된 이미지의 윗입술과 아래입술 포인트 분리
+                            edited_upper_lip_points = []
+                            edited_lower_lip_points = []
+                            for i in ALL_LIP_INDICES:
+                                if i < len(edited_landmarks):
+                                    point = edited_landmarks[i]
+                                    if point[1] < edited_mouth_center_y:
+                                        edited_upper_lip_points.append(point)
+                                    elif point[1] > edited_mouth_center_y:
+                                        edited_lower_lip_points.append(point)
+                            
+                            for canvas, image, rects_list, pos_x, pos_y, display_size in [
+                                (self.canvas_edited, self.edited_image, self.lip_region_rects_edited,
+                                 self.canvas_edited_pos_x, self.canvas_edited_pos_y,
+                                 getattr(self.canvas_edited, 'display_size', None))
+                            ]:
+                                if image is None or pos_x is None or pos_y is None or display_size is None:
+                                    continue
+                                
+                                img_width, img_height = image.size
+                                display_width, display_height = display_size
+                                
+                                scale_x = display_width / img_width
+                                scale_y = display_height / img_height
+                                
+                                # 편집된 이미지의 윗입술 영역 표시
+                                if edited_upper_lip_points:
+                                    upper_x_coords = [p[0] for p in edited_upper_lip_points]
+                                    upper_y_coords = [p[1] for p in edited_upper_lip_points]
+                                    x_min = int(min(upper_x_coords))
+                                    x_max = int(max(upper_x_coords))
+                                    y_min = int(min(upper_y_coords))
+                                    y_max = min(int(max(upper_y_coords)), int(edited_mouth_center_y))
+                                    
+                                    padding_x = int((x_max - x_min) * upper_padding_x)
+                                    padding_y = int((y_max - y_min) * upper_padding_y)
+                                    x1 = max(0, x_min - padding_x + int(upper_offset_x))
+                                    y1 = max(0, y_min - padding_y + int(upper_offset_y))
+                                    x2 = min(img_width, x_max + padding_x + int(upper_offset_x))
+                                    y2 = min(img_height, y_max + int(upper_offset_y))
+                                    
+                                    rel_x1 = (x1 - img_width / 2) * scale_x
+                                    rel_y1 = (y1 - img_height / 2) * scale_y
+                                    rel_x2 = (x2 - img_width / 2) * scale_x
+                                    rel_y2 = (y2 - img_height / 2) * scale_y
+                                    
+                                    canvas_x1 = pos_x + rel_x1
+                                    canvas_y1 = pos_y + rel_y1
+                                    canvas_x2 = pos_x + rel_x2
+                                    canvas_y2 = pos_y + rel_y2
+                                    
+                                    rect_id = canvas.create_rectangle(
+                                        canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                                        outline="red", width=2, tags="lip_region"
+                                    )
+                                    rects_list.append(rect_id)
+                                
+                                # 편집된 이미지의 아래입술 영역 표시
+                                if edited_lower_lip_points:
+                                    lower_x_coords = [p[0] for p in edited_lower_lip_points]
+                                    lower_y_coords = [p[1] for p in edited_lower_lip_points]
+                                    x_min = int(min(lower_x_coords))
+                                    x_max = int(max(lower_x_coords))
+                                    y_min = max(int(min(lower_y_coords)), int(edited_mouth_center_y))
+                                    y_max = int(max(lower_y_coords))
+                                    
+                                    padding_x = int((x_max - x_min) * lower_padding_x)
+                                    padding_y = int((y_max - y_min) * lower_padding_y)
+                                    x1 = max(0, x_min - padding_x + int(lower_offset_x))
+                                    y1 = max(0, y_min + int(lower_offset_y))
+                                    x2 = min(img_width, x_max + padding_x + int(lower_offset_x))
+                                    y2 = min(img_height, y_max + padding_y + int(lower_offset_y))
+                                    
+                                    rel_x1 = (x1 - img_width / 2) * scale_x
+                                    rel_y1 = (y1 - img_height / 2) * scale_y
+                                    rel_x2 = (x2 - img_width / 2) * scale_x
+                                    rel_y2 = (y2 - img_height / 2) * scale_y
+                                    
+                                    canvas_x1 = pos_x + rel_x1
+                                    canvas_y1 = pos_y + rel_y1
+                                    canvas_x2 = pos_x + rel_x2
+                                    canvas_y2 = pos_y + rel_y2
+                                    
+                                    rect_id = canvas.create_rectangle(
+                                        canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                                        outline="blue", width=2, tags="lip_region"
+                                    )
+                                    rects_list.append(rect_id)
+                except Exception as e:
+                    print(f"[얼굴편집] 편집된 이미지 입술 영역 표시 실패: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        except Exception as e:
+            print(f"[얼굴편집] 입술 영역 표시 실패: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def clear_landmarks_display(self):
+        """랜드마크 표시 제거"""
+        # 변형된 랜드마크 아이템도 제거
+        if hasattr(self, 'landmarks_items_transformed'):
+            for item_id in self.landmarks_items_transformed:
+                try:
+                    if hasattr(self, 'canvas_original'):
+                        self.canvas_original.delete(item_id)
+                except:
+                    pass
+            self.landmarks_items_transformed.clear()
+        # 원본 이미지의 랜드마크 제거 (포인트 + 폴리곤)
+        for item_id in self.landmarks_items_original:
+            try:
+                self.canvas_original.delete(item_id)
+            except Exception as e:
+                print(f"[얼굴편집] 랜드마크 제거 실패: {e}")
+        self.landmarks_items_original.clear()
+        # landmark_point_map은 더 이상 사용하지 않음 (polygon_point_map으로 대체됨)
+        
+        # 폴리곤 태그로 제거
+        try:
+            self.canvas_original.delete("landmarks_polygon")
+            self.canvas_original.delete("landmarks_polygon_fill")
+        except Exception:
+            pass
+        
+        # 폴리곤 아이템 제거
+        for item_id in self.landmark_polygon_items_original:
+            try:
+                self.canvas_original.delete(item_id)
+            except Exception:
+                pass
+        self.landmark_polygon_items_original.clear()
+        # 폴리곤 포인트 맵도 초기화
+        self.polygon_point_map_original.clear()
+
+        # 편집된 이미지의 랜드마크 제거 (포인트 + 폴리곤)
+        for item_id in self.landmarks_items_edited:
+            try:
+                self.canvas_edited.delete(item_id)
+            except Exception as e:
+                print(f"[얼굴편집] 랜드마크 제거 실패: {e}")
+        self.landmarks_items_edited.clear()
+        # landmark_point_map은 더 이상 사용하지 않음 (polygon_point_map으로 대체됨)
+        
+        # 폴리곤 태그로 제거
+        try:
+            self.canvas_edited.delete("landmarks_polygon")
+            self.canvas_edited.delete("landmarks_polygon_fill")
+        except Exception:
+            pass
+        
+        # 폴리곤 아이템 제거
+        for item_id in self.landmark_polygon_items_edited:
+            try:
+                self.canvas_edited.delete(item_id)
+            except Exception:
+                pass
+        self.landmark_polygon_items_edited.clear()
+        # 폴리곤 포인트 맵도 초기화
+        self.polygon_point_map_edited.clear()
+    
+    def update_face_features_display(self):
+        """얼굴 특징 표시 업데이트 (랜드마크 포인트, 연결선, 폴리곤)"""
+        # 랜드마크, 연결선, 폴리곤 중 하나라도 체크되어 있으면 랜드마크 감지 필요
+        show_landmarks = self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False
+        show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
+        show_polygons = self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False
+        
+        if (not show_landmarks and not show_lines and not show_polygons) or self.current_image is None:
+            # 둘 다 체크 해제되어 있으면 랜드마크 제거
+            if not show_landmarks:
+                self.clear_landmarks_display()
+            if not show_lines and not show_polygons:
+                # 연결선 및 폴리곤 제거
+                # 원본 이미지의 연결선/폴리곤 제거
+                for item_id in self.landmark_polygon_items_original:
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                # 폴리곤 포인트 맵도 초기화
+                self.polygon_point_map_original.clear()
+                # 편집된 이미지의 연결선/폴리곤 제거
+                for item_id in self.landmark_polygon_items_edited:
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 폴리곤 포인트 맵도 초기화
+                self.polygon_point_map_edited.clear()
+                # 연결선 태그로도 제거 시도
+                for item_id in self.canvas_original.find_withtag("landmarks_polygon"):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                for item_id in self.canvas_edited.find_withtag("landmarks_polygon"):
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+            return
+
+        try:
+            # 탭 변경 시 기존 폴리곤과 연결선을 먼저 제거 (항상 제거 후 다시 그리기)
+            # 원본 이미지의 연결선/폴리곤 제거
+            for item_id in self.landmark_polygon_items_original:
+                try:
+                    self.canvas_original.delete(item_id)
+                except Exception:
+                    pass
+            self.landmark_polygon_items_original.clear()
+            # 폴리곤 포인트 맵도 초기화
+            self.polygon_point_map_original.clear()
+            # 편집된 이미지의 연결선/폴리곤 제거
+            for item_id in self.landmark_polygon_items_edited:
+                try:
+                    self.canvas_edited.delete(item_id)
+                except Exception:
+                    pass
+            self.landmark_polygon_items_edited.clear()
+            # 폴리곤 포인트 맵도 초기화
+            self.polygon_point_map_edited.clear()
+            # 연결선 태그로도 제거 시도
+            for item_id in self.canvas_original.find_withtag("landmarks_polygon"):
+                try:
+                    self.canvas_original.delete(item_id)
+                except Exception:
+                    pass
+            for item_id in self.canvas_edited.find_withtag("landmarks_polygon"):
+                try:
+                    self.canvas_edited.delete(item_id)
+                except Exception:
+                    pass
+            
+            # 기존 연결선과 폴리곤 제거 (체크박스가 해제된 경우)
+            if not show_lines and not show_polygons:
+                # 원본 이미지의 연결선/폴리곤 제거
+                for item_id in self.landmark_polygon_items_original:
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_original.clear()
+                # 폴리곤 포인트 맵도 초기화
+                self.polygon_point_map_original.clear()
+                # 편집된 이미지의 연결선/폴리곤 제거
+                for item_id in self.landmark_polygon_items_edited:
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmark_polygon_items_edited.clear()
+                # 폴리곤 포인트 맵도 초기화
+                self.polygon_point_map_edited.clear()
+            
+            # 기존 랜드마크 포인트만 제거 (랜드마크 체크박스가 해제된 경우에만)
+            # 연결선과 폴리곤은 clear_landmarks_display에서 제거하지 않음 (독립적으로 관리)
+            if not show_landmarks:
+                # 랜드마크 포인트만 제거 (연결선/폴리곤은 유지)
+                for item_id in self.landmarks_items_original:
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmarks_items_original.clear()
+                self.polygon_point_map_original.clear()
+                
+                for item_id in self.landmarks_items_edited:
+                    try:
+                        self.canvas_edited.delete(item_id)
+                    except Exception:
+                        pass
+                self.landmarks_items_edited.clear()
+                self.polygon_point_map_edited.clear()
+                
+                # 변형된 랜드마크도 제거
+                if hasattr(self, 'landmarks_items_transformed'):
+                    for item_id in self.landmarks_items_transformed:
+                        try:
+                            self.canvas_original.delete(item_id)
+                        except Exception:
+                            pass
+                    self.landmarks_items_transformed.clear()
+
+            # 랜드마크 감지 (원본 이미지) - 연결선만 표시해도 랜드마크 좌표 필요
+            # 커스텀 랜드마크가 있으면 사용, 없으면 새로 감지
+            if self.custom_landmarks is not None:
+                landmarks = self.custom_landmarks
+                detected = True
+                # 디버깅: custom_landmarks 사용 확인
+                if show_polygons:
+                    print(f"[얼굴편집] 폴리곤 그리기: custom_landmarks 사용 (랜드마크 {len(landmarks)}개)")
+            elif self.face_landmarks is not None:
+                landmarks = self.face_landmarks
+                detected = True
+                if show_polygons:
+                    print(f"[얼굴편집] 폴리곤 그리기: face_landmarks 사용 (custom_landmarks 없음)")
+            else:
+                landmarks, detected = face_landmarks.detect_face_landmarks(self.current_image)
+                if detected and landmarks is not None:
+                    self.face_landmarks = landmarks
+
+            if not detected or landmarks is None:
+                if show_lines or show_polygons:
+                    print(f"[얼굴편집] 경고: 연결선/폴리곤 표시를 위해 랜드마크가 필요하지만 감지되지 않음")
+                return
+
+            # 현재 탭 가져오기
+            current_tab = getattr(self, 'current_morphing_tab', '눈')
+            
+            # 원본 이미지에 랜드마크/연결선/폴리곤 표시
+            # 저장된 위치 변수 사용 (성능 최적화: canvas.coords() 호출 제거)
+            show_indices = self.show_landmark_indices.get() if hasattr(self, 'show_landmark_indices') else False
+            self._draw_landmarks_on_canvas(
+                self.canvas_original, 
+                self.current_image, 
+                landmarks,
+                self.canvas_original_pos_x,
+                self.canvas_original_pos_y,
+                self.landmarks_items_original,
+                "green",  # 원본 이미지는 초록색
+                draw_points=show_landmarks,
+                draw_lines=show_lines,  # 연결선 표시는 체크박스로 제어
+                draw_polygons=show_polygons,  # 폴리곤 표시는 체크박스로 제어
+                polygon_items_list=self.landmark_polygon_items_original,  # 연결선과 폴리곤 아이템을 별도로 관리
+                show_indices=show_indices  # 인덱스 번호 표시
+            )
+            
+            # 원본 이미지에 변형된 랜드마크도 함께 표시 (랜드마크 기반 변형 모드일 때만)
+            if (hasattr(self, 'use_landmark_warping') and 
+                self.use_landmark_warping.get() and 
+                hasattr(self, 'transformed_landmarks') and 
+                self.transformed_landmarks is not None):
+                # 기존 변형된 랜드마크 아이템 제거
+                if hasattr(self, 'landmarks_items_transformed'):
+                    for item_id in self.landmarks_items_transformed:
+                        try:
+                            self.canvas_original.delete(item_id)
+                        except:
+                            pass
+                    self.landmarks_items_transformed.clear()
+                
+                # 변형된 랜드마크를 빨간색으로 표시 (연결선 포함, 폴리곤은 제외)
+                # 변형된 랜드마크의 연결선과 폴리곤도 landmark_polygon_items_original에 추가
+                self._draw_landmarks_on_canvas(
+                    self.canvas_original,
+                    self.current_image,
+                    self.transformed_landmarks,
+                    self.canvas_original_pos_x,
+                    self.canvas_original_pos_y,
+                    self.landmarks_items_transformed if hasattr(self, 'landmarks_items_transformed') else [],
+                    "red",  # 변형된 랜드마크는 빨간색
+                    draw_points=show_landmarks,
+                    draw_lines=show_lines,  # 연결선 표시는 체크박스로 제어
+                    draw_polygons=False,  # 변형된 랜드마크에는 폴리곤 표시하지 않음
+                    polygon_items_list=self.landmark_polygon_items_original,  # 연결선과 폴리곤 아이템을 별도로 관리
+                    show_indices=show_indices  # 인덱스 번호 표시
+                )
+
+            # 편집된 이미지에 랜드마크 표시 제거 (불필요한 감지 및 렌더링 제거)
+            # 편집된 이미지는 변형된 결과만 보여주면 되므로 랜드마크 표시 불필요
+        
+        except Exception as e:
+            print(f"[얼굴편집] 랜드마크 표시 실패: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    
