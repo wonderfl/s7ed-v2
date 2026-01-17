@@ -89,8 +89,8 @@ def save_config():
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-            except:
-                pass  # 기존 파일이 손상된 경우 무시
+            except Exception as e:
+                _get_logger().warning(f"설정 파일 로드 실패 (손상된 파일 무시): {e}")
         
         # 기본 설정값 저장
         if hasattr(gl, '_loading_file'):

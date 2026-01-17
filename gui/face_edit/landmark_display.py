@@ -43,7 +43,7 @@ class LandmarkDisplayMixin:
             # 눈썹 인덱스
             LEFT_EYEBROW_INDICES = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
             RIGHT_EYEBROW_INDICES = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276]
-            # 눈 주변 영역 인덱스 (눈꺼풀, 눈 주변 피부) - transform_landmarks_for_eye_size와 동일하게
+            # 눈 주변 영역 인덱스 (눈꺼풀, 눈 주변 피부) - transform_points_for_eye_size와 동일하게
             # 중복 제거를 위해 set 사용
             LEFT_EYE_SURROUNDING_INDICES = list(set(LEFT_EYE_INDICES + LEFT_EYEBROW_INDICES + [
                 10, 151, 9, 337, 299, 333, 298, 301, 368, 264, 447, 366, 401, 435, 410, 454, 323, 361,

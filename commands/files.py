@@ -25,7 +25,6 @@ from gui.gui import GeneralEditorApp, _app, _root
 import gui._popup as _popup
 
 # 1. 폴더 경로 설정
-#_saves = "./saves"
 _saves = "E:/05.game/Sam7pk"
 _start = "D_Save"
 
@@ -208,10 +207,6 @@ def open_file(fname):
             
             print(f"[파일체크] 저장 파일: {fname}, 얼굴 파일: {kaodata_dir}")
 
-            # kaodata_path = os.path.join(kaodata_dir, "Kaodata.s7")
-            # if os.path.exists(kaodata_path):
-            #     import utils.kaodata_image as kaodata_image
-            #     import utils.config as config
             #     kaodata_image.set_face_file_path(kaodata_path)
             #     config.save_config()  # 설정 파일에 저장
             #     print(f"[파일체크] 얼굴 파일 경로 자동 설정: {kaodata_path}")

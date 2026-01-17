@@ -13,8 +13,9 @@ try:
     # absl.logging 핸들러 비활성화
     import logging
     logging.getLogger('absl').setLevel(logging.ERROR)
-except ImportError:
-    pass
+except ImportError as e:
+    # absl.logging이 없어도 동작해야 하므로 DEBUG 레벨로 로그 출력 (선택적)
+    pass  # ImportError는 정상적인 경우이므로 로그 출력 생략
 
 # warnings 억제
 import warnings
@@ -46,7 +47,7 @@ def whoiam():
     if not hero:
         print("영웅을 찾을 수 없습니다.")
         return
-    home = [city for city in cities if city.num == hero.city]
+    home = [city for city in globals.cities if city.num == hero.city]
     if not home:
         print("영웅의 도시를 찾을 수 없습니다.")
         return
@@ -82,9 +83,7 @@ main_commands = {
 
 
 args = sys.argv[1:]
-if len(args) > 1:
-    if args[0] == "--load" or args[0] == "-l":    
-       _load = args[1]
+# 주석: --load 옵션은 현재 사용하지 않음 (향후 사용 가능)
 
 menu = 0
 filtered = [(key, value[0]) for key, value in main_commands.items() if value[2] != 0]
@@ -92,45 +91,4 @@ filtered = [(key, value[0]) for key, value in main_commands.items() if value[2] 
 
 #commands.files.load_file(False)
 popup()
-exit()
-
-cmds = ": "+", ".join( f"{key}.{name}" for key, name in filtered)
-while True:
-    text = input("\n{0}\n\n? ".format(cmds))
-    params = [p for p in re.split(r'[ .,]', text) if p]
-    if( 0 >= len(params)):
-        print(" . 명령어를 입력하세요..")
-        continue
-
-    #print("명령어:", params, len(params))
-    command = main_commands.get(params[0])
-    if not command:
-        print(f" . '{params[0]}' 명령어를 찾을 수 없습니다.")
-        continue
-    if not command.action:
-        print(f" . '{params[0]}' 명령어는 실행할 수 없습니다.")
-        continue
-
-    gn = len(globals.generals)
-    cn = len(globals.cities)
-    if gn == 0 or cn == 0:
-        print("장수나 도시 데이터가 없습니다. 먼저 'load' 명령어로 데이터를 불러오세요.")
-        continue
-
-    args = params[1:]    
-    command.action(*args)
-
-    continue   
-    
-
-#for i, general in enumerate(generals):
-#    print(f"{i:03}: {general}")
-
-#generals_dict = {general.name: general for general in generals}
-#ln = len(generals_dict)
-#print(ln)
-
-# print(generals_dict.keys())
-# name = "강유"
-# if name in generals_dict:
-#     print(generals_dict[name])    
+exit()    

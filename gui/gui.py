@@ -22,8 +22,6 @@ import globals as gl
 import utils.kaodata_image as kaodata_image
 import utils.config as config
 
-_value = ""
-
 class GeneralEditorApp:
     def __init__(self, root):
         self.root = root

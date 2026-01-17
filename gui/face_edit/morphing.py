@@ -521,7 +521,7 @@ class MorphingManagerMixin:
             
             if base_landmarks is not None:
                 # 변형된 랜드마크 계산 (항상 원본을 기준으로)
-                transformed = face_morphing.transform_landmarks_for_eye_size(
+                transformed = face_morphing.transform_points_for_eye_size(
                     base_landmarks,
                     eye_size_ratio=1.0,
                     left_eye_size_ratio=left_eye_size,
@@ -529,7 +529,7 @@ class MorphingManagerMixin:
                 )
                 
                 # 눈 위치 변형
-                transformed = face_morphing.transform_landmarks_for_eye_position(
+                transformed = face_morphing.transform_points_for_eye_position(
                     transformed,
                     left_eye_position_x=self.left_eye_position_x.get(),
                     right_eye_position_x=self.right_eye_position_x.get(),
@@ -538,18 +538,18 @@ class MorphingManagerMixin:
                 )
                 
                 # 코 크기 변형
-                transformed = face_morphing.transform_landmarks_for_nose_size(
+                transformed = face_morphing.transform_points_for_nose_size(
                     transformed,
                     nose_size_ratio=self.nose_size.get()
                 )
                 
                 # 입술 변형
-                transformed = face_morphing.transform_landmarks_for_lip_shape(
+                transformed = face_morphing.transform_points_for_lip_shape(
                     transformed,
                     upper_lip_shape=self.upper_lip_shape.get(),
                     lower_lip_shape=self.lower_lip_shape.get()
                 )
-                transformed = face_morphing.transform_landmarks_for_lip_width(
+                transformed = face_morphing.transform_points_for_lip_width(
                     transformed,
                     upper_lip_width=self.upper_lip_width.get(),
                     lower_lip_width=self.lower_lip_width.get()
@@ -894,7 +894,7 @@ class MorphingManagerMixin:
                     left_ratio = left_eye_size if left_eye_size is not None else 1.0
                     right_ratio = right_eye_size if right_eye_size is not None else 1.0
                     if abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01:
-                        transformed_landmarks = face_morphing.transform_landmarks_for_eye_size(
+                        transformed_landmarks = face_morphing.transform_points_for_eye_size(
                             transformed_landmarks,
                             eye_size_ratio=1.0,
                             left_eye_size_ratio=left_eye_size,

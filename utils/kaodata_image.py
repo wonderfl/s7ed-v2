@@ -32,8 +32,9 @@ try:
         absl.logging.set_verbosity(absl.logging.ERROR)
         import logging
         logging.getLogger('absl').setLevel(logging.ERROR)
-    except:
-        pass
+    except Exception as e:
+        # absl.logging이 없어도 동작해야 하므로 WARNING 레벨로 로그 출력
+        print(f"[얼굴이미지] absl.logging 설정 실패 (선택적): {e}")
     
     # warnings 필터 설정
     import warnings

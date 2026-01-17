@@ -634,7 +634,7 @@ class FaceEditPanelV2(FaceEditPanel):
                 # 랜드마크 기반 변형 모드: 변형된 랜드마크 계산
                 if base_landmarks is not None:
                     # 변형된 랜드마크 계산 (항상 원본을 기준으로)
-                    transformed = face_morphing.transform_landmarks_for_eye_size(
+                    transformed = face_morphing.transform_points_for_eye_size(
                         base_landmarks,
                         eye_size_ratio=1.0,
                         left_eye_size_ratio=left_eye_size,
@@ -642,7 +642,7 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # 눈 위치 변형
-                    transformed = face_morphing.transform_landmarks_for_eye_position(
+                    transformed = face_morphing.transform_points_for_eye_position(
                         transformed,
                         left_eye_position_x=self.left_eye_position_x.get(),
                         right_eye_position_x=self.right_eye_position_x.get(),
@@ -651,18 +651,18 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # 코 크기 변형
-                    transformed = face_morphing.transform_landmarks_for_nose_size(
+                    transformed = face_morphing.transform_points_for_nose_size(
                         transformed,
                         nose_size_ratio=self.nose_size.get()
                     )
                     
                     # 입술 변형
-                    transformed = face_morphing.transform_landmarks_for_lip_shape(
+                    transformed = face_morphing.transform_points_for_lip_shape(
                         transformed,
                         upper_lip_shape=self.upper_lip_shape.get(),
                         lower_lip_shape=self.lower_lip_shape.get()
                     )
-                    transformed = face_morphing.transform_landmarks_for_lip_width(
+                    transformed = face_morphing.transform_points_for_lip_width(
                         transformed,
                         upper_lip_width=self.upper_lip_width.get(),
                         lower_lip_width=self.lower_lip_width.get()
@@ -679,7 +679,7 @@ class FaceEditPanelV2(FaceEditPanel):
                 # use_landmark_warping이 꺼져 있어도 슬라이더 값에 따라 랜드마크 변형
                 if base_landmarks is not None:
                     # 변형된 랜드마크 계산 (항상 원본을 기준으로)
-                    transformed = face_morphing.transform_landmarks_for_eye_size(
+                    transformed = face_morphing.transform_points_for_eye_size(
                         base_landmarks,
                         eye_size_ratio=1.0,
                         left_eye_size_ratio=left_eye_size,
@@ -687,7 +687,7 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # 눈 위치 변형
-                    transformed = face_morphing.transform_landmarks_for_eye_position(
+                    transformed = face_morphing.transform_points_for_eye_position(
                         transformed,
                         left_eye_position_x=self.left_eye_position_x.get(),
                         right_eye_position_x=self.right_eye_position_x.get(),
@@ -696,18 +696,18 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # 코 크기 변형
-                    transformed = face_morphing.transform_landmarks_for_nose_size(
+                    transformed = face_morphing.transform_points_for_nose_size(
                         transformed,
                         nose_size_ratio=self.nose_size.get()
                     )
                     
                     # 입술 변형
-                    transformed = face_morphing.transform_landmarks_for_lip_shape(
+                    transformed = face_morphing.transform_points_for_lip_shape(
                         transformed,
                         upper_lip_shape=self.upper_lip_shape.get(),
                         lower_lip_shape=self.lower_lip_shape.get()
                     )
-                    transformed = face_morphing.transform_landmarks_for_lip_width(
+                    transformed = face_morphing.transform_points_for_lip_width(
                         transformed,
                         upper_lip_width=self.upper_lip_width.get(),
                         lower_lip_width=self.lower_lip_width.get()

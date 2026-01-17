@@ -119,10 +119,10 @@ def test_morph_face_by_landmarks(image_path):
         return False
 
 
-def test_move_landmark_points(image_path):
-    """move_landmark_points() 함수 테스트"""
+def test_move_points(image_path):
+    """move_points() 함수 테스트"""
     print("\n" + "=" * 60)
-    print("테스트 2: move_landmark_points() 함수")
+    print("테스트 2: move_points() 함수")
     print("=" * 60)
     
     if not os.path.exists(image_path):
@@ -183,7 +183,7 @@ def test_move_landmark_points(image_path):
         print(f"이동 오프셋: {move_offset}")
         
         # 랜드마크 포인트 이동
-        transformed_landmarks = face_morphing.move_landmark_points(
+        transformed_landmarks = face_morphing.move_points(
             landmarks, point_indices, offsets, influence_radius=30.0
         )
         
@@ -291,8 +291,8 @@ def main():
     # 테스트 1: morph_face_by_polygons()
     results.append(("morph_face_by_polygons", test_morph_face_by_landmarks(image_path)))
     
-    # 테스트 2: move_landmark_points()
-    results.append(("move_landmark_points", test_move_landmark_points(image_path)))
+    # 테스트 2: move_points()
+    results.append(("move_points", test_move_points(image_path)))
     
     # 테스트 3: apply_all_adjustments() 옵션
     results.append(("apply_all_adjustments 옵션", test_apply_all_adjustments_with_warping(image_path)))
