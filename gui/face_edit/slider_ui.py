@@ -25,18 +25,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                # 개별 조정 모드가 아니면 동기화
-                if not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_size.set(default_value)
-                    else:
-                        self.left_eye_size.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -55,6 +43,23 @@ class SliderUIMixin:
                     self.update_labels_only()
                     # update_labels_only가 없으면 라벨만 업데이트
                     value_label.config(text=f"{int(float(value) * 100)}%")
+            
+            def reset_slider(event):
+                variable.set(default_value)
+                # 개별 조정 모드가 아니면 동기화
+                if not self.use_individual_eye_region.get():
+                    if is_left:
+                        self.right_eye_size.set(default_value)
+                    else:
+                        self.left_eye_size.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    value_label.config(text=f"{int(default_value * 100)}%")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
@@ -86,24 +91,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                # 눈 간격 조정이 활성화되어 있으면 반대쪽 눈도 반대로 동기화
-                if self.eye_spacing.get():
-                    if is_left:
-                        self.right_eye_position_x.set(-default_value)
-                    else:
-                        self.left_eye_position_x.set(-default_value)
-                # 개별 조정 모드가 아니면 동기화
-                elif not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_position_x.set(default_value)
-                    else:
-                        self.left_eye_position_x.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -131,6 +118,29 @@ class SliderUIMixin:
                 else:
                     # update_labels_only가 없으면 라벨만 업데이트
                     value_label.config(text=f"{int(float(value))}")
+            
+            def reset_slider(event):
+                variable.set(default_value)
+                # 눈 간격 조정이 활성화되어 있으면 반대쪽 눈도 반대로 동기화
+                if self.eye_spacing.get():
+                    if is_left:
+                        self.right_eye_position_x.set(-default_value)
+                    else:
+                        self.left_eye_position_x.set(-default_value)
+                # 개별 조정 모드가 아니면 동기화
+                elif not self.use_individual_eye_region.get():
+                    if is_left:
+                        self.right_eye_position_x.set(default_value)
+                    else:
+                        self.left_eye_position_x.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    value_label.config(text=f"{int(default_value)}")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_position_x_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
@@ -162,18 +172,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                # 개별 조정 모드가 아니면 동기화
-                if not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_position_y.set(default_value)
-                    else:
-                        self.left_eye_position_y.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -193,6 +191,23 @@ class SliderUIMixin:
                 else:
                     # update_labels_only가 없으면 라벨만 업데이트
                     value_label.config(text=f"{int(float(value))}")
+            
+            def reset_slider(event):
+                variable.set(default_value)
+                # 개별 조정 모드가 아니면 동기화
+                if not self.use_individual_eye_region.get():
+                    if is_left:
+                        self.right_eye_position_y.set(default_value)
+                    else:
+                        self.left_eye_position_y.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    value_label.config(text=f"{int(default_value)}")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_position_y_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
@@ -633,12 +648,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 4))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -658,6 +667,20 @@ class SliderUIMixin:
             def on_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
+            
+            def reset_slider(event):
+                variable.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    if default_label.endswith("%"):
+                        value_label.config(text=f"{int(default_value * 100)}%")
+                    else:
+                        value_label.config(text=f"{int(default_value)}")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
             
             scale = tk.Scale(
                 frame,
@@ -701,31 +724,30 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 4))
             
+            # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
+            value_label = tk.Label(frame, text=default_label, width=width)
+            
+            def on_slider_change(value):
+                # 라벨 업데이트
+                val = float(value)
+                if default_label.endswith("%"):
+                    value_label.config(text=f"{int(val * 100)}%")
+                else:
+                    value_label.config(text=f"{int(val)}")
+                
+                # 슬라이더 값 변경 시 즉시 적용
+                self.on_morphing_change()
+            
             def reset_slider(event):
                 variable.set(default_value)
+                # value_label도 직접 업데이트
+                if default_label.endswith("%"):
+                    value_label.config(text=f"{int(default_value * 100)}%")
+                else:
+                    value_label.config(text=f"{int(default_value)}")
                 self.on_morphing_change()
             
             title_label.bind("<Button-1>", reset_slider)
-            
-            # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
-            value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
-            
-            def on_slider_change(value):
-                # 라벨 및 폴리곤 업데이트 (드래그 중 - 이미지 편집 적용 안 함)
-                if hasattr(self, 'update_labels_only'):
-                    self.update_labels_only()
-                else:
-                    # update_labels_only가 없으면 라벨만 업데이트
-                    val = float(value)
-                    if default_label.endswith("%"):
-                        value_label.config(text=f"{int(val * 100)}%")
-                    else:
-                        value_label.config(text=f"{int(val)}")
-            
-            def on_slider_release(event):
-                # 드래그 종료 시 실제 편집 적용
-                self.on_morphing_change()
             
             scale = tk.Scale(
                 frame,
@@ -738,16 +760,151 @@ class SliderUIMixin:
                 length=scaled_length,
                 showvalue=False
             )
-            scale.pack(side=tk.LEFT, padx=(0, 0))
-            scale.bind("<ButtonRelease-1>", on_slider_release)
+            scale.pack(side=tk.LEFT, padx=(0, 5))
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         
-        # 얼굴 너비
-        self.face_width_label = create_slider(tab_frame, "얼굴 너비:", self.face_width, 0.5, 2.0, 0.01, "100%", default_value=1.0)
+        # 부위 선택 섹션 추가
+        region_frame = tk.LabelFrame(tab_frame, text="Region Selection", padx=5, pady=5)
+        region_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
         
-        # 얼굴 높이
-        self.face_height_label = create_slider(tab_frame, "얼굴 높이:", self.face_height, 0.5, 2.0, 0.01, "100%", default_value=1.0)
+        # MediaPipe 사용 가능 여부 확인
+        try:
+            import utils.face_landmarks as face_landmarks
+            mediapipe_available = face_landmarks.is_available()
+        except Exception as e:
+            print(f"[얼굴편집] MediaPipe 확인 실패: {e}")
+            mediapipe_available = False
+        
+        # 체크박스 그리드 배치 (2열로 변경)
+        checkbox_frame = tk.Frame(region_frame)
+        checkbox_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Tesselation 상호 배타적 처리 함수
+        def handle_tesselation_exclusive():
+            """Tesselation과 개별 부위 상호 배타적 선택 처리"""
+            if self.show_tesselation.get():
+                # Tesselation 선택 시 다른 부위 체크박스 비활성화
+                for check in [self.face_oval_check, self.left_eye_check, self.right_eye_check,
+                             self.left_eyebrow_check, self.right_eyebrow_check, self.nose_check,
+                             self.lips_check, self.left_iris_check,
+                             self.right_iris_check, self.contours_check]:
+                    if check:
+                        check.config(state=tk.DISABLED)
+            else:
+                # Tesselation 해제 시 다른 부위 체크박스 활성화
+                if mediapipe_available:
+                    for check in [self.face_oval_check, self.left_eye_check, self.right_eye_check,
+                                 self.left_eyebrow_check, self.right_eyebrow_check, self.nose_check,
+                                 self.lips_check, self.left_iris_check,
+                                 self.right_iris_check, self.contours_check]:
+                        if check:
+                            check.config(state=tk.NORMAL)
+        
+        def handle_individual_region_exclusive():
+            """개별 부위 선택 시 Tesselation 체크박스 비활성화"""
+            has_individual_selected = (self.show_face_oval.get() or self.show_left_eye.get() or
+                                      self.show_right_eye.get() or self.show_left_eyebrow.get() or
+                                      self.show_right_eyebrow.get() or self.show_nose.get() or
+                                      self.show_lips.get() or
+                                      self.show_left_iris.get() or self.show_right_iris.get() or
+                                      self.show_contours.get())
+            
+            if has_individual_selected:
+                if self.tesselation_check:
+                    self.tesselation_check.config(state=tk.DISABLED)
+                    # Tesselation이 선택되어 있으면 해제
+                    if self.show_tesselation.get():
+                        self.show_tesselation.set(False)
+            else:
+                if self.tesselation_check and mediapipe_available:
+                    self.tesselation_check.config(state=tk.NORMAL)
+        
+        # 부위 선택 체크박스 생성 함수
+        def create_region_checkbox(parent, text, variable, row, col, exclusive_handler=None):
+            def on_check_change():
+                if exclusive_handler:
+                    exclusive_handler()
+                self.on_region_selection_change()
+            
+            check = tk.Checkbutton(
+                parent,
+                text=text,
+                variable=variable,
+                command=on_check_change
+            )
+            check.grid(row=row, column=col, sticky=tk.W, padx=5, pady=2)
+            if not mediapipe_available:
+                check.config(state=tk.DISABLED)
+            return check
+        
+        # 체크박스 배치 (3열)
+        self.face_oval_check = create_region_checkbox(checkbox_frame, "Face Oval", self.show_face_oval, 0, 0, handle_individual_region_exclusive)
+        self.left_eye_check = create_region_checkbox(checkbox_frame, "Left Eye", self.show_left_eye, 0, 1, handle_individual_region_exclusive)
+        self.right_eye_check = create_region_checkbox(checkbox_frame, "Right Eye", self.show_right_eye, 0, 2, handle_individual_region_exclusive)
+        
+        self.left_eyebrow_check = create_region_checkbox(checkbox_frame, "Left Eyebrow", self.show_left_eyebrow, 1, 0, handle_individual_region_exclusive)
+        self.right_eyebrow_check = create_region_checkbox(checkbox_frame, "Right Eyebrow", self.show_right_eyebrow, 1, 1, handle_individual_region_exclusive)
+        self.nose_check = create_region_checkbox(checkbox_frame, "Nose", self.show_nose, 1, 2, handle_individual_region_exclusive)
+        
+        self.lips_check = create_region_checkbox(checkbox_frame, "Lips", self.show_lips, 2, 0, handle_individual_region_exclusive)
+        self.left_iris_check = create_region_checkbox(checkbox_frame, "Left Iris", self.show_left_iris, 2, 1, handle_individual_region_exclusive)
+        self.right_iris_check = create_region_checkbox(checkbox_frame, "Right Iris", self.show_right_iris, 2, 2, handle_individual_region_exclusive)
+        
+        self.contours_check = create_region_checkbox(checkbox_frame, "Contours", self.show_contours, 3, 0, handle_individual_region_exclusive)
+        self.tesselation_check = create_region_checkbox(checkbox_frame, "Tesselation", self.show_tesselation, 3, 1, handle_tesselation_exclusive)
+        
+        # MediaPipe가 없을 때 안내 메시지
+        if not mediapipe_available:
+            info_label = tk.Label(
+                region_frame,
+                text="(MediaPipe가 설치되지 않아 부위 선택을 사용할 수 없습니다)",
+                fg="orange",
+                font=("", 8)
+            )
+            info_label.pack(pady=(5, 0))
+        
+        # 공통 슬라이더 섹션 추가
+        adjustment_frame = tk.LabelFrame(tab_frame, text="Region Adjustment", padx=5, pady=5)
+        adjustment_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
+        
+        # 공통 슬라이더 6개 생성 (Size X, Size Y 분리)
+        self.region_center_offset_x_label = create_slider(adjustment_frame, "Center Offset X:", self.region_center_offset_x, -50, 50, 1, "0", default_value=0.0)
+        self.region_center_offset_y_label = create_slider(adjustment_frame, "Center Offset Y:", self.region_center_offset_y, -50, 50, 1, "0", default_value=0.0)
+        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 2.0, 0.01, "100%", default_value=1.0)
+        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 2.0, 0.01, "100%", default_value=1.0)
+        self.region_position_x_label = create_slider(adjustment_frame, "Position X:", self.region_position_x, -50, 50, 1, "0", default_value=0.0)
+        self.region_position_y_label = create_slider(adjustment_frame, "Position Y:", self.region_position_y, -50, 50, 1, "0", default_value=0.0)
+        
+        # 슬라이더 위젯 참조 저장 (상태 업데이트용)
+        self.region_sliders = []
+        for widget in adjustment_frame.winfo_children():
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Scale):
+                    self.region_sliders.append(child)
+        
+        # 초기 상태: 아무 부위도 선택되지 않으면 슬라이더 비활성화
+        def update_slider_state():
+            """선택된 부위에 따라 슬라이더 활성/비활성화"""
+            has_selection = (self.show_face_oval.get() or self.show_left_eye.get() or
+                           self.show_right_eye.get() or self.show_left_eyebrow.get() or
+                           self.show_right_eyebrow.get() or self.show_nose.get() or
+                           self.show_lips.get() or self.show_upper_lips.get() or self.show_lower_lips.get() or
+                           self.show_left_iris.get() or self.show_right_iris.get() or
+                           self.show_contours.get() or self.show_tesselation.get())
+            
+            state = tk.NORMAL if has_selection else tk.DISABLED
+            for slider in self.region_sliders:
+                slider.config(state=state)
+        
+        # 슬라이더 상태 업데이트를 위한 함수 (나중에 morphing.py에서 호출)
+        self.update_region_slider_state = update_slider_state
+        
+        # 초기 상태 설정
+        update_slider_state()
         
         return tab_frame
 
@@ -775,12 +932,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 4))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -800,6 +951,20 @@ class SliderUIMixin:
             def on_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
+            
+            def reset_slider(event):
+                variable.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    if default_label.endswith("%"):
+                        value_label.config(text=f"{int(default_value * 100)}%")
+                    else:
+                        value_label.config(text=f"{int(default_value)}")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
             
             scale = tk.Scale(
                 frame,
@@ -852,12 +1017,6 @@ class SliderUIMixin:
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 4))
             
-            def reset_slider(event):
-                variable.set(default_value)
-                self.on_morphing_change()
-            
-            title_label.bind("<Button-1>", reset_slider)
-            
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
             value_label.pack(side=tk.LEFT)
@@ -878,6 +1037,20 @@ class SliderUIMixin:
                 # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
             
+            def reset_slider(event):
+                variable.set(default_value)
+                # value_label도 직접 업데이트
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    if default_label.endswith("%"):
+                        value_label.config(text=f"{int(default_value * 100)}%")
+                    else:
+                        value_label.config(text=f"{int(default_value)}")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
+            
             scale = tk.Scale(
                 frame,
                 from_=from_val,
@@ -896,6 +1069,22 @@ class SliderUIMixin:
         
         # 턱선 조정
         self.jaw_size_label = create_slider(tab_frame, "턱선:", self.jaw_size, -50.0, 50.0, 1.0, "0", default_value=0.0)
+        
+        return tab_frame
+    
+    def _create_iris_tab(self, notebook):
+        """눈동자 탭 UI 생성"""
+        tab_frame = tk.Frame(notebook, padx=5, pady=5)
+        
+        # 눈동자 탭은 현재 슬라이더 없이 폴리곤만 표시
+        # 나중에 필요하면 슬라이더 추가 가능
+        info_label = tk.Label(
+            tab_frame,
+            text="눈동자 위치를 드래그하여 조정할 수 있습니다.",
+            font=("", 9),
+            fg="gray"
+        )
+        info_label.pack(pady=10)
         
         return tab_frame
 

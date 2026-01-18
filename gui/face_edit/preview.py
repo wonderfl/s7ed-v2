@@ -971,6 +971,12 @@ class PreviewManagerMixin:
         self.landmarks_items_original.clear()
         # landmark_point_map은 더 이상 사용하지 않음 (polygon_point_map으로 대체됨)
         
+        # 중심점 태그로 제거
+        try:
+            self.canvas_original.delete("region_center")
+        except Exception:
+            pass
+        
         # 폴리곤 태그로 제거
         try:
             self.canvas_original.delete("landmarks_polygon")
@@ -979,12 +985,12 @@ class PreviewManagerMixin:
             pass
         
         # 폴리곤 아이템 제거
-        for item_id in self.landmark_polygon_items_original:
+        for item_id in self.landmark_polygon_items['original']:
             try:
                 self.canvas_original.delete(item_id)
             except Exception:
                 pass
-        self.landmark_polygon_items_original.clear()
+        self.landmark_polygon_items['original'].clear()
         # 폴리곤 포인트 맵도 초기화
         self.polygon_point_map_original.clear()
 
@@ -1005,12 +1011,12 @@ class PreviewManagerMixin:
             pass
         
         # 폴리곤 아이템 제거
-        for item_id in self.landmark_polygon_items_edited:
+        for item_id in self.landmark_polygon_items['edited']:
             try:
                 self.canvas_edited.delete(item_id)
             except Exception:
                 pass
-        self.landmark_polygon_items_edited.clear()
+        self.landmark_polygon_items['edited'].clear()
         # 폴리곤 포인트 맵도 초기화
         self.polygon_point_map_edited.clear()
     
@@ -1028,21 +1034,21 @@ class PreviewManagerMixin:
             if not show_lines and not show_polygons:
                 # 연결선 및 폴리곤 제거
                 # 원본 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items_original:
+                for item_id in self.landmark_polygon_items['original']:
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
+                self.landmark_polygon_items['original'].clear()
                 # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_original.clear()
                 # 편집된 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items_edited:
+                for item_id in self.landmark_polygon_items['edited']:
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_edited.clear()
                 # 연결선 태그로도 제거 시도
@@ -1060,22 +1066,28 @@ class PreviewManagerMixin:
 
         try:
             # 탭 변경 시 기존 폴리곤과 연결선을 먼저 제거 (항상 제거 후 다시 그리기)
+            # 중심점 제거
+            try:
+                self.canvas_original.delete("region_center")
+            except Exception:
+                pass
+            
             # 원본 이미지의 연결선/폴리곤 제거
-            for item_id in self.landmark_polygon_items_original:
+            for item_id in self.landmark_polygon_items['original']:
                 try:
                     self.canvas_original.delete(item_id)
                 except Exception:
                     pass
-            self.landmark_polygon_items_original.clear()
+            self.landmark_polygon_items['original'].clear()
             # 폴리곤 포인트 맵도 초기화
             self.polygon_point_map_original.clear()
             # 편집된 이미지의 연결선/폴리곤 제거
-            for item_id in self.landmark_polygon_items_edited:
+            for item_id in self.landmark_polygon_items['edited']:
                 try:
                     self.canvas_edited.delete(item_id)
                 except Exception:
                     pass
-            self.landmark_polygon_items_edited.clear()
+            self.landmark_polygon_items['edited'].clear()
             # 폴리곤 포인트 맵도 초기화
             self.polygon_point_map_edited.clear()
             # 연결선 태그로도 제거 시도
@@ -1093,21 +1105,21 @@ class PreviewManagerMixin:
             # 기존 연결선과 폴리곤 제거 (체크박스가 해제된 경우)
             if not show_lines and not show_polygons:
                 # 원본 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items_original:
+                for item_id in self.landmark_polygon_items['original']:
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
+                self.landmark_polygon_items['original'].clear()
                 # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_original.clear()
                 # 편집된 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items_edited:
+                for item_id in self.landmark_polygon_items['edited']:
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_edited.clear()
             
@@ -1180,7 +1192,7 @@ class PreviewManagerMixin:
                 draw_points=show_landmarks,
                 draw_lines=show_lines,  # 연결선 표시는 체크박스로 제어
                 draw_polygons=show_polygons,  # 폴리곤 표시는 체크박스로 제어
-                polygon_items_list=self.landmark_polygon_items_original,  # 연결선과 폴리곤 아이템을 별도로 관리
+                polygon_items_list=self.landmark_polygon_items['original'],  # 연결선과 폴리곤 아이템을 별도로 관리
                 show_indices=show_indices  # 인덱스 번호 표시
             )
             
@@ -1199,7 +1211,7 @@ class PreviewManagerMixin:
                     self.landmarks_items_transformed.clear()
                 
                 # 변형된 랜드마크를 빨간색으로 표시 (연결선 포함, 폴리곤은 제외)
-                # 변형된 랜드마크의 연결선과 폴리곤도 landmark_polygon_items_original에 추가
+                # 변형된 랜드마크의 연결선과 폴리곤도 landmark_polygon_items['original']에 추가
                 self._draw_landmarks_on_canvas(
                     self.canvas_original,
                     self.current_image,
@@ -1211,8 +1223,20 @@ class PreviewManagerMixin:
                     draw_points=show_landmarks,
                     draw_lines=show_lines,  # 연결선 표시는 체크박스로 제어
                     draw_polygons=False,  # 변형된 랜드마크에는 폴리곤 표시하지 않음
-                    polygon_items_list=self.landmark_polygon_items_original,  # 연결선과 폴리곤 아이템을 별도로 관리
+                    polygon_items_list=self.landmark_polygon_items['original'],  # 연결선과 폴리곤 아이템을 별도로 관리
                     show_indices=show_indices  # 인덱스 번호 표시
+                )
+            
+            # 선택된 부위의 중심점 그리기 (전체 탭이고 체크박스가 활성화되어 있을 때만)
+            show_centers = self.show_region_centers.get() if hasattr(self, 'show_region_centers') else False
+            if current_tab == "전체" and show_centers:
+                self._draw_region_centers(
+                    self.canvas_original,
+                    self.current_image,
+                    landmarks,
+                    self.canvas_original_pos_x,
+                    self.canvas_original_pos_y,
+                    self.landmarks_items_original
                 )
 
             # 편집된 이미지에 랜드마크 표시 제거 (불필요한 감지 및 렌더링 제거)

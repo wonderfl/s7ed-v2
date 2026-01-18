@@ -1,0 +1,585 @@
+"""
+폴리곤 그리기 관련 메서드
+"""
+import math
+import tkinter as tk
+
+# scipy import 확인
+try:
+    from scipy.spatial import Delaunay
+    _scipy_available = True
+except ImportError:
+    _scipy_available = False
+    Delaunay = None
+
+from .all_tab_drawer import AllTabDrawerMixin
+from .tab_drawers import TabDrawersMixin
+
+
+class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
+    """폴리곤 그리기 기능 Mixin"""
+    
+    def _draw_landmark_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, current_tab, force_use_custom=False):
+        """랜드마크 폴리곤 그리기 (해당 부위의 모든 랜드마크 포인트를 찾아서 폴리곤으로 그리기)"""
+        if image is None or pos_x is None or pos_y is None or landmarks is None:
+            return
+        try:
+            import math
+            img_width, img_height = image.size
+            display_size = getattr(canvas, 'display_size', None)
+            if display_size is None:
+                return
+            
+            display_width, display_height = display_size
+            scale_x = display_width / img_width
+            scale_y = display_height / img_height
+            
+            # original_landmarks 보장 (중앙 포인트 계산 전에 필수) - LandmarkManager 사용
+            if hasattr(self, 'landmark_manager'):
+                if not self.landmark_manager.has_original_landmarks():
+                    if landmarks is not None:
+                        self.landmark_manager.set_original_landmarks(landmarks)
+                        # 하위 호환성
+                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
+                        print(f"[폴리곤렌더러] original_landmarks 설정 - 길이: {len(self.original_landmarks)}")
+                else:
+                    self.original_landmarks = self.landmark_manager.get_original_landmarks()
+            else:
+                # LandmarkManager가 없으면 기존 방식 사용
+                if not hasattr(self, 'original_landmarks') or self.original_landmarks is None:
+                    if landmarks is not None:
+                        self.original_landmarks = list(landmarks)
+                        print(f"[폴리곤렌더러] original_landmarks 설정 - 길이: {len(self.original_landmarks)}")
+            
+            # custom_landmarks가 없으면 생성하고 중앙 포인트 설정 - LandmarkManager 사용
+            if hasattr(self, 'landmark_manager'):
+                if self.landmark_manager.get_custom_landmarks() is None:
+                    # 원본 랜드마크를 복사하여 custom_landmarks 생성
+                    if landmarks is not None:
+                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                        left_center = None
+                        right_center = None
+                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+                            original = self.landmark_manager.get_original_landmarks()
+                            if original is not None:
+                                left_iris_indices, right_iris_indices = self._get_iris_indices()
+                                # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+                                # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                                # 계산된 좌표를 사용자 관점으로 변환
+                                mp_left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                mp_right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
+                                left_center = mp_right_center  # 사용자 왼쪽 = MediaPipe RIGHT_IRIS
+                                right_center = mp_left_center  # 사용자 오른쪽 = MediaPipe LEFT_IRIS
+                                self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                                # 하위 호환성
+                                self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+                                self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+                                print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화: 왼쪽={left_center}, 오른쪽={right_center}")
+                        
+                        # custom_landmarks 생성: 눈동자 포인트 제거 + 중앙 포인트 추가
+                        try:
+                            from utils.face_morphing.region_extraction import get_iris_indices
+                            
+                            # 눈동자 인덱스 가져오기
+                            left_iris_indices, right_iris_indices = get_iris_indices()
+                            iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                            iris_center_indices = {468, 473}
+                            iris_indices = iris_contour_indices | iris_center_indices
+                            
+                            # 눈동자 포인트 제거
+                            custom_landmarks_no_iris = [pt for i, pt in enumerate(landmarks) if i not in iris_indices]
+                            
+                            # 중앙 포인트 추가 (저장된 좌표 사용 또는 계산)
+                            # morph_face_by_polygons와 동일한 순서로 추가해야 함
+                            # morph_face_by_polygons: left_iris_center_orig 먼저 (len-2), right_iris_center_orig 나중 (len-1)
+                            # MediaPipe 관점: LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽), RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                            if left_center is not None and right_center is not None:
+                                # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
+                                # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+                                # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                                # 따라서: 사용자 왼쪽 먼저 추가 (len-2), 사용자 오른쪽 나중 추가 (len-1)
+                                custom_landmarks_no_iris.append(left_center)   # 사용자 왼쪽 = MediaPipe LEFT_IRIS (len-2)
+                                custom_landmarks_no_iris.append(right_center)  # 사용자 오른쪽 = MediaPipe RIGHT_IRIS (len-1)
+                            else:
+                                # 좌표가 없으면 계산
+                                # _calculate_iris_center 메서드 사용 (polygon_drag_handler에 있음)
+                                if hasattr(self, '_calculate_iris_center') and original is not None:
+                                    # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
+                                    if left_center is None:
+                                        left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                    if right_center is None:
+                                        right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                    
+                                    if left_center is not None and right_center is not None:
+                                        # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
+                                        # left_center = 사용자 왼쪽 = MediaPipe RIGHT_IRIS
+                                        # right_center = 사용자 오른쪽 = MediaPipe LEFT_IRIS
+                                        # 따라서: right_center 먼저 추가 (MediaPipe LEFT_IRIS, len-2), left_center 나중 추가 (MediaPipe RIGHT_IRIS, len-1)
+                                        custom_landmarks_no_iris.append(right_center)  # MediaPipe LEFT_IRIS (len-2)
+                                        custom_landmarks_no_iris.append(left_center)   # MediaPipe RIGHT_IRIS (len-1)
+                            
+                            self.landmark_manager.set_custom_landmarks(custom_landmarks_no_iris, reason="polygon_renderer_init_with_iris_centers")
+                            # 하위 호환성
+                            self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                            print(f"[폴리곤렌더러] custom_landmarks 생성 (눈동자 제거 + 중앙 포인트 추가) - 길이: {len(self.custom_landmarks)}")
+                        except Exception as e:
+                            print(f"[폴리곤렌더러] custom_landmarks 변환 실패: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # 폴백: 원본 그대로 사용
+                            self.landmark_manager.set_custom_landmarks(landmarks, reason="polygon_renderer_init_fallback")
+                            self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                            print(f"[폴리곤렌더러] custom_landmarks 생성 (폴백) - 길이: {len(self.custom_landmarks)}")
+                        # custom_landmarks 사용
+                        landmarks = self.landmark_manager.get_custom_landmarks()
+                else:
+                    self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+            else:
+                # LandmarkManager가 없으면 기존 방식 사용
+                if not hasattr(self, 'custom_landmarks') or self.custom_landmarks is None:
+                    # 원본 랜드마크를 복사하여 custom_landmarks 생성
+                    if landmarks is not None:
+                        self.custom_landmarks = list(landmarks)
+                        print(f"[폴리곤렌더러] custom_landmarks 생성 - 길이: {len(self.custom_landmarks)}")
+                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+                            # original_landmarks 가져오기 (LandmarkManager 사용)
+                            if hasattr(self, 'landmark_manager'):
+                                original = self.landmark_manager.get_original_landmarks()
+                            else:
+                                original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                            
+                            if original is not None:
+                                left_iris_indices, right_iris_indices = self._get_iris_indices()
+                                # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+                                # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                                # 계산된 좌표를 사용자 관점으로 변환
+                                mp_left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                mp_right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
+                                left_center = mp_right_center  # 사용자 왼쪽 = MediaPipe RIGHT_IRIS
+                                right_center = mp_left_center  # 사용자 오른쪽 = MediaPipe LEFT_IRIS
+                                if left_center is not None:
+                                    self._left_iris_center_coord = left_center
+                                if right_center is not None:
+                                    self._right_iris_center_coord = right_center
+                                print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화: 왼쪽={left_center}, 오른쪽={right_center}")
+                        # custom_landmarks 사용
+                        landmarks = self.custom_landmarks
+            
+            # custom_landmarks를 사용할 때는 먼저 중앙 포인트를 설정 - LandmarkManager 사용
+            if hasattr(self, 'landmark_manager'):
+                custom = self.landmark_manager.get_custom_landmarks()
+                # get_custom_landmarks()는 복사본을 반환하므로 is 대신 길이와 내용 비교
+                use_custom = (custom is not None and landmarks is not None and 
+                             len(landmarks) == len(custom) and 
+                             (landmarks is custom or landmarks == custom))
+            else:
+                use_custom = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
+                             landmarks is not None and
+                             (landmarks is self.custom_landmarks or 
+                              (len(landmarks) == len(self.custom_landmarks) and landmarks == self.custom_landmarks)))
+            
+            if use_custom:
+                print(f"[폴리곤렌더러] custom_landmarks 사용 중 - 길이: {len(landmarks)}, 탭: {current_tab}")
+                # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+                    # custom_landmarks에 중앙 포인트가 이미 있는지 확인
+                    # 중앙 포인트는 항상 original_landmarks에서 계산 (custom_landmarks는 수정하지 않음)
+                    # 드래그로 이동한 좌표가 있으면 사용, 없으면 original_landmarks에서 계산
+                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+                        left_iris_indices, right_iris_indices = self._get_iris_indices()
+                        
+                        # original_landmarks 가져오기 (LandmarkManager 사용)
+                        if hasattr(self, 'landmark_manager'):
+                            original = self.landmark_manager.get_original_landmarks()
+                            left_center = self.landmark_manager.get_left_iris_center_coord()
+                            right_center = self.landmark_manager.get_right_iris_center_coord()
+                        else:
+                            original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                            left_center = self._left_iris_center_coord if hasattr(self, '_left_iris_center_coord') else None
+                            right_center = self._right_iris_center_coord if hasattr(self, '_right_iris_center_coord') else None
+                        
+                        # 왼쪽 중앙 포인트 계산
+                        # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+                        # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                        # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS
+                        if left_center is None:
+                            if original is not None:
+                                left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                            else:
+                                left_center = None
+                        
+                        # 오른쪽 중앙 포인트 계산
+                        # 사용자 관점: 오른쪽 = MediaPipe LEFT_IRIS
+                        if right_center is None:
+                            if original is not None:
+                                right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                            else:
+                                right_center = None
+                        
+                        # 좌표를 저장 (다음 렌더링에서 사용)
+                        if hasattr(self, 'landmark_manager'):
+                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                            # 하위 호환성
+                            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+                            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+                        else:
+                            if left_center is not None:
+                                self._left_iris_center_coord = left_center
+                            if right_center is not None:
+                                self._right_iris_center_coord = right_center
+                    else:
+                        left_center = None
+                        right_center = None
+                    
+                    # landmarks는 custom_landmarks 그대로 사용 (수정하지 않음)
+                    if hasattr(self, 'landmark_manager'):
+                        landmarks = self.landmark_manager.get_custom_landmarks()
+                    else:
+                        landmarks = self.custom_landmarks
+            else:
+                print(f"[폴리곤렌더러] 원본 랜드마크 사용 - 길이: {len(landmarks) if landmarks else 0}, 탭: {current_tab}, custom_landmarks 존재: {hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None}")
+            
+            # 인덱스 표시 여부 확인
+            show_indices = getattr(self, 'show_landmark_indices', None)
+            show_indices = show_indices.get() if show_indices and hasattr(show_indices, 'get') else False
+            
+            # 폴리곤을 다시 그리기 전에 polygon_point_map 초기화
+            # 폴리곤이 추가/변경/삭제될 때마다 갱신되도록
+            canvas_type = 'original' if canvas == self.canvas_original else 'edited'
+            point_map = self.polygon_point_map_original if canvas_type == 'original' else self.polygon_point_map_edited
+            point_map.clear()
+            
+            # 확장 레벨 가져오기
+            expansion_level = getattr(self, 'polygon_expansion_level', tk.IntVar(value=1)).get() if hasattr(self, 'polygon_expansion_level') else 1
+            
+            # 인덱스 표시 여부 확인
+            show_indices = getattr(self, 'show_landmark_indices', None)
+            show_indices = show_indices.get() if show_indices and hasattr(show_indices, 'get') else False
+            
+            # 폴리곤 클릭 시 가장 가까운 포인트 찾기 함수
+            def find_nearest_landmark(event, target_indices=None):
+                """클릭한 위치에서 가장 가까운 랜드마크 포인트 찾기"""
+                if landmarks is None:
+                    return None
+                
+                # 캔버스 좌표를 이미지 좌표로 변환
+                rel_x = (event.x - pos_x) / scale_x
+                rel_y = (event.y - pos_y) / scale_y
+                click_img_x = img_width / 2 + rel_x
+                click_img_y = img_height / 2 + rel_y
+                
+                min_distance = float('inf')
+                nearest_idx = None
+                
+                for idx, landmark in enumerate(landmarks):
+                    # 현재 탭에 해당하는 랜드마크만 확인
+                    if target_indices is not None and idx not in target_indices:
+                        continue
+                    
+                    # 랜드마크 좌표
+                    if isinstance(landmark, tuple):
+                        lm_x, lm_y = landmark
+                    else:
+                        lm_x = landmark.x * img_width
+                        lm_y = landmark.y * img_height
+                    
+                    # 거리 계산
+                    distance = math.sqrt((click_img_x - lm_x)**2 + (click_img_y - lm_y)**2)
+                    
+                    # 최소 거리 업데이트 (20픽셀 이내만 선택)
+                    if distance < min_distance and distance < 20:
+                        min_distance = distance
+                        nearest_idx = idx
+                
+                return nearest_idx
+            
+            # 폴리곤 클릭 이벤트 핸들러
+            def on_polygon_click(event, target_indices=None):
+                """폴리곤 클릭 시 가장 가까운 포인트를 찾아서 드래그 시작"""
+                # 포인트를 찾지 못하면 이벤트 전파 (이미지 드래그 허용)
+                nearest_idx = find_nearest_landmark(event, target_indices)
+                if nearest_idx is None:
+                    # 포인트를 찾지 못하면 이벤트를 전파하지 않음
+                    # add="+"를 사용했으므로 캔버스 레벨 이벤트가 실행되어야 함
+                    # 하지만 실제로는 tag_bind가 이벤트를 소비할 수 있으므로,
+                    # 포인트를 찾지 못한 경우 명시적으로 이벤트를 전파하지 않음
+                    # None을 반환하면 이벤트가 전파되지 않지만,
+                    # add="+"를 사용했으므로 캔버스 레벨 이벤트가 실행되어야 함
+                    return None
+                # 가장 가까운 포인트 드래그 시작
+                # 이제 폴리곤에서만 포인트를 찾아서 드래그하므로 on_polygon_drag_start 사용
+                result = self.on_polygon_drag_start(event, nearest_idx, canvas)
+                # 이벤트 전파 중단 (포인트 드래그 시작)
+                return "break"
+            
+            def on_polygon_drag(event, target_indices=None):
+                """폴리곤 드래그 중 (사용 안 함 - 캔버스 레벨에서 처리)"""
+                # 이제 폴리곤 클릭 이벤트를 사용하지 않으므로 이 함수는 사용 안 함
+                return None
+            
+            def on_polygon_release(event, target_indices=None):
+                """폴리곤 드래그 종료 (사용 안 함 - 캔버스 레벨에서 처리)"""
+                # 이제 폴리곤 클릭 이벤트를 사용하지 않으므로 이 함수는 사용 안 함
+                return None
+                return None
+            
+            # 폴리곤 그리기 헬퍼 함수 (클릭 이벤트 제거)
+            def bind_polygon_click_events(polygon_id, target_indices):
+                """폴리곤에 클릭 이벤트 바인딩하지 않음 (이미지 드래그를 방해하지 않도록)"""
+                # 폴리곤 클릭 이벤트를 제거하여 이미지 드래그가 작동하도록 함
+                # 대신 포인트 클릭 영역을 크게 만들어서 포인트를 직접 클릭할 수 있도록 함
+                # 또는 캔버스 레벨 이벤트 핸들러에서 포인트를 찾도록 함
+                pass
+            
+            # 현재 탭에 따라 해당 부위의 모든 랜드마크 인덱스 수집
+            target_indices = []
+            
+            if current_tab == '전체':
+                self._draw_all_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '눈':
+                self._draw_eye_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '눈동자':
+                self._draw_iris_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '코':
+                self._draw_nose_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '입':
+                self._draw_mouth_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '눈썹':
+                self._draw_eyebrow_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '턱선':
+                self._draw_jaw_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+            elif current_tab == '윤곽':
+                self._draw_contour_tab_polygons(
+                    canvas, image, landmarks, pos_x, pos_y, items_list, color,
+                    scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
+                    bind_polygon_click_events, force_use_custom
+                )
+        
+        except Exception as e:
+            from utils.logger import get_logger
+            logger = get_logger('얼굴편집')
+            logger.error(f"폴리곤 그리기 실패: {e}", exc_info=True)
+            import traceback
+            traceback.print_exc()
+    
+
+
+    def _fill_polygon_area(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, current_tab):
+        """폴리곤 영역을 채워서 표시"""
+        if image is None or pos_x is None or pos_y is None or landmarks is None:
+            return
+        
+        try:
+            import math
+            img_width, img_height = image.size
+            display_size = getattr(canvas, 'display_size', None)
+            if display_size is None:
+                return
+            
+            display_width, display_height = display_size
+            scale_x = display_width / img_width
+            scale_y = display_height / img_height
+            
+            # MediaPipe 연결 정보 가져오기
+            try:
+                import mediapipe as mp
+                mp_face_mesh = mp.solutions.face_mesh
+                FACE_OVAL = mp_face_mesh.FACEMESH_FACE_OVAL
+                LEFT_EYE = mp_face_mesh.FACEMESH_LEFT_EYE
+                RIGHT_EYE = mp_face_mesh.FACEMESH_RIGHT_EYE
+                LEFT_EYEBROW = mp_face_mesh.FACEMESH_LEFT_EYEBROW
+                RIGHT_EYEBROW = mp_face_mesh.FACEMESH_RIGHT_EYEBROW
+                NOSE = mp_face_mesh.FACEMESH_NOSE
+                LIPS = mp_face_mesh.FACEMESH_LIPS
+            except ImportError:
+                return
+            
+            # 현재 탭에 따라 표시할 연결선 결정
+            connections_by_group = {}
+            if current_tab == '전체':
+                # 전체 탭: 모든 연결선 표시
+                connections_by_group['left_eye'] = list(LEFT_EYE)
+                connections_by_group['right_eye'] = list(RIGHT_EYE)
+                connections_by_group['left_eyebrow'] = list(LEFT_EYEBROW)
+                connections_by_group['right_eyebrow'] = list(RIGHT_EYEBROW)
+                connections_by_group['nose'] = list(NOSE)
+                connections_by_group['lips'] = list(LIPS)
+                connections_by_group['face_oval'] = list(FACE_OVAL)
+            elif current_tab == '눈':
+                # 눈 편집 시: 눈 외곽선 + 눈썹 연결선 모두 표시
+                connections_by_group['left_eye'] = list(LEFT_EYE)
+                connections_by_group['right_eye'] = list(RIGHT_EYE)
+                connections_by_group['left_eyebrow'] = list(LEFT_EYEBROW)
+                connections_by_group['right_eyebrow'] = list(RIGHT_EYEBROW)
+            elif current_tab == '눈썹':
+                # 눈썹 편집 시: 눈썹 연결선만 표시
+                connections_by_group['left_eyebrow'] = list(LEFT_EYEBROW)
+                connections_by_group['right_eyebrow'] = list(RIGHT_EYEBROW)
+            elif current_tab == '코':
+                connections_by_group['nose'] = list(NOSE)
+            elif current_tab == '입':
+                connections_by_group['lips'] = list(LIPS)
+            elif current_tab == '턱선':
+                # 턱선 편집 시: 얼굴 외곽선 연결선 표시
+                connections_by_group['face_oval'] = list(FACE_OVAL)
+            else:
+                connections_by_group['face_oval'] = list(FACE_OVAL)
+                connections_by_group['left_eye'] = list(LEFT_EYE)
+                connections_by_group['right_eye'] = list(RIGHT_EYE)
+                connections_by_group['nose'] = list(NOSE)
+                connections_by_group['lips'] = list(LIPS)
+            
+            # 각 그룹의 폴리곤 그리기
+            for group, connections in connections_by_group.items():
+                if len(connections) == 0:
+                    continue
+                
+                # 연결선으로부터 포인트 수집
+                point_indices = set()
+                for idx1, idx2 in connections:
+                    if idx1 < len(landmarks) and idx2 < len(landmarks):
+                        point_indices.add(idx1)
+                        point_indices.add(idx2)
+                
+                if len(point_indices) < 3:
+                    continue
+                
+                # 포인트 좌표 수집 및 중심점 계산
+                point_coords = []
+                center_x, center_y = 0, 0
+                for idx in point_indices:
+                    if idx < len(landmarks):
+                        pt = landmarks[idx]
+                        if isinstance(pt, tuple):
+                            img_x, img_y = pt
+                        else:
+                            img_x = pt.x * img_width
+                            img_y = pt.y * img_height
+                        point_coords.append((idx, img_x, img_y))
+                        center_x += img_x
+                        center_y += img_y
+                
+                if len(point_coords) < 3:
+                    continue
+                
+                center_x /= len(point_coords)
+                center_y /= len(point_coords)
+                
+                # 중심점 기준으로 각도 순 정렬
+                def get_angle(x, y):
+                    dx = x - center_x
+                    dy = y - center_y
+                    return math.atan2(dy, dx)
+                
+                point_coords.sort(key=lambda p: get_angle(p[1], p[2]))
+                
+                # 캔버스 좌표로 변환하여 폴리곤 경로 생성
+                polygon_points = []
+                for idx, img_x, img_y in point_coords:
+                    rel_x = (img_x - img_width / 2) * scale_x
+                    rel_y = (img_y - img_height / 2) * scale_y
+                    canvas_x = pos_x + rel_x
+                    canvas_y = pos_y + rel_y
+                    polygon_points.append((canvas_x, canvas_y))
+                
+                if len(polygon_points) >= 3:
+                    # 폴리곤 그리기 (더 잘 보이도록 진하게)
+                    print(f"[얼굴편집] 폴리곤 그리기: 그룹={group}, 포인트 수={len(polygon_points)}")
+                    
+                    # 폴리곤 색상 결정 (랜드마크 색상과 동일하되 더 진하게)
+                    # 원본 이미지는 녹색, 편집 이미지는 노란색
+                    if canvas == self.canvas_original:
+                        fill_color = "#00FF00"  # 밝은 녹색
+                        outline_color = "#00AA00"  # 진한 녹색
+                    else:
+                        fill_color = "#FFFF00"  # 밝은 노란색
+                        outline_color = "#FFAA00"  # 진한 노란색
+                    
+                    # 폴리곤을 채우지 않고 outline만 그리기
+                    polygon_id = canvas.create_polygon(
+                        polygon_points,
+                        fill="",  # 채우지 않음
+                        outline=outline_color, 
+                        width=2,
+                        tags=("landmarks_polygon_fill", f"polygon_{group}")
+                    )
+                    items_list.append(polygon_id)
+                    
+                    # 폴리곤 아이템 저장
+                    canvas_type = 'original' if canvas == self.canvas_original else 'edited'
+                    self.landmark_polygon_items[canvas_type].append(polygon_id)
+                    
+                    # 폴리곤을 이미지 위에 배치하여 잘 보이도록
+                    # 이미지 아이템을 찾아서 폴리곤을 이미지 위로 올림
+                    try:
+                        # 이미지 아이템 찾기
+                        if canvas == self.canvas_original:
+                            image_item = getattr(self, 'image_created_original', None)
+                        else:
+                            image_item = getattr(self, 'image_created_edited', None)
+                        
+                        if image_item:
+                            # 폴리곤을 이미지 위에 배치
+                            canvas.tag_raise(polygon_id, image_item)
+                        else:
+                            # 이미지가 없으면 연결선 위에 배치
+                            canvas.tag_raise(polygon_id, "landmarks_polygon")
+                    except Exception:
+                        # 실패하면 그냥 raise
+                        canvas.tag_raise(polygon_id)
+                    print(f"[얼굴편집] 폴리곤 그리기 완료: 그룹={group}, 아이템 ID={polygon_id}")
+                else:
+                    print(f"[얼굴편집] 폴리곤 포인트 부족: 그룹={group}, 포인트 수={len(polygon_points)}")
+            
+            # 뒤집힌 삼각형 감지 및 표시 (원본 랜드마크와 변형된 랜드마크가 모두 있을 때만)
+            # custom_landmarks를 사용하여 실제 변형된 랜드마크와 비교
+            if (canvas == self.canvas_original and 
+                hasattr(self, 'original_landmarks') and self.original_landmarks is not None and
+                hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and
+                _scipy_available and len(self.custom_landmarks) == len(self.original_landmarks)):
+                try:
+                    self._draw_flipped_triangles(
+                        canvas, image, self.original_landmarks, self.custom_landmarks, 
+                        pos_x, pos_y, items_list, img_width, img_height, 
+                        scale_x, scale_y
+                    )
+                except Exception as e:
+                    print(f"[얼굴편집] 뒤집힌 삼각형 표시 실패: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        except Exception as e:
+            print(f"[얼굴편집] 폴리곤 영역 채우기 실패: {e}")
+            import traceback
+            traceback.print_exc()

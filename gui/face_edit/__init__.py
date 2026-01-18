@@ -19,6 +19,7 @@ from .morphing import MorphingManagerMixin
 from .style import StyleManagerMixin
 from .age import AgeManagerMixin
 from .widget_creator import WidgetCreatorMixin
+from .landmark_manager import LandmarkManager
 
 
 class FaceEditPanel(
@@ -65,6 +66,9 @@ class FaceEditPanel(
         # 얼굴 랜드마크 정보 (나중에 추가)
         self.face_landmarks = None
         
+        # 랜드마크 상태 관리자 (중앙화)
+        self.landmark_manager = LandmarkManager()
+        
         # 얼굴 특징 보정 설정 (Phase 1)
         self.eye_size = tk.DoubleVar(value=1.0)  # 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.nose_size = tk.DoubleVar(value=1.0)  # 코 크기 (0.5 ~ 2.0, 기본값: 1.0)
@@ -93,6 +97,22 @@ class FaceEditPanel(
         self.show_landmark_lines = tk.BooleanVar(value=False)  # 랜드마크 연결선 표시 여부 (기본값: False)
         self.show_landmark_polygons = tk.BooleanVar(value=False)  # 랜드마크 폴리곤 표시 여부 (기본값: False)
         self.show_landmark_indices = tk.BooleanVar(value=False)  # 랜드마크 인덱스 번호 표시 여부 (기본값: False)
+        self.show_region_centers = tk.BooleanVar(value=False)  # 부위 중심점 표시 여부 (기본값: False)
+        
+        # MediaPipe 부위 선택 변수 (전체 탭용)
+        self.show_face_oval = tk.BooleanVar(value=False)  # Face Oval 표시 여부
+        self.show_left_eye = tk.BooleanVar(value=False)  # Left Eye 표시 여부
+        self.show_right_eye = tk.BooleanVar(value=False)  # Right Eye 표시 여부
+        self.show_left_eyebrow = tk.BooleanVar(value=False)  # Left Eyebrow 표시 여부
+        self.show_right_eyebrow = tk.BooleanVar(value=False)  # Right Eyebrow 표시 여부
+        self.show_nose = tk.BooleanVar(value=False)  # Nose 표시 여부
+        self.show_lips = tk.BooleanVar(value=False)  # Lips 표시 여부 (하위 호환성 유지)
+        self.show_upper_lips = tk.BooleanVar(value=False)  # Upper Lips 표시 여부
+        self.show_lower_lips = tk.BooleanVar(value=False)  # Lower Lips 표시 여부
+        self.show_left_iris = tk.BooleanVar(value=False)  # Left Iris 표시 여부 (refine_landmarks=True일 때만 사용 가능)
+        self.show_right_iris = tk.BooleanVar(value=False)  # Right Iris 표시 여부 (refine_landmarks=True일 때만 사용 가능)
+        self.show_contours = tk.BooleanVar(value=False)  # Contours 표시 여부
+        self.show_tesselation = tk.BooleanVar(value=False)  # Tesselation 표시 여부
         self.polygon_expansion_level = tk.IntVar(value=1)  # 폴리곤 주변 확장 레벨 (0~5, 기본값: 1)
         self.current_morphing_tab = "눈"  # 현재 선택된 얼굴 특징 보정 탭 (전체, 눈, 눈썹, 코, 입, 턱선, 윤곽)
         self.use_individual_eye_region = tk.BooleanVar(value=False)  # 눈 영역 개별 적용 여부
@@ -107,6 +127,15 @@ class FaceEditPanel(
         self.right_eye_region_offset_x = tk.DoubleVar(value=0.0)  # 오른쪽 눈 영역 수평 오프셋
         self.right_eye_region_offset_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 영역 수직 오프셋
         
+        # 공통 슬라이더 변수 (선택된 모든 부위에 공통 적용)
+        self.region_center_offset_x = tk.DoubleVar(value=0.0)  # 중심점 오프셋 X (-50 ~ +50 픽셀, 기본값: 0.0)
+        self.region_center_offset_y = tk.DoubleVar(value=0.0)  # 중심점 오프셋 Y (-50 ~ +50 픽셀, 기본값: 0.0)
+        self.region_size = tk.DoubleVar(value=1.0)  # 크기 비율 (0.5 ~ 2.0, 기본값: 1.0) - 하위 호환성 유지
+        self.region_size_x = tk.DoubleVar(value=1.0)  # 크기 비율 X (0.5 ~ 2.0, 기본값: 1.0)
+        self.region_size_y = tk.DoubleVar(value=1.0)  # 크기 비율 Y (0.5 ~ 2.0, 기본값: 1.0)
+        self.region_position_x = tk.DoubleVar(value=0.0)  # 위치 이동 X (-50 ~ +50 픽셀, 기본값: 0.0)
+        self.region_position_y = tk.DoubleVar(value=0.0)  # 위치 이동 Y (-50 ~ +50 픽셀, 기본값: 0.0)
+        
         # 입술 영역 조정 설정
         self.use_individual_lip_region = tk.BooleanVar(value=False)  # 입술 영역 개별 적용 여부
         self.upper_lip_region_padding_x = tk.DoubleVar(value=0.2)  # 윗입술 영역 가로 패딩 비율 (0.0 ~ 1.0, 기본값: 0.2)
@@ -117,6 +146,12 @@ class FaceEditPanel(
         self.upper_lip_region_offset_y = tk.DoubleVar(value=0.0)  # 윗입술 영역 수직 오프셋 (-20 ~ +20 픽셀, 기본값: 0)
         self.lower_lip_region_offset_x = tk.DoubleVar(value=0.0)  # 아래입술 영역 수평 오프셋
         self.lower_lip_region_offset_y = tk.DoubleVar(value=0.0)  # 아래입술 영역 수직 오프셋
+        
+        # 눈동자 중앙 포인트 좌표 저장 (인덱스 대신 좌표만 저장)
+        # 중앙 포인트 좌표는 landmark_manager에서 관리
+        # 하위 호환성을 위해 속성 유지 (점진적 마이그레이션)
+        self._left_iris_center_coord = None  # @deprecated: landmark_manager.get_left_iris_center_coord() 사용
+        self._right_iris_center_coord = None  # @deprecated: landmark_manager.get_right_iris_center_coord() 사용
         
         # 얼굴 정렬 설정
         self.auto_align = tk.BooleanVar(value=False)  # 자동 정렬 사용 여부
@@ -147,10 +182,14 @@ class FaceEditPanel(
         self.landmarks_items_original = []  # 원본 이미지의 랜드마크 아이템
         self.landmarks_items_edited = []  # 편집된 이미지의 랜드마크 아이템
         self.landmarks_items_transformed = []  # 원본 이미지에 표시되는 변형된 랜드마크 아이템
-        self.polygon_point_map_original = {}  # 포인트 인덱스 -> 캔버스 아이템 ID 매핑 (원본)
-        self.polygon_point_map_edited = {}  # 포인트 인덱스 -> 캔버스 아이템 ID 매핑 (편집)
-        self.landmark_polygon_items_original = []  # 원본 이미지의 폴리곤 아이템
-        self.landmark_polygon_items_edited = []  # 편집된 이미지의 폴리곤 아이템
+        # 폴리곤에 포함된 포인트 인덱스 (set으로 변경: dict에서 True만 저장하던 것을 간소화)
+        self.polygon_point_map_original = set()  # 원본 캔버스의 폴리곤 포인트 인덱스
+        self.polygon_point_map_edited = set()  # 편집 캔버스의 폴리곤 포인트 인덱스
+        # 폴리곤 캔버스 아이템 ID (캔버스별로 분리)
+        self.landmark_polygon_items = {
+            'original': [],  # 원본 캔버스의 폴리곤 아이템
+            'edited': []     # 편집 캔버스의 폴리곤 아이템
+        }
         self.selected_polygon_group = None  # 선택된 폴리곤 그룹 (눈, 코, 입 등)
         
         # 폴리곤 드래그 관련 변수
@@ -619,16 +658,36 @@ class FaceEditPanelV2(FaceEditPanel):
             
             # 원본 랜드마크 가져오기 (항상 원본을 기준으로 변형)
             base_landmarks = None
-            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
-                base_landmarks = self.original_landmarks
+            # original_landmarks 가져오기 (LandmarkManager 사용)
+            if hasattr(self, 'landmark_manager'):
+                if not self.landmark_manager.has_original_landmarks():
+                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
+                    if self.landmark_manager.get_face_landmarks() is None:
+                        detected, _ = face_landmarks.detect_face_landmarks(base_image)
+                        if detected is not None:
+                            self.landmark_manager.set_face_landmarks(detected)
+                            self.landmark_manager.set_original_landmarks(detected)
+                            # 하위 호환성
+                            self.face_landmarks = self.landmark_manager.get_face_landmarks()
+                            self.original_landmarks = self.landmark_manager.get_original_landmarks()
+                    base_landmarks = self.landmark_manager.get_face_landmarks()
+                else:
+                    base_landmarks = self.landmark_manager.get_original_landmarks()
+                # 하위 호환성
+                if base_landmarks is None:
+                    base_landmarks = self.landmark_manager.get_face_landmarks()
             else:
-                # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                if self.face_landmarks is None:
-                    self.face_landmarks, _ = face_landmarks.detect_face_landmarks(base_image)
-                    # 원본 랜드마크 저장
-                    if self.face_landmarks is not None:
-                        self.original_landmarks = list(self.face_landmarks)
-                base_landmarks = self.face_landmarks
+                # LandmarkManager가 없으면 기존 방식 사용
+                if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                    base_landmarks = self.original_landmarks
+                else:
+                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
+                    if self.face_landmarks is None:
+                        self.face_landmarks, _ = face_landmarks.detect_face_landmarks(base_image)
+                        # 원본 랜드마크 저장
+                        if self.face_landmarks is not None:
+                            self.original_landmarks = list(self.face_landmarks)
+                    base_landmarks = self.face_landmarks
             
             if self.use_landmark_warping.get():
                 # 랜드마크 기반 변형 모드: 변형된 랜드마크 계산
@@ -668,12 +727,63 @@ class FaceEditPanelV2(FaceEditPanel):
                         lower_lip_width=self.lower_lip_width.get()
                     )
                     
-                    self.transformed_landmarks = transformed
-                    # custom_landmarks도 업데이트 (폴리곤 표시용)
-                    self.custom_landmarks = transformed
+                    # transformed_landmarks 및 custom_landmarks 업데이트 (LandmarkManager 사용)
+                    if hasattr(self, 'landmark_manager'):
+                        self.landmark_manager.set_transformed_landmarks(transformed)
+                        self.landmark_manager.set_custom_landmarks(transformed, reason="__init__ use_landmark_warping")
+                        # 하위 호환성
+                        self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                        
+                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
+                            original = self.landmark_manager.get_original_landmarks()
+                            if original is not None:
+                                img_width, img_height = self.current_image.size
+                                left_iris_indices, right_iris_indices = self._get_iris_indices()
+                                # 드래그 좌표가 없으면 original_landmarks에서 계산
+                                left_center = self.landmark_manager.get_left_iris_center_coord()
+                                right_center = self.landmark_manager.get_right_iris_center_coord()
+                                
+                                if left_center is None:
+                                    left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                if right_center is None:
+                                    right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                
+                                self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                                # 하위 호환성
+                                self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+                                self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+                    else:
+                        # LandmarkManager가 없으면 기존 방식 사용
+                        self.transformed_landmarks = transformed
+                        self.custom_landmarks = list(transformed)
+                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
+                            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                                img_width, img_height = self.current_image.size
+                                left_iris_indices, right_iris_indices = self._get_iris_indices()
+                                # 드래그 좌표가 없으면 original_landmarks에서 계산
+                                if not (hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None):
+                                    left_center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
+                                    if left_center is not None:
+                                        self._left_iris_center_coord = left_center
+                                if not (hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None):
+                                    right_center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
+                                    if right_center is not None:
+                                        self._right_iris_center_coord = right_center
                 else:
-                    self.transformed_landmarks = None
-                    self.custom_landmarks = None
+                    # transformed_landmarks 및 custom_landmarks 초기화 (LandmarkManager 사용)
+                    if hasattr(self, 'landmark_manager'):
+                        self.landmark_manager.set_transformed_landmarks(None)
+                        self.landmark_manager.set_custom_landmarks(None, reason="__init__ use_landmark_warping_false")
+                        # 하위 호환성
+                        self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                    else:
+                        # LandmarkManager가 없으면 기존 방식 사용
+                        self.transformed_landmarks = None
+                        self.custom_landmarks = None
             else:
                 self.transformed_landmarks = None
                 # use_landmark_warping이 꺼져 있어도 슬라이더 값에 따라 랜드마크 변형
@@ -713,8 +823,22 @@ class FaceEditPanelV2(FaceEditPanel):
                         lower_lip_width=self.lower_lip_width.get()
                     )
                     
-                    # custom_landmarks 업데이트 (폴리곤 표시용)
-                    self.custom_landmarks = transformed
+                    # custom_landmarks 업데이트 (중앙 포인트는 좌표 기반으로 별도 관리)
+                    self.custom_landmarks = list(transformed)
+                    # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
+                        if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                            img_width, img_height = self.current_image.size
+                            left_iris_indices, right_iris_indices = self._get_iris_indices()
+                            # 드래그 좌표가 없으면 original_landmarks에서 계산
+                            if not (hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None):
+                                left_center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
+                                if left_center is not None:
+                                    self._left_iris_center_coord = left_center
+                            if not (hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None):
+                                right_center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
+                                if right_center is not None:
+                                    self._right_iris_center_coord = right_center
                 else:
                     self.custom_landmarks = None
             
@@ -926,40 +1050,56 @@ class FaceEditPanelV2(FaceEditPanel):
                     print(f"[얼굴편집V2] 편집 위치 저장 실패: {e}")
             
             self.apply_editing()
-            # 눈 영역 표시 업데이트
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            # 입술 영역 표시 업데이트
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
+            # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
+            show_polygons = hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()
+            if not show_polygons:
+                # 눈 영역 표시 업데이트
+                if self.show_eye_region.get():
+                    self.update_eye_region_display()
+                # 입술 영역 표시 업데이트
+                if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
+                    self.update_lip_region_display()
+            else:
+                # 폴리곤이 활성화되면 기존 타원형 영역 제거
+                if hasattr(self, 'clear_eye_region_display'):
+                    self.clear_eye_region_display()
+                if hasattr(self, 'clear_lip_region_display'):
+                    self.clear_lip_region_display()
             
             # 폴리곤 표시 업데이트 (custom_landmarks가 이미 update_polygons_only에서 업데이트되었으므로)
             if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
                 # custom_landmarks가 있으면 폴리곤만 다시 그리기
                 if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                     # 기존 폴리곤 제거
-                    for item_id in list(self.landmark_polygon_items_original):
+                    for item_id in list(self.landmark_polygon_items['original']):
                         try:
                             self.canvas_original.delete(item_id)
                         except:
                             pass
-                    self.landmark_polygon_items_original.clear()
-                    if hasattr(self, 'polygon_point_map_original'):
-                        self.polygon_point_map_original.clear()
+                    self.landmark_polygon_items['original'].clear()
+                    self.polygon_point_map_original.clear()
                     
                     # 폴리곤 다시 그리기
                     current_tab = getattr(self, 'current_morphing_tab', '눈')
                     if hasattr(self, '_draw_landmark_polygons'):
-                        self._draw_landmark_polygons(
-                            self.canvas_original,
-                            self.current_image,
-                            self.custom_landmarks,
-                            self.canvas_original_pos_x,
-                            self.canvas_original_pos_y,
-                            self.landmark_polygon_items_original,
-                            "green",
-                                        current_tab
-                                    )
+                        # custom_landmarks 가져오기 (LandmarkManager 사용)
+                        if hasattr(self, 'landmark_manager'):
+                            custom = self.landmark_manager.get_custom_landmarks()
+                        else:
+                            custom = self.custom_landmarks
+                        
+                        if custom is not None:
+                            self._draw_landmark_polygons(
+                                self.canvas_original,
+                                self.current_image,
+                                custom,
+                                self.canvas_original_pos_x,
+                                self.canvas_original_pos_y,
+                                self.landmark_polygon_items['original'],
+                                "green",
+                                current_tab,
+                                force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
+                            )
                     # custom_landmarks가 없으면 전체 업데이트
                     self.update_face_features_display()
 

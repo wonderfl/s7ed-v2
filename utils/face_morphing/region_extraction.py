@@ -5,6 +5,36 @@
 from .constants import _landmarks_available
 
 
+def get_iris_indices():
+    """MediaPipe 눈동자 인덱스 반환 (공통 유틸리티 함수)
+    
+    Returns:
+        (left_iris_indices, right_iris_indices): 왼쪽/오른쪽 눈동자 인덱스 리스트 튜플
+    """
+    try:
+        import mediapipe as mp
+        mp_face_mesh = mp.solutions.face_mesh
+        LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+        RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+        
+        # MediaPipe에서 실제 인덱스 추출
+        left_iris_indices_set = set()
+        for idx1, idx2 in LEFT_IRIS:
+            left_iris_indices_set.add(idx1)
+            left_iris_indices_set.add(idx2)
+        
+        right_iris_indices_set = set()
+        for idx1, idx2 in RIGHT_IRIS:
+            right_iris_indices_set.add(idx1)
+            right_iris_indices_set.add(idx2)
+        
+        return list(left_iris_indices_set), list(right_iris_indices_set)
+    except (ImportError, AttributeError):
+        # MediaPipe가 없거나 FACEMESH_LEFT_IRIS/FACEMESH_RIGHT_IRIS가 없으면 기본값 사용
+        # 실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472]
+        return [474, 475, 476, 477], [469, 470, 471, 472]
+
+
 def _get_eye_region(key_landmarks, img_width, img_height, eye='left', landmarks=None, padding_ratio=None, offset_x=None, offset_y=None):
     """
     눈 영역을 계산합니다 (랜드마크 포인트를 사용하여 정확하게 계산, 개선된 버전: 표준편차 기반 동적 패딩)
@@ -345,3 +375,172 @@ def _get_nose_region(key_landmarks, img_width, img_height, landmarks=None, paddi
     
     offset_nose_center = (int(offset_nose_center_x), int(offset_nose_center_y))
     return (x1, y1, x2, y2), offset_nose_center
+
+
+def _get_region_center(region_name, landmarks, center_offset_x=0.0, center_offset_y=0.0):
+    """
+    부위별 중심점 계산 (오프셋 포함)
+    
+    Args:
+        region_name: 부위 이름 ('face_oval', 'left_eye', 'right_eye', 'left_eyebrow', 'right_eyebrow',
+                    'nose', 'upper_lips', 'lower_lips', 'left_iris', 'right_iris', 'contours', 'tesselation')
+        landmarks: 랜드마크 포인트 리스트 (468개 또는 478개)
+        center_offset_x: 중심점 오프셋 X (픽셀, 기본값: 0.0)
+        center_offset_y: 중심점 오프셋 Y (픽셀, 기본값: 0.0)
+    
+    Returns:
+        (center_x, center_y): 중심점 좌표 (오프셋 포함)
+    """
+    if not _landmarks_available or landmarks is None or len(landmarks) < 468:
+        return None
+    
+    try:
+        import mediapipe as mp
+        mp_face_mesh = mp.solutions.face_mesh
+        
+        indices = []
+        
+        if region_name == 'face_oval':
+            FACE_OVAL = list(mp_face_mesh.FACEMESH_FACE_OVAL)
+            for conn in FACE_OVAL:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'left_eye':
+            LEFT_EYE = list(mp_face_mesh.FACEMESH_LEFT_EYE)
+            for conn in LEFT_EYE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'right_eye':
+            RIGHT_EYE = list(mp_face_mesh.FACEMESH_RIGHT_EYE)
+            for conn in RIGHT_EYE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'left_eyebrow':
+            LEFT_EYEBROW = list(mp_face_mesh.FACEMESH_LEFT_EYEBROW)
+            for conn in LEFT_EYEBROW:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'right_eyebrow':
+            RIGHT_EYEBROW = list(mp_face_mesh.FACEMESH_RIGHT_EYEBROW)
+            for conn in RIGHT_EYEBROW:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'nose':
+            NOSE = list(mp_face_mesh.FACEMESH_NOSE)
+            for conn in NOSE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'lips':
+            # Lips 전체 인덱스 (FACEMESH_LIPS 사용)
+            LIPS = list(mp_face_mesh.FACEMESH_LIPS)
+            for conn in LIPS:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'upper_lips':
+            # 하위 호환성 유지 (기존 코드 지원)
+            UPPER_LIP_INDICES = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84]
+            indices = UPPER_LIP_INDICES
+        elif region_name == 'lower_lips':
+            # 하위 호환성 유지 (기존 코드 지원)
+            LOWER_LIP_INDICES = [181, 91, 146, 78, 95, 88, 178, 87, 14, 317, 402, 318, 324]
+            indices = LOWER_LIP_INDICES
+        elif region_name == 'left_iris':
+            try:
+                LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                for conn in LEFT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                # refine_landmarks=False인 경우 (MediaPipe 정의 사용)
+                try:
+                    left_iris_indices, _ = get_iris_indices()
+                    indices = left_iris_indices
+                except (ImportError, AttributeError):
+                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477])
+                    indices = [474, 475, 476, 477]
+        elif region_name == 'right_iris':
+            try:
+                RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                for conn in RIGHT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                # refine_landmarks=False인 경우 (MediaPipe 정의 사용)
+                try:
+                    _, right_iris_indices = get_iris_indices()
+                    indices = right_iris_indices
+                except (ImportError, AttributeError):
+                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: RIGHT_IRIS=[469,470,471,472])
+                    indices = [469, 470, 471, 472]
+        elif region_name == 'contours':
+            CONTOURS = list(mp_face_mesh.FACEMESH_CONTOURS)
+            for conn in CONTOURS:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'tesselation':
+            TESSELATION = list(mp_face_mesh.FACEMESH_TESSELATION)
+            for conn in TESSELATION:
+                indices.append(conn[0])
+                indices.append(conn[1])
+            # Tesselation 선택 시 눈동자도 포함
+            try:
+                LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                for conn in LEFT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                # 구버전 MediaPipe에서는 눈동자 인덱스 직접 추가 (MediaPipe 정의 사용)
+                try:
+                    left_iris_indices, _ = get_iris_indices()
+                    indices.extend(left_iris_indices)
+                except (ImportError, AttributeError):
+                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477])
+                    indices.extend([474, 475, 476, 477])
+            try:
+                RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                for conn in RIGHT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                # 구버전 MediaPipe에서는 눈동자 인덱스 직접 추가 (MediaPipe 정의 사용)
+                try:
+                    _, right_iris_indices = get_iris_indices()
+                    indices.extend(right_iris_indices)
+                except (ImportError, AttributeError):
+                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: RIGHT_IRIS=[469,470,471,472])
+                    indices.extend([469, 470, 471, 472])
+        else:
+            return None
+        
+        # 중복 제거
+        indices = list(set(indices))
+        
+        # 유효한 인덱스만 필터링
+        valid_indices = [i for i in indices if i < len(landmarks)]
+        
+        if not valid_indices:
+            return None
+        
+        # 포인트들의 평균 좌표 계산 (기본 중심점)
+        x_coords = []
+        y_coords = []
+        for idx in valid_indices:
+            point = landmarks[idx]
+            x_coords.append(point[0])
+            y_coords.append(point[1])
+        
+        if not x_coords or not y_coords:
+            return None
+        
+        center_x = sum(x_coords) / len(x_coords)
+        center_y = sum(y_coords) / len(y_coords)
+        
+        # 오프셋 적용
+        center_x += center_offset_x
+        center_y += center_offset_y
+        
+        return (center_x, center_y)
+        
+    except Exception as e:
+        print(f"[얼굴편집] 부위 중심점 계산 실패 ({region_name}): {e}")
+        return None

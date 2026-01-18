@@ -7,6 +7,112 @@ import tkinter as tk
 
 
 class LandmarkDisplayMixin:
+    
+    def _draw_region_centers(self, canvas, image, landmarks, pos_x, pos_y, items_list):
+        """선택된 부위의 중심점을 캔버스에 그리기"""
+        if image is None or pos_x is None or pos_y is None or landmarks is None:
+            return
+        
+        # 전체 탭이 아니거나 부위가 선택되지 않았으면 그리지 않음
+        current_tab = getattr(self, 'current_morphing_tab', '눈')
+        if current_tab != "전체":
+            return
+        
+        # 선택된 부위 목록 가져오기
+        selected_regions = []
+        if hasattr(self, 'show_face_oval') and self.show_face_oval.get():
+            selected_regions.append('face_oval')
+        if hasattr(self, 'show_left_eye') and self.show_left_eye.get():
+            selected_regions.append('left_eye')
+        if hasattr(self, 'show_right_eye') and self.show_right_eye.get():
+            selected_regions.append('right_eye')
+        if hasattr(self, 'show_left_eyebrow') and self.show_left_eyebrow.get():
+            selected_regions.append('left_eyebrow')
+        if hasattr(self, 'show_right_eyebrow') and self.show_right_eyebrow.get():
+            selected_regions.append('right_eyebrow')
+        if hasattr(self, 'show_nose') and self.show_nose.get():
+            selected_regions.append('nose')
+        if hasattr(self, 'show_lips') and self.show_lips.get():
+            selected_regions.append('lips')
+        if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
+            selected_regions.append('left_iris')
+        if hasattr(self, 'show_right_iris') and self.show_right_iris.get():
+            selected_regions.append('right_iris')
+        if hasattr(self, 'show_contours') and self.show_contours.get():
+            selected_regions.append('contours')
+        if hasattr(self, 'show_tesselation') and self.show_tesselation.get():
+            selected_regions.append('tesselation')
+        
+        if not selected_regions:
+            return
+        
+        try:
+            from utils.face_morphing.region_extraction import _get_region_center
+            
+            img_width, img_height = image.size
+            display_size = getattr(canvas, 'display_size', None)
+            if display_size is None:
+                return
+            
+            display_width, display_height = display_size
+            scale_x = display_width / img_width
+            scale_y = display_height / img_height
+            
+            # 공통 슬라이더 값 가져오기
+            center_offset_x = self.region_center_offset_x.get() if hasattr(self, 'region_center_offset_x') else 0.0
+            center_offset_y = self.region_center_offset_y.get() if hasattr(self, 'region_center_offset_y') else 0.0
+            
+            # 각 선택된 부위의 중심점 그리기
+            for region_name in selected_regions:
+                center = _get_region_center(region_name, landmarks, center_offset_x, center_offset_y)
+                if center is None:
+                    continue
+                
+                center_x, center_y = center
+                
+                # 캔버스 좌표로 변환
+                rel_x = (center_x - img_width / 2) * scale_x
+                rel_y = (center_y - img_height / 2) * scale_y
+                canvas_x = pos_x + rel_x
+                canvas_y = pos_y + rel_y
+                
+                # 중심점을 십자가 모양으로 그리기 (크기: 10픽셀)
+                size = 5
+                # 가로선
+                line1 = canvas.create_line(
+                    canvas_x - size, canvas_y,
+                    canvas_x + size, canvas_y,
+                    fill="yellow",
+                    width=2,
+                    tags=("region_center", f"center_{region_name}")
+                )
+                items_list.append(line1)
+                
+                # 세로선
+                line2 = canvas.create_line(
+                    canvas_x, canvas_y - size,
+                    canvas_x, canvas_y + size,
+                    fill="yellow",
+                    width=2,
+                    tags=("region_center", f"center_{region_name}")
+                )
+                items_list.append(line2)
+                
+                # 중심점을 원으로도 그리기 (반지름 3픽셀)
+                circle = canvas.create_oval(
+                    canvas_x - 3, canvas_y - 3,
+                    canvas_x + 3, canvas_y + 3,
+                    outline="yellow",
+                    width=2,
+                    fill="",
+                    tags=("region_center", f"center_{region_name}")
+                )
+                items_list.append(circle)
+        
+        except Exception as e:
+            print(f"[얼굴편집] 중심점 그리기 실패: {e}")
+            import traceback
+            traceback.print_exc()
     """랜드마크 표시 기능 Mixin"""
     
     def _draw_landmarks_on_canvas(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, draw_points=True, draw_lines=False, draw_polygons=False, polygon_items_list=None, show_indices=False):
@@ -80,18 +186,71 @@ class LandmarkDisplayMixin:
             current_tab = getattr(self, 'current_morphing_tab', '눈')
             
             if current_tab == '전체':
-                # 전체 탭: 모든 랜드마크 표시
-                target_indices = None
+                # 전체 탭: 선택된 부위가 있으면 선택된 부위만, 없으면 아무것도 표시하지 않음
+                if hasattr(self, '_get_target_indices_for_tab'):
+                    target_indices_list = self._get_target_indices_for_tab('전체')
+                    if target_indices_list is not None and len(target_indices_list) > 0:
+                        # 선택된 부위가 있으면 선택된 부위만 표시
+                        target_indices = set(target_indices_list)
+                    else:
+                        # 선택된 부위가 없으면 빈 세트 (아무것도 표시하지 않음)
+                        target_indices = set()
+                else:
+                    # _get_target_indices_for_tab 함수가 없으면 아무것도 표시하지 않음
+                    target_indices = set()
             elif current_tab == '눈':
                 # 눈 탭: 왼쪽 눈, 오른쪽 눈, 눈동자만 표시 (눈썹 제외)
                 # 눈 인덱스만 사용 (눈썹 제외)
                 target_indices = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
                 # 눈동자 인덱스 추가 (refine_landmarks=True일 때 사용 가능)
+                # custom_landmarks를 사용할 때는 눈동자 포인트(468-477)가 제거되고 중앙 포인트로 대체됨
                 if len(landmarks) > 468:
-                    iris_indices = [468, 469, 470, 471, 472, 473, 474, 475, 476, 477]
-                    for idx in iris_indices:
-                        if idx < len(landmarks):
-                            target_indices.add(idx)
+                    # custom_landmarks를 사용하는 경우 눈동자 포인트 인덱스 제외
+                    use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks
+                    if not use_custom:
+                        # 원본 랜드마크를 사용하는 경우에만 눈동자 포인트 인덱스 추가 (MediaPipe 정의 사용)
+                        try:
+                            from utils.face_morphing.region_extraction import get_iris_indices
+                            left_iris_indices, right_iris_indices = get_iris_indices()
+                            iris_indices = left_iris_indices + right_iris_indices
+                        except ImportError:
+                            # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
+                            iris_indices = [469, 470, 471, 472, 474, 475, 476, 477]
+                        for idx in iris_indices:
+                            if idx < len(landmarks):
+                                target_indices.add(idx)
+                    else:
+                        # custom_landmarks를 사용하는 경우 중앙 포인트 인덱스만 추가
+                        if hasattr(self, '_left_iris_center_index') and self._left_iris_center_index is not None:
+                            if self._left_iris_center_index < len(landmarks):
+                                target_indices.add(self._left_iris_center_index)
+                        if hasattr(self, '_right_iris_center_index') and self._right_iris_center_index is not None:
+                            if self._right_iris_center_index < len(landmarks):
+                                target_indices.add(self._right_iris_center_index)
+            elif current_tab == '눈동자':
+                # 눈동자 탭: 눈동자 인덱스만 표시
+                target_indices = set()
+                if len(landmarks) > 468:
+                    use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks
+                    if not use_custom:
+                        # 원본 랜드마크를 사용하는 경우에만 눈동자 포인트 인덱스 추가
+                        try:
+                            from utils.face_morphing.region_extraction import get_iris_indices
+                            left_iris_indices, right_iris_indices = get_iris_indices()
+                            iris_indices = left_iris_indices + right_iris_indices
+                        except ImportError:
+                            iris_indices = [469, 470, 471, 472, 474, 475, 476, 477]
+                        for idx in iris_indices:
+                            if idx < len(landmarks):
+                                target_indices.add(idx)
+                    else:
+                        # custom_landmarks를 사용하는 경우 중앙 포인트 인덱스만 추가
+                        if hasattr(self, '_left_iris_center_index') and self._left_iris_center_index is not None:
+                            if self._left_iris_center_index < len(landmarks):
+                                target_indices.add(self._left_iris_center_index)
+                        if hasattr(self, '_right_iris_center_index') and self._right_iris_center_index is not None:
+                            if self._right_iris_center_index < len(landmarks):
+                                target_indices.add(self._right_iris_center_index)
             elif current_tab == '눈썹':
                 # 눈썹 탭: 왼쪽/오른쪽 눈썹 랜드마크 표시
                 target_indices = set(LEFT_EYEBROW_INDICES + RIGHT_EYEBROW_INDICES)
@@ -114,9 +273,23 @@ class LandmarkDisplayMixin:
             
             # 랜드마크 포인트 그리기 (draw_points가 True일 때만)
             if draw_points:
+                # custom_landmarks를 사용할 때는 눈동자 포인트 인덱스 제외 (MediaPipe 정의 사용)
+                try:
+                    from utils.face_morphing.region_extraction import get_iris_indices
+                    left_iris_indices, right_iris_indices = get_iris_indices()
+                    iris_indices_to_exclude = set(left_iris_indices + right_iris_indices)
+                except ImportError:
+                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
+                    iris_indices_to_exclude = set([469, 470, 471, 472, 474, 475, 476, 477])
+                use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks
+                
                 for idx, landmark in enumerate(landmarks):
                     # 현재 탭에 해당하는 랜드마크만 표시
                     if target_indices is not None and idx not in target_indices:
+                        continue
+                    
+                    # custom_landmarks를 사용할 때는 눈동자 포인트 인덱스 제외 (중앙 포인트만 표시)
+                    if use_custom and idx in iris_indices_to_exclude:
                         continue
                     
                     # 랜드마크 좌표 (튜플 형태: (x, y))
@@ -178,7 +351,7 @@ class LandmarkDisplayMixin:
                             canvas_y - text_offset,
                             text=str(idx),
                             fill=color,
-                            font=("Arial", 8, "bold"),
+                            font=("Arial", 12, "bold"),  # 글자 크기 8 -> 12로 증가
                             tags=("landmarks", f"landmark_text_{idx}")
                         )
                         items_list.append(text_id)
@@ -199,14 +372,14 @@ class LandmarkDisplayMixin:
                     except Exception:
                         pass
             
-            # 연결선 표시 (draw_lines가 True일 때만)
-            if draw_lines:
-                self._draw_landmark_lines(canvas, image, landmarks, pos_x, pos_y, polygon_items_list, color, current_tab)
-            
-            # 폴리곤 표시 (draw_polygons가 True일 때만)
+            # 폴리곤 표시 (draw_polygons가 True일 때만) - 먼저 그리기
             if draw_polygons:
                 # 폴리곤 그리기
                 self._draw_landmark_polygons(canvas, image, landmarks, pos_x, pos_y, polygon_items_list, color, current_tab)
+            
+            # 연결선 표시 (draw_lines가 True일 때만) - 폴리곤 다음에 그리기
+            if draw_lines:
+                self._draw_landmark_lines(canvas, image, landmarks, pos_x, pos_y, polygon_items_list, color, current_tab)
                 
                 # 연결선을 그린 후, 모든 랜드마크 포인트와 클릭 영역을 연결선보다 앞에 배치
                 # (랜드마크 드래그 우선순위 확보)
@@ -269,8 +442,49 @@ class LandmarkDisplayMixin:
             # MediaPipe의 FACEMESH 상수는 frozenset 타입이므로 리스트로 변환
             connections_to_draw = []
             if current_tab == '전체':
-                # 전체 탭: 모든 연결선 표시
-                connections_to_draw = None
+                # 전체 탭: 선택된 부위가 있으면 선택된 부위만, 없으면 아무것도 표시하지 않음
+                if hasattr(self, '_get_selected_region_indices'):
+                    selected_indices = self._get_selected_region_indices()
+                    if selected_indices is not None and len(selected_indices) > 0:
+                        # 선택된 부위의 연결선만 표시
+                        connections_to_draw = []
+                        selected_set = set(selected_indices)
+                        # 각 부위의 연결선 중 선택된 인덱스에 포함된 것만 추가
+                        all_connections = list(FACE_OVAL) + list(LEFT_EYE) + list(RIGHT_EYE) + list(LEFT_EYEBROW) + list(RIGHT_EYEBROW) + list(NOSE) + list(LIPS)
+                        try:
+                            CONTOURS = list(mp_face_mesh.FACEMESH_CONTOURS)
+                            all_connections.extend(CONTOURS)
+                        except AttributeError:
+                            pass
+                        try:
+                            TESSELATION = list(mp_face_mesh.FACEMESH_TESSELATION)
+                            all_connections.extend(TESSELATION)
+                        except AttributeError:
+                            pass
+                        try:
+                            LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                            RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                            all_connections.extend(LEFT_IRIS)
+                            all_connections.extend(RIGHT_IRIS)
+                        except AttributeError:
+                            pass
+                        for conn in all_connections:
+                            if conn[0] in selected_set and conn[1] in selected_set:
+                                connections_to_draw.append(conn)
+                    else:
+                        # 선택된 부위가 없으면 빈 리스트 (아무것도 표시하지 않음)
+                        connections_to_draw = []
+                else:
+                    # _get_selected_region_indices 함수가 없으면 아무것도 표시하지 않음
+                    connections_to_draw = []
+            elif current_tab == '눈동자':
+                # 눈동자 탭: 눈동자 연결선만 그리기
+                try:
+                    LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                    RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                    connections_to_draw = list(LEFT_IRIS) + list(RIGHT_IRIS)
+                except AttributeError:
+                    connections_to_draw = []
             elif current_tab == '눈':
                 # 눈 편집 시: 연결선만 그리기 (폴리곤은 별도로, 눈썹 제외)
                 connections_to_draw = list(LEFT_EYE) + list(RIGHT_EYE)
@@ -333,10 +547,10 @@ class LandmarkDisplayMixin:
                     canvas_x2 = pos_x + rel_x2
                     canvas_y2 = pos_y + rel_y2
                     
-                    # 연결선 그리기 (시각적 표시용)
+                    # 연결선 그리기 (시각적 표시용) - cyan 색상 사용
                     line_id = canvas.create_line(
                         canvas_x1, canvas_y1, canvas_x2, canvas_y2,
-                        fill=color, width=2, tags=("landmarks_polygon", f"polygon_line_{current_tab}")
+                        fill="cyan", width=2, tags=("landmarks_polygon", f"polygon_line_{current_tab}")
                     )
                     items_list.append(line_id)
                     
@@ -384,7 +598,9 @@ class LandmarkDisplayMixin:
             canvas_obj.tag_raise(self.selected_landmark_indicator_edited)
         
         # 선택된 포인트에 연결된 선들의 색상 변경
-        self._highlight_connected_lines(canvas_obj, landmark_index)
+        # 특별한 인덱스(-1, -2: 눈동자 중앙)는 연결선 하이라이트 생략
+        if landmark_index is not None and landmark_index >= 0:
+            self._highlight_connected_lines(canvas_obj, landmark_index)
 
     def _update_selected_landmark_indicator(self, canvas_obj, x, y):
         """선택된 포인트 표시 위치 업데이트 및 연결된 선과 폴리곤 갱신"""
@@ -475,6 +691,14 @@ class LandmarkDisplayMixin:
                                  list(mp_face_mesh.FACEMESH_NOSE) +
                                  list(mp_face_mesh.FACEMESH_LIPS) +
                                  list(mp_face_mesh.FACEMESH_FACE_OVAL))
+            elif current_tab == '눈동자':
+                # 눈동자 탭: 눈동자 연결선만
+                try:
+                    LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                    RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                    tab_connections = list(LEFT_IRIS) + list(RIGHT_IRIS)
+                except AttributeError:
+                    tab_connections = []
             elif current_tab == '눈':
                 tab_connections = (list(mp_face_mesh.FACEMESH_LEFT_EYE) + 
                                  list(mp_face_mesh.FACEMESH_RIGHT_EYE) +
@@ -610,6 +834,14 @@ class LandmarkDisplayMixin:
                                  list(mp_face_mesh.FACEMESH_NOSE) +
                                  list(mp_face_mesh.FACEMESH_LIPS) +
                                  list(mp_face_mesh.FACEMESH_FACE_OVAL))
+            elif current_tab == '눈동자':
+                # 눈동자 탭: 눈동자 연결선만
+                try:
+                    LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                    RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                    tab_connections = list(LEFT_IRIS) + list(RIGHT_IRIS)
+                except AttributeError:
+                    tab_connections = []
             elif current_tab == '눈':
                 tab_connections = (list(mp_face_mesh.FACEMESH_LEFT_EYE) + 
                                  list(mp_face_mesh.FACEMESH_RIGHT_EYE) +

@@ -2,6 +2,7 @@
 얼굴 편집 패널 - 캔버스 드래그 처리 Mixin
 캔버스 이미지 드래그 이벤트 처리를 담당
 """
+import math
 
 
 class CanvasDragHandlerMixin:
@@ -25,6 +26,15 @@ class CanvasDragHandlerMixin:
                 landmarks = None
             
             if landmarks is not None:
+                # 중앙 포인트를 먼저 체크 (눈동자 포인트보다 우선)
+                # 중앙 포인트가 클릭 범위 내에 있으면 다른 포인트를 찾지 않음
+                if hasattr(self, '_check_iris_center_click'):
+                    if self._check_iris_center_click(event, landmarks, self.canvas_original):
+                        # 중앙 포인트가 클릭되었으므로 다른 포인트를 찾지 않음
+                        # tag_bind 이벤트가 처리할 것임
+                        print(f"[얼굴편집] 중앙 포인트 클릭 감지 - 다른 포인트 찾기 건너뜀")
+                        return
+                
                 # 화면에 보이는 모든 포인트 중에서 가장 가까운 포인트 찾기
                 # 현재 탭에 해당하는 포인트만 찾는 것이 아니라 모든 포인트를 확인
                 nearest_idx = self._find_nearest_landmark_for_drag(event, landmarks, None, self.canvas_original)
@@ -180,18 +190,18 @@ class CanvasDragHandlerMixin:
                         if hasattr(self, 'clear_landmarks_display'):
                             self.clear_landmarks_display()
                         # 연결선도 제거
-                        for item_id in self.landmark_polygon_items_original:
+                        for item_id in self.landmark_polygon_items['original']:
                             try:
                                 self.canvas_original.delete(item_id)
                             except Exception:
                                 pass
-                        self.landmark_polygon_items_original.clear()
-                        for item_id in self.landmark_polygon_items_edited:
+                        self.landmark_polygon_items['original'].clear()
+                        for item_id in self.landmark_polygon_items['edited']:
                             try:
                                 self.canvas_edited.delete(item_id)
                             except Exception:
                                 pass
-                        self.landmark_polygon_items_edited.clear()
+                        self.landmark_polygon_items['edited'].clear()
                         # 새로운 위치에 다시 그리기
                         if hasattr(self, 'update_face_features_display'):
                             self.update_face_features_display()
@@ -232,6 +242,14 @@ class CanvasDragHandlerMixin:
                 landmarks = None
             
             if landmarks is not None:
+                # 중앙 포인트를 먼저 체크 (눈동자 포인트보다 우선)
+                # 중앙 포인트가 클릭 범위 내에 있으면 다른 포인트를 찾지 않음
+                if hasattr(self, '_check_iris_center_click'):
+                    if self._check_iris_center_click(event, landmarks, self.canvas_edited):
+                        # 중앙 포인트가 클릭되었으므로 다른 포인트를 찾지 않음
+                        # tag_bind 이벤트가 처리할 것임
+                        return
+                
                 # 화면에 보이는 모든 포인트 중에서 가장 가까운 포인트 찾기
                 # 현재 탭에 해당하는 포인트만 찾는 것이 아니라 모든 포인트를 확인
                 nearest_idx = self._find_nearest_landmark_for_drag(event, landmarks, None, self.canvas_edited)
@@ -387,18 +405,18 @@ class CanvasDragHandlerMixin:
                         if hasattr(self, 'clear_landmarks_display'):
                             self.clear_landmarks_display()
                         # 연결선도 제거
-                        for item_id in self.landmark_polygon_items_original:
+                        for item_id in self.landmark_polygon_items['original']:
                             try:
                                 self.canvas_original.delete(item_id)
                             except Exception:
                                 pass
-                        self.landmark_polygon_items_original.clear()
-                        for item_id in self.landmark_polygon_items_edited:
+                        self.landmark_polygon_items['original'].clear()
+                        for item_id in self.landmark_polygon_items['edited']:
                             try:
                                 self.canvas_edited.delete(item_id)
                             except Exception:
                                 pass
-                        self.landmark_polygon_items_edited.clear()
+                        self.landmark_polygon_items['edited'].clear()
                         # 새로운 위치에 다시 그리기
                         if hasattr(self, 'update_face_features_display'):
                             self.update_face_features_display()

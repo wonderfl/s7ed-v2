@@ -33,37 +33,68 @@ class PolygonDragHandlerMixin:
             self.canvas_edited_drag_start_x = None
             self.canvas_edited_drag_start_y = None
         
-        # 현재 랜드마크의 이미지 좌표 계산
+        # 현재 랜드마크의 이미지 좌표 계산 - LandmarkManager 사용
         if canvas_obj == self.canvas_original:
             if self.current_image is None:
                 return
             img = self.current_image
-            # 랜드마크 가져오기 (커스텀 또는 원본)
-            if self.custom_landmarks is not None:
-                landmarks = self.custom_landmarks
-            elif self.face_landmarks is not None:
-                landmarks = self.face_landmarks
+            # 랜드마크 가져오기 (커스텀 또는 원본) - LandmarkManager 사용
+            if hasattr(self, 'landmark_manager'):
+                custom = self.landmark_manager.get_custom_landmarks()
+                face = self.landmark_manager.get_face_landmarks()
+                if custom is not None:
+                    landmarks = custom
+                elif face is not None:
+                    landmarks = face
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
+                    if landmarks is None:
+                        return
+                    self.landmark_manager.set_face_landmarks(landmarks)
+                    # 하위 호환성
+                    self.face_landmarks = self.landmark_manager.get_face_landmarks()
+                    # 원본 랜드마크도 저장
+                    if not self.landmark_manager.has_original_landmarks():
+                        self.landmark_manager.set_original_landmarks(landmarks)
+                        # 하위 호환성
+                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
             else:
-                landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                if landmarks is None:
-                    return
-                self.face_landmarks = landmarks
-                # 원본 랜드마크도 저장
-                if self.original_landmarks is None:
-                    self.original_landmarks = list(landmarks)
+                # LandmarkManager가 없으면 기존 방식 사용
+                if self.custom_landmarks is not None:
+                    landmarks = self.custom_landmarks
+                elif self.face_landmarks is not None:
+                    landmarks = self.face_landmarks
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
+                    if landmarks is None:
+                        return
+                    self.face_landmarks = landmarks
+                    # 원본 랜드마크도 저장
+                    if self.original_landmarks is None:
+                        self.original_landmarks = list(landmarks)
             pos_x = self.canvas_original_pos_x
             pos_y = self.canvas_original_pos_y
         else:
             if self.edited_image is None:
                 return
             img = self.edited_image
-            # 편집된 이미지의 랜드마크는 커스텀 랜드마크 사용
-            if self.custom_landmarks is not None:
-                landmarks = self.custom_landmarks
+            # 편집된 이미지의 랜드마크는 커스텀 랜드마크 사용 - LandmarkManager 사용
+            if hasattr(self, 'landmark_manager'):
+                custom = self.landmark_manager.get_custom_landmarks()
+                if custom is not None:
+                    landmarks = custom
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(self.edited_image)
+                    if landmarks is None:
+                        return
             else:
-                landmarks, _ = face_landmarks.detect_face_landmarks(self.edited_image)
-                if landmarks is None:
-                    return
+                # LandmarkManager가 없으면 기존 방식 사용
+                if self.custom_landmarks is not None:
+                    landmarks = self.custom_landmarks
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(self.edited_image)
+                    if landmarks is None:
+                        return
             pos_x = self.canvas_edited_pos_x
             pos_y = self.canvas_edited_pos_y
         
@@ -72,14 +103,30 @@ class PolygonDragHandlerMixin:
         
         self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = landmarks[landmark_index]
         
-        # 커스텀 랜드마크 초기화 (처음 드래그할 때)
+        # 커스텀 랜드마크 초기화 (처음 드래그할 때) - LandmarkManager 사용
         # 슬라이더로 변형된 랜드마크가 있으면 그것을 기준으로 사용
-        if self.custom_landmarks is None:
-            # face_landmarks가 있으면 (슬라이더로 변형된 랜드마크) 그것을 사용
-            if self.face_landmarks is not None:
-                self.custom_landmarks = list(self.face_landmarks)
-            else:
-                self.custom_landmarks = list(landmarks) if landmarks else None
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+            if custom is None:
+                # face_landmarks가 있으면 (슬라이더로 변형된 랜드마크) 그것을 사용
+                face = self.landmark_manager.get_face_landmarks()
+                if face is not None:
+                    self.landmark_manager.set_custom_landmarks(face, reason="on_polygon_drag_start")
+                    # 하위 호환성
+                    self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                else:
+                    if landmarks is not None:
+                        self.landmark_manager.set_custom_landmarks(landmarks, reason="on_polygon_drag_start")
+                        # 하위 호환성
+                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+        else:
+            # LandmarkManager가 없으면 기존 방식 사용
+            if self.custom_landmarks is None:
+                # face_landmarks가 있으면 (슬라이더로 변형된 랜드마크) 그것을 사용
+                if self.face_landmarks is not None:
+                    self.custom_landmarks = list(self.face_landmarks)
+                else:
+                    self.custom_landmarks = list(landmarks) if landmarks else None
         
         # 선택된 포인트 표시 (큰 원으로 강조)
         self._draw_selected_landmark_indicator(canvas_obj, landmark_index, event.x, event.y)
@@ -93,7 +140,19 @@ class PolygonDragHandlerMixin:
         if not self.dragging_polygon or self.dragged_polygon_index != landmark_index:
             return
         
-        if self.custom_landmarks is None:
+        # 중앙 포인트 드래그의 경우 ('left' 또는 'right' 문자열)
+        if isinstance(landmark_index, str):
+            # on_iris_center_drag로 위임
+            self.on_iris_center_drag(event, landmark_index, canvas_obj)
+            return
+        
+        # custom_landmarks 확인 (LandmarkManager 사용)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        if custom is None:
             return
         
         # 이미지 좌표계로 변환
@@ -133,9 +192,24 @@ class PolygonDragHandlerMixin:
         img_y = max(0, min(img_height - 1, img_y))
         
         # 랜드마크 위치 업데이트
-        if landmark_index < len(self.custom_landmarks):
-            old_pos = self.custom_landmarks[landmark_index]
-            self.custom_landmarks[landmark_index] = (img_x, img_y)
+        # custom_landmarks 가져오기 (LandmarkManager 사용)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        # landmark_index가 정수인지 확인 (중앙 포인트 드래그의 경우 'left'/'right' 문자열일 수 있음)
+        if custom is not None and isinstance(landmark_index, int) and landmark_index >= 0 and landmark_index < len(custom):
+            old_pos = custom[landmark_index]
+            custom[landmark_index] = (img_x, img_y)
+            # LandmarkManager 사용 시 업데이트
+            if hasattr(self, 'landmark_manager'):
+                self.landmark_manager.set_custom_landmarks(custom, reason="on_polygon_drag")
+                # 하위 호환성
+                self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+        elif isinstance(landmark_index, str):
+            # 중앙 포인트 드래그의 경우 ('left' 또는 'right') - on_iris_center_drag에서 처리됨
+            pass
             # 디버깅: 인덱스와 위치 변경 확인
             if abs(old_pos[0] - img_x) > 0.1 or abs(old_pos[1] - img_y) > 0.1:
                 print(f"[얼굴편집] 랜드마크 인덱스 {landmark_index} 위치 변경: ({old_pos[0]:.1f}, {old_pos[1]:.1f}) -> ({img_x:.1f}, {img_y:.1f})")
@@ -166,10 +240,17 @@ class PolygonDragHandlerMixin:
             return
         
         # 드래그 종료 시 항상 변형 적용
-        if self.custom_landmarks is not None:
+        # custom_landmarks 확인 (LandmarkManager 사용)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        if custom is not None:
             self.apply_polygon_drag_final()
         
         # 마지막으로 선택한 포인트 인덱스 저장 (드래그 종료 후에도 유지)
+        # landmark_index는 정수이므로 그대로 저장
         self.last_selected_landmark_index = landmark_index
         print(f"[얼굴편집] 드래그 종료: 마지막 선택 포인트 인덱스 {landmark_index} 저장")
         
@@ -184,6 +265,192 @@ class PolygonDragHandlerMixin:
         # 이벤트 전파 중단 (이미지 드래그 방지)
         return "break"
     
+    def on_iris_center_drag_start(self, event, iris_side, canvas_obj):
+        """눈동자 중앙 포인트 드래그 시작
+        iris_side: 'left' 또는 'right' (좌표 기반)
+        """
+        # 드래그 시작
+        self.dragging_polygon = True
+        self.dragged_polygon_index = iris_side  # 'left' 또는 'right' 저장
+        self.dragged_polygon_canvas = canvas_obj
+        
+        # 드래그 시작 위치 저장
+        self.polygon_drag_start_x = event.x
+        self.polygon_drag_start_y = event.y
+        
+        # 이미지 드래그 시작 플래그 초기화
+        if canvas_obj == self.canvas_original:
+            self.canvas_original_drag_start_x = None
+            self.canvas_original_drag_start_y = None
+        else:
+            self.canvas_edited_drag_start_x = None
+            self.canvas_edited_drag_start_y = None
+        
+        # 현재 이미지 가져오기
+        if canvas_obj == self.canvas_original:
+            if self.current_image is None:
+                return
+            img = self.current_image
+        else:
+            if self.edited_image is None:
+                return
+            img = self.edited_image
+        
+        # 중앙 포인트 좌표 가져오기
+        if iris_side == 'left' and hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
+            self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = self._left_iris_center_coord
+        elif iris_side == 'right' and hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
+            self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = self._right_iris_center_coord
+        else:
+            # 좌표가 없으면 original_landmarks에서 계산
+            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                img_width, img_height = img.size
+                left_iris_indices, right_iris_indices = self._get_iris_indices()
+                if iris_side == 'left':
+                    center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
+                else:
+                    center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
+                if center is not None:
+                    self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = center
+                else:
+                    return
+            else:
+                return
+        
+        # 선택된 포인트 표시
+        self._draw_selected_landmark_indicator(canvas_obj, None, event.x, event.y)
+        
+        return "break"
+    
+    def on_iris_center_drag(self, event, iris_side, canvas_obj):
+        """눈동자 중앙 포인트 드래그 중
+        iris_side: 'left' 또는 'right' (좌표 기반)
+        """
+        if not self.dragging_polygon or self.dragged_polygon_index != iris_side:
+            return
+        
+        # 이미지 좌표계로 변환
+        if canvas_obj == self.canvas_original:
+            img = self.current_image
+            pos_x = self.canvas_original_pos_x
+            pos_y = self.canvas_original_pos_y
+        else:
+            img = self.edited_image
+            pos_x = self.canvas_edited_pos_x
+            pos_y = self.canvas_edited_pos_y
+        
+        if img is None or pos_x is None or pos_y is None:
+            return
+        
+        img_width, img_height = img.size
+        display_size = getattr(canvas_obj, 'display_size', None)
+        if display_size is None:
+            display_width = img_width
+            display_height = img_height
+        else:
+            display_width, display_height = display_size
+        
+        scale_x = display_width / img_width
+        scale_y = display_height / img_height
+        
+        # 캔버스 좌표를 이미지 좌표로 변환
+        rel_x = (event.x - pos_x) / scale_x
+        rel_y = (event.y - pos_y) / scale_y
+        new_center_x = img_width / 2 + rel_x
+        new_center_y = img_height / 2 + rel_y
+        
+        # 이미지 경계 내로 제한
+        new_center_x = max(0, min(img_width - 1, new_center_x))
+        new_center_y = max(0, min(img_height - 1, new_center_y))
+        
+        # 중앙 포인트 좌표 업데이트
+        # custom_landmarks의 배열 끝 인덱스도 직접 업데이트 (방법 A)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        if custom is not None and len(custom) >= 2:
+            # 계산된 중앙 포인트 인덱스: 
+            # custom_landmarks에는 눈동자 포인트가 제거되고 중앙 포인트가 추가되어 있음
+            # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
+            # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+            # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+            # 따라서: len-2 = MediaPipe LEFT_IRIS (사용자 왼쪽), len-1 = MediaPipe RIGHT_IRIS (사용자 오른쪽)
+            if iris_side == 'left':
+                left_idx = len(custom) - 2  # MediaPipe LEFT_IRIS = 사용자 왼쪽
+                custom[left_idx] = (new_center_x, new_center_y)
+                self._left_iris_center_coord = (new_center_x, new_center_y)
+                if hasattr(self, 'landmark_manager'):
+                    self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag")
+                    self.landmark_manager.set_iris_center_coords(
+                        (new_center_x, new_center_y),
+                        self.landmark_manager.get_right_iris_center_coord()
+                    )
+            elif iris_side == 'right':
+                right_idx = len(custom) - 1  # MediaPipe RIGHT_IRIS = 사용자 오른쪽
+                custom[right_idx] = (new_center_x, new_center_y)
+                self._right_iris_center_coord = (new_center_x, new_center_y)
+                if hasattr(self, 'landmark_manager'):
+                    self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag")
+                    self.landmark_manager.set_iris_center_coords(
+                        self.landmark_manager.get_left_iris_center_coord(),
+                        (new_center_x, new_center_y)
+                    )
+            # 하위 호환성
+            self.custom_landmarks = custom
+        else:
+            # custom_landmarks가 없거나 길이가 부족한 경우 좌표만 업데이트
+            if iris_side == 'left':
+                self._left_iris_center_coord = (new_center_x, new_center_y)
+                if hasattr(self, 'landmark_manager'):
+                    self.landmark_manager.set_iris_center_coords(
+                        (new_center_x, new_center_y),
+                        self.landmark_manager.get_right_iris_center_coord()
+                    )
+            elif iris_side == 'right':
+                self._right_iris_center_coord = (new_center_x, new_center_y)
+                if hasattr(self, 'landmark_manager'):
+                    self.landmark_manager.set_iris_center_coords(
+                        self.landmark_manager.get_left_iris_center_coord(),
+                        (new_center_x, new_center_y)
+                    )
+        
+        # 선택된 포인트 표시 업데이트
+        self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)
+        
+        return "break"
+    
+    def on_iris_center_drag_end(self, event, iris_side, canvas_obj):
+        """눈동자 중앙 포인트 드래그 종료"""
+        if not self.dragging_polygon or self.dragged_polygon_index != iris_side:
+            return
+        
+        # 드래그 종료 시 항상 변형 적용
+        # custom_landmarks 확인 (LandmarkManager 사용)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        if custom is not None:
+            self.apply_polygon_drag_final()
+        
+        # 선택된 포인트 표시 제거
+        self._remove_selected_landmark_indicator(canvas_obj)
+        
+        # 드래그 종료 시 플래그 초기화
+        self.dragging_polygon = False
+        self.dragged_polygon_index = None
+        self.dragged_polygon_canvas = None
+        
+        # 폴리곤 표시가 활성화되어 있으면 폴리곤 다시 그리기
+        if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+            if hasattr(self, 'update_face_features_display'):
+                self.update_face_features_display()
+        
+        return "break"
+    
     def apply_polygon_drag_preview(self):
         """폴리곤 드래그 중 실시간 미리보기 (현재 비활성화: 성능 최적화)"""
         # 성능 최적화: 드래그 중에는 실시간 미리보기 비활성화
@@ -192,19 +459,38 @@ class PolygonDragHandlerMixin:
     
     def apply_polygon_drag_final(self):
         """폴리곤 드래그 종료 시 최종 편집 적용"""
-        if self.custom_landmarks is None or self.current_image is None:
+        # custom_landmarks 확인 (LandmarkManager 사용)
+        if hasattr(self, 'landmark_manager'):
+            custom = self.landmark_manager.get_custom_landmarks()
+        else:
+            custom = self.custom_landmarks
+        
+        if custom is None or self.current_image is None:
             return
         
         try:
-            # 원본 랜드마크 가져오기 (항상 원본 이미지 기준)
-            if self.original_landmarks is None:
-                original_landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                if original_landmarks is None:
-                    print("[얼굴편집] 원본 랜드마크 감지 실패")
-                    return
-                self.original_landmarks = original_landmarks
+            # 원본 랜드마크 가져오기 (LandmarkManager 사용)
+            if hasattr(self, 'landmark_manager'):
+                if not self.landmark_manager.has_original_landmarks():
+                    original_landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
+                    if original_landmarks is None:
+                        print("[얼굴편집] 원본 랜드마크 감지 실패")
+                        return
+                    self.landmark_manager.set_original_landmarks(original_landmarks)
+                    # 하위 호환성
+                    self.original_landmarks = self.landmark_manager.get_original_landmarks()
+                else:
+                    original_landmarks = self.landmark_manager.get_original_landmarks()
             else:
-                original_landmarks = self.original_landmarks
+                # LandmarkManager가 없으면 기존 방식 사용
+                if self.original_landmarks is None:
+                    original_landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
+                    if original_landmarks is None:
+                        print("[얼굴편집] 원본 랜드마크 감지 실패")
+                        return
+                    self.original_landmarks = original_landmarks
+                else:
+                    original_landmarks = self.original_landmarks
             
             # 슬라이더로 변형된 랜드마크가 있으면 그것을 기준으로 사용
             # custom_landmarks는 슬라이더 변형 + 드래그 변형이 모두 적용된 상태
@@ -228,21 +514,70 @@ class PolygonDragHandlerMixin:
             # 마지막으로 선택한 포인트 인덱스 확인
             if hasattr(self, 'last_selected_landmark_index') and self.last_selected_landmark_index is not None:
                 last_idx = self.last_selected_landmark_index
-                if last_idx < len(original_landmarks) and last_idx < len(self.custom_landmarks):
-                    orig_pos = original_landmarks[last_idx]
-                    custom_pos = self.custom_landmarks[last_idx]
-                    diff = ((custom_pos[0] - orig_pos[0])**2 + (custom_pos[1] - orig_pos[1])**2)**0.5
-                    print(f"[얼굴편집] 마지막 선택 포인트 인덱스 {last_idx}: 원본=({orig_pos[0]:.1f}, {orig_pos[1]:.1f}), 변형=({custom_pos[0]:.1f}, {custom_pos[1]:.1f}), 거리={diff:.1f}픽셀")
+                # 중앙 포인트 드래그의 경우 'left'/'right' 문자열이므로 정수 체크 필요
+                if isinstance(last_idx, int) and last_idx >= 0:
+                    # custom_landmarks 가져오기 (LandmarkManager 사용)
+                    if hasattr(self, 'landmark_manager'):
+                        custom = self.landmark_manager.get_custom_landmarks()
+                    else:
+                        custom = self.custom_landmarks
+                    
+                    if custom is not None and last_idx < len(original_landmarks) and last_idx < len(custom):
+                        orig_pos = original_landmarks[last_idx]
+                        custom_pos = custom[last_idx]
+                        diff = ((custom_pos[0] - orig_pos[0])**2 + (custom_pos[1] - orig_pos[1])**2)**0.5
+                        print(f"[얼굴편집] 마지막 선택 포인트 인덱스 {last_idx}: 원본=({orig_pos[0]:.1f}, {orig_pos[1]:.1f}), 변형=({custom_pos[0]:.1f}, {custom_pos[1]:.1f}), 거리={diff:.1f}픽셀")
+                elif isinstance(last_idx, str):
+                    # 중앙 포인트 드래그의 경우 ('left' 또는 'right')
+                    print(f"[얼굴편집] 마지막 선택 포인트: 중앙 포인트 ({last_idx})")
+            
+            # 공통 슬라이더 적용 (morph_face_by_polygons 호출 전에 custom_landmarks 변환)
+            # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
+            if hasattr(self, '_apply_common_sliders'):
+                # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
+                temp_result = self._apply_common_sliders(self.current_image)
+                if temp_result is not None:
+                    # custom_landmarks가 변환되었으므로 다시 확인
+                    changed_indices_after = []
+                    # custom_landmarks 가져오기 (LandmarkManager 사용)
+                    if hasattr(self, 'landmark_manager'):
+                        custom = self.landmark_manager.get_custom_landmarks()
+                    else:
+                        custom = self.custom_landmarks
+                    
+                    if custom is not None:
+                        for i in range(min(len(original_landmarks), len(custom))):
+                            orig = original_landmarks[i]
+                            custom_point = custom[i]
+                            diff = ((custom_point[0] - orig[0])**2 + (custom_point[1] - orig[1])**2)**0.5
+                            if diff > 0.1:
+                                changed_indices_after.append((i, diff))
+                    if changed_indices_after:
+                        print(f"[얼굴편집] 공통 슬라이더 적용 후 변형된 랜드마크: {len(changed_indices_after)}개")
             
             # 랜드마크 변형 적용 (원본 이미지와 원본 랜드마크를 기준으로)
             # 고급 모드 여부와 관계없이 Delaunay Triangulation 사용
             # 마지막으로 선택한 포인트 인덱스 전달 (인덱스 기반 직접 매핑을 위해)
             last_selected_index = getattr(self, 'last_selected_landmark_index', None)
+            # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
+            left_center = None
+            right_center = None
+            if hasattr(self, 'landmark_manager'):
+                left_center = self.landmark_manager.get_left_iris_center_coord()
+                right_center = self.landmark_manager.get_right_iris_center_coord()
+            else:
+                if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
+                    left_center = self._left_iris_center_coord
+                if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
+                    right_center = self._right_iris_center_coord
+            
             result = face_morphing.morph_face_by_polygons(
                 self.current_image,  # 원본 이미지
                 original_landmarks,  # 원본 랜드마크
-                self.custom_landmarks,  # 변형된 랜드마크
-                selected_point_indices=[last_selected_index] if last_selected_index is not None else None  # 선택한 포인트 인덱스
+                self.custom_landmarks,  # 변형된 랜드마크 (공통 슬라이더 변환 포함)
+                selected_point_indices=[last_selected_index] if last_selected_index is not None else None,  # 선택한 포인트 인덱스
+                left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
+                right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
             )
             
             if result is None:
@@ -325,22 +660,98 @@ class PolygonDragHandlerMixin:
         # 화면에 보이는 포인트 확인
         # 1. 랜드마크 체크박스가 체크되어 있으면 polygon_point_map에 있는 포인트
         # 2. 폴리곤만 체크되어 있으면 현재 탭에 해당하는 포인트들 (폴리곤에 포함된 포인트)
-        if canvas_obj == self.canvas_original:
-            visible_point_map = self.polygon_point_map_original
-            polygon_items = self.landmark_polygon_items_original
-        else:
-            visible_point_map = self.polygon_point_map_edited
-            polygon_items = self.landmark_polygon_items_edited
+        # 캔버스 타입 결정
+        canvas_type = 'original' if canvas_obj == self.canvas_original else 'edited'
+        visible_point_set = self.polygon_point_map_original if canvas_type == 'original' else self.polygon_point_map_edited
+        polygon_items = self.landmark_polygon_items[canvas_type]
         
         # 폴리곤에 포함된 포인트만 확인 (polygon_point_map 사용)
         # 확장 레벨로 추가된 포인트도 포함됨
         if len(polygon_items) > 0:
             # 폴리곤이 그려져 있으면 polygon_point_map에 있는 포인트만 확인
             # 이렇게 하면 확장 레벨로 추가된 포인트도 포함됨
-            visible_indices = list(visible_point_map.keys())
+            visible_indices = list(visible_point_set)
         else:
             # 폴리곤이 그려져 있지 않으면 빈 리스트
             visible_indices = []
+        
+        # 중앙 포인트를 먼저 체크 (눈동자 포인트보다 우선)
+        # 눈동자 중앙 포인트가 클릭 범위 내에 있으면 눈동자 포인트를 찾지 않음
+        center_radius = 10  # 중앙 포인트 클릭 범위 (캔버스 좌표계 기준, 픽셀)
+        try:
+            import mediapipe as mp
+            mp_face_mesh = mp.solutions.face_mesh
+            LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+            RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+            
+            # 왼쪽 눈동자 중앙 포인트 체크
+            left_iris_indices_set = set()
+            for idx1, idx2 in LEFT_IRIS:
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    left_iris_indices_set.add(idx1)
+                    left_iris_indices_set.add(idx2)
+            if 468 < len(landmarks):
+                left_iris_indices_set.add(468)
+            
+            if left_iris_indices_set:
+                left_iris_coords = []
+                for idx in left_iris_indices_set:
+                    if idx < len(landmarks):
+                        pt = landmarks[idx]
+                        if isinstance(pt, tuple):
+                            img_x, img_y = pt
+                        else:
+                            img_x = pt.x * img_width
+                            img_y = pt.y * img_height
+                        left_iris_coords.append((img_x, img_y))
+                
+                if left_iris_coords:
+                    center_x = sum(c[0] for c in left_iris_coords) / len(left_iris_coords)
+                    center_y = sum(c[1] for c in left_iris_coords) / len(left_iris_coords)
+                    rel_x = (center_x - img_width / 2) * scale_x
+                    rel_y = (center_y - img_height / 2) * scale_y
+                    center_canvas_x = pos_x + rel_x
+                    center_canvas_y = pos_y + rel_y
+                    center_distance = math.sqrt((event.x - center_canvas_x)**2 + (event.y - center_canvas_y)**2)
+                    if center_distance < center_radius:
+                        # 중앙 포인트가 클릭 범위 내에 있으면 눈동자 포인트를 제외
+                        visible_indices = [idx for idx in visible_indices if idx not in left_iris_indices_set]
+            
+            # 오른쪽 눈동자 중앙 포인트 체크
+            right_iris_indices_set = set()
+            for idx1, idx2 in RIGHT_IRIS:
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    right_iris_indices_set.add(idx1)
+                    right_iris_indices_set.add(idx2)
+            if 473 < len(landmarks):
+                right_iris_indices_set.add(473)
+            
+            if right_iris_indices_set:
+                right_iris_coords = []
+                for idx in right_iris_indices_set:
+                    if idx < len(landmarks):
+                        pt = landmarks[idx]
+                        if isinstance(pt, tuple):
+                            img_x, img_y = pt
+                        else:
+                            img_x = pt.x * img_width
+                            img_y = pt.y * img_height
+                        right_iris_coords.append((img_x, img_y))
+                
+                if right_iris_coords:
+                    center_x = sum(c[0] for c in right_iris_coords) / len(right_iris_coords)
+                    center_y = sum(c[1] for c in right_iris_coords) / len(right_iris_coords)
+                    rel_x = (center_x - img_width / 2) * scale_x
+                    rel_y = (center_y - img_height / 2) * scale_y
+                    center_canvas_x = pos_x + rel_x
+                    center_canvas_y = pos_y + rel_y
+                    center_distance = math.sqrt((event.x - center_canvas_x)**2 + (event.y - center_canvas_y)**2)
+                    if center_distance < center_radius:
+                        # 중앙 포인트가 클릭 범위 내에 있으면 눈동자 포인트를 제외
+                        visible_indices = [idx for idx in visible_indices if idx not in right_iris_indices_set]
+        except (ImportError, AttributeError):
+            # MediaPipe가 없거나 FACEMESH_LEFT_IRIS/FACEMESH_RIGHT_IRIS가 없으면 스킵
+            pass
         
         min_distance = float('inf')
         nearest_idx = None
@@ -389,3 +800,154 @@ class PolygonDragHandlerMixin:
                 nearest_idx = idx
         
         return nearest_idx
+    
+    def _check_iris_center_click(self, event, landmarks, canvas_obj):
+        """중앙 포인트가 클릭 범위 내에 있는지 확인"""
+        if landmarks is None or len(landmarks) == 0:
+            return False
+        
+        # 이미지 좌표계로 변환
+        if canvas_obj == self.canvas_original:
+            img = self.current_image
+            pos_x = self.canvas_original_pos_x
+            pos_y = self.canvas_original_pos_y
+        else:
+            img = self.edited_image
+            pos_x = self.canvas_edited_pos_x
+            pos_y = self.canvas_edited_pos_y
+        
+        if img is None or pos_x is None or pos_y is None:
+            return False
+        
+        img_width, img_height = img.size
+        display_size = getattr(canvas_obj, 'display_size', None)
+        if display_size is None:
+            display_width = img_width
+            display_height = img_height
+        else:
+            display_width, display_height = display_size
+        
+        scale_x = display_width / img_width
+        scale_y = display_height / img_height
+        
+        center_radius = 25  # 중앙 포인트 클릭 범위 (캔버스 좌표계 기준, 픽셀)
+        
+        try:
+            import mediapipe as mp
+            mp_face_mesh = mp.solutions.face_mesh
+            LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+            RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+            
+            # 왼쪽 눈동자 중앙 포인트 체크 (계산값)
+            left_iris_indices_set = set()
+            for idx1, idx2 in LEFT_IRIS:
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    left_iris_indices_set.add(idx1)
+                    left_iris_indices_set.add(idx2)
+            if 468 < len(landmarks):
+                left_iris_indices_set.add(468)
+            
+            if left_iris_indices_set:
+                left_iris_coords = []
+                for idx in left_iris_indices_set:
+                    if idx < len(landmarks):
+                        pt = landmarks[idx]
+                        if isinstance(pt, tuple):
+                            img_x, img_y = pt
+                        else:
+                            img_x = pt.x * img_width
+                            img_y = pt.y * img_height
+                        left_iris_coords.append((img_x, img_y))
+                
+                if left_iris_coords:
+                    center_x = sum(c[0] for c in left_iris_coords) / len(left_iris_coords)
+                    center_y = sum(c[1] for c in left_iris_coords) / len(left_iris_coords)
+                    rel_x = (center_x - img_width / 2) * scale_x
+                    rel_y = (center_y - img_height / 2) * scale_y
+                    center_canvas_x = pos_x + rel_x
+                    center_canvas_y = pos_y + rel_y
+                    center_distance = math.sqrt((event.x - center_canvas_x)**2 + (event.y - center_canvas_y)**2)
+                    if center_distance < center_radius:
+                        return True
+            
+            # 오른쪽 눈동자 중앙 포인트 체크 (계산값)
+            right_iris_indices_set = set()
+            for idx1, idx2 in RIGHT_IRIS:
+                if idx1 < len(landmarks) and idx2 < len(landmarks):
+                    right_iris_indices_set.add(idx1)
+                    right_iris_indices_set.add(idx2)
+            if 473 < len(landmarks):
+                right_iris_indices_set.add(473)
+            
+            if right_iris_indices_set:
+                right_iris_coords = []
+                for idx in right_iris_indices_set:
+                    if idx < len(landmarks):
+                        pt = landmarks[idx]
+                        if isinstance(pt, tuple):
+                            img_x, img_y = pt
+                        else:
+                            img_x = pt.x * img_width
+                            img_y = pt.y * img_height
+                        right_iris_coords.append((img_x, img_y))
+                
+                if right_iris_coords:
+                    center_x = sum(c[0] for c in right_iris_coords) / len(right_iris_coords)
+                    center_y = sum(c[1] for c in right_iris_coords) / len(right_iris_coords)
+                    rel_x = (center_x - img_width / 2) * scale_x
+                    rel_y = (center_y - img_height / 2) * scale_y
+                    center_canvas_x = pos_x + rel_x
+                    center_canvas_y = pos_y + rel_y
+                    center_distance = math.sqrt((event.x - center_canvas_x)**2 + (event.y - center_canvas_y)**2)
+                    if center_distance < center_radius:
+                        return True
+        except (ImportError, AttributeError):
+            # MediaPipe가 없거나 FACEMESH_LEFT_IRIS/FACEMESH_RIGHT_IRIS가 없으면 스킵
+            pass
+        
+        return False
+    
+    def _calculate_iris_center(self, landmarks, iris_indices, img_width, img_height):
+        """눈동자 인덱스에서 중앙 포인트 계산
+        
+        Args:
+            landmarks: 랜드마크 리스트
+            iris_indices: 눈동자 인덱스 리스트
+            img_width: 이미지 너비
+            img_height: 이미지 높이
+        
+        Returns:
+            (center_x, center_y) 튜플 또는 None
+        """
+        if not landmarks or not iris_indices:
+            return None
+        
+        iris_coords = []
+        for idx in iris_indices:
+            if idx < len(landmarks):
+                pt = landmarks[idx]
+                if isinstance(pt, tuple):
+                    iris_coords.append(pt)
+                else:
+                    iris_coords.append((pt.x * img_width, pt.y * img_height))
+        
+        if not iris_coords:
+            return None
+        
+        center_x = sum(c[0] for c in iris_coords) / len(iris_coords)
+        center_y = sum(c[1] for c in iris_coords) / len(iris_coords)
+        return (center_x, center_y)
+    
+    def _get_iris_indices(self):
+        """MediaPipe 눈동자 인덱스 반환 (공통 유틸리티 함수 사용)
+        
+        Returns:
+            (left_iris_indices, right_iris_indices) 튜플
+        """
+        try:
+            from utils.face_morphing.region_extraction import get_iris_indices
+            return get_iris_indices()
+        except ImportError:
+            # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
+            return [474, 475, 476, 477], [469, 470, 471, 472]
+    

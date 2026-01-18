@@ -82,18 +82,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
@@ -171,18 +171,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
@@ -222,18 +222,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
@@ -310,18 +310,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
@@ -398,18 +398,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
@@ -448,18 +448,18 @@ class CanvasEventHandlerMixin:
                 if hasattr(self, 'clear_landmarks_display'):
                     self.clear_landmarks_display()
                 # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items_original):
+                for item_id in list(self.landmark_polygon_items['original']):
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_original.clear()
-                for item_id in list(self.landmark_polygon_items_edited):
+                self.landmark_polygon_items['original'].clear()
+                for item_id in list(self.landmark_polygon_items['edited']):
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
-                self.landmark_polygon_items_edited.clear()
+                self.landmark_polygon_items['edited'].clear()
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
