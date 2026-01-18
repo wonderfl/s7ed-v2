@@ -303,13 +303,19 @@ class PolygonDragHandlerMixin:
             self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = self._right_iris_center_coord
         else:
             # 좌표가 없으면 original_landmarks에서 계산
-            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+            original = None
+            if hasattr(self, 'landmark_manager'):
+                original = self.landmark_manager.get_original_landmarks_full()
+            elif hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                original = self.original_landmarks
+            
+            if original is not None:
                 img_width, img_height = img.size
                 left_iris_indices, right_iris_indices = self._get_iris_indices()
                 if iris_side == 'left':
-                    center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
+                    center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
                 else:
-                    center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
+                    center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
                 if center is not None:
                     self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = center
                 else:
@@ -400,21 +406,37 @@ class PolygonDragHandlerMixin:
             # 하위 호환성
             self.custom_landmarks = custom
         else:
-            # custom_landmarks가 없거나 길이가 부족한 경우 좌표만 업데이트
-            if iris_side == 'left':
-                self._left_iris_center_coord = (new_center_x, new_center_y)
-                if hasattr(self, 'landmark_manager'):
-                    self.landmark_manager.set_iris_center_coords(
-                        (new_center_x, new_center_y),
-                        self.landmark_manager.get_right_iris_center_coord()
-                    )
-            elif iris_side == 'right':
-                self._right_iris_center_coord = (new_center_x, new_center_y)
-                if hasattr(self, 'landmark_manager'):
-                    self.landmark_manager.set_iris_center_coords(
-                        self.landmark_manager.get_left_iris_center_coord(),
-                        (new_center_x, new_center_y)
-                    )
+            # custom_landmarks가 없거나 길이가 부족한 경우
+            # face_landmarks를 가져와서 중앙 포인트를 추가한 custom_landmarks 생성
+            if hasattr(self, 'landmark_manager'):
+                face_landmarks_list = self.landmark_manager.get_face_landmarks()
+                if face_landmarks_list is not None:
+                    # face_landmarks에 중앙 포인트 추가 (470개 구조)
+                    custom = list(face_landmarks_list)
+                    if iris_side == 'left':
+                        left_center = (new_center_x, new_center_y)
+                        right_center = self.landmark_manager.get_right_iris_center_coord()
+                    else:
+                        left_center = self.landmark_manager.get_left_iris_center_coord()
+                        right_center = (new_center_x, new_center_y)
+                    
+                    if left_center is not None and right_center is not None:
+                        custom.append(left_center)
+                        custom.append(right_center)
+                        self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag_create")
+                        self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                        self.custom_landmarks = custom
+                        # 좌표도 업데이트
+                        if iris_side == 'left':
+                            self._left_iris_center_coord = (new_center_x, new_center_y)
+                        else:
+                            self._right_iris_center_coord = (new_center_x, new_center_y)
+            else:
+                # LandmarkManager가 없는 경우 좌표만 업데이트
+                if iris_side == 'left':
+                    self._left_iris_center_coord = (new_center_x, new_center_y)
+                elif iris_side == 'right':
+                    self._right_iris_center_coord = (new_center_x, new_center_y)
         
         # 선택된 포인트 표시 업데이트
         self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)
@@ -535,7 +557,9 @@ class PolygonDragHandlerMixin:
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
             if hasattr(self, '_apply_common_sliders'):
                 # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
-                temp_result = self._apply_common_sliders(self.current_image)
+                # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
+                base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
+                temp_result = self._apply_common_sliders(self.current_image, base_image=base_image)
                 if temp_result is not None:
                     # custom_landmarks가 변환되었으므로 다시 확인
                     changed_indices_after = []
@@ -555,30 +579,90 @@ class PolygonDragHandlerMixin:
                     if changed_indices_after:
                         print(f"[얼굴편집] 공통 슬라이더 적용 후 변형된 랜드마크: {len(changed_indices_after)}개")
             
-            # 랜드마크 변형 적용 (원본 이미지와 원본 랜드마크를 기준으로)
-            # 고급 모드 여부와 관계없이 Delaunay Triangulation 사용
-            # 마지막으로 선택한 포인트 인덱스 전달 (인덱스 기반 직접 매핑을 위해)
-            last_selected_index = getattr(self, 'last_selected_landmark_index', None)
-            # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
-            left_center = None
-            right_center = None
-            if hasattr(self, 'landmark_manager'):
-                left_center = self.landmark_manager.get_left_iris_center_coord()
-                right_center = self.landmark_manager.get_right_iris_center_coord()
-            else:
-                if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
-                    left_center = self._left_iris_center_coord
-                if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
-                    right_center = self._right_iris_center_coord
+            # 슬라이더가 모두 기본값이고 랜드마크가 변형되지 않았는지 확인
+            size_x = self.region_size_x.get()
+            size_y = self.region_size_y.get()
+            center_offset_x = self.region_center_offset_x.get()
+            center_offset_y = self.region_center_offset_y.get()
+            position_x = self.region_position_x.get()
+            position_y = self.region_position_y.get()
             
-            result = face_morphing.morph_face_by_polygons(
-                self.current_image,  # 원본 이미지
-                original_landmarks,  # 원본 랜드마크
-                self.custom_landmarks,  # 변형된 랜드마크 (공통 슬라이더 변환 포함)
-                selected_point_indices=[last_selected_index] if last_selected_index is not None else None,  # 선택한 포인트 인덱스
-                left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
-            )
+            size_x_condition = abs(size_x - 1.0) >= 0.01
+            size_y_condition = abs(size_y - 1.0) >= 0.01
+            size_condition = size_x_condition or size_y_condition
+            offset_x_condition = abs(center_offset_x) >= 0.1
+            offset_y_condition = abs(center_offset_y) >= 0.1
+            pos_x_condition = abs(position_x) >= 0.1
+            pos_y_condition = abs(position_y) >= 0.1
+            conditions_met = offset_x_condition or offset_y_condition or size_condition or pos_x_condition or pos_y_condition
+            
+            # custom_landmarks 가져오기 (랜드마크 변형 확인용)
+            if hasattr(self, 'landmark_manager'):
+                custom_for_check = self.landmark_manager.get_custom_landmarks()
+            else:
+                custom_for_check = self.custom_landmarks
+            
+            # 랜드마크가 변형되었는지 확인
+            landmarks_changed = False
+            if custom_for_check is not None and len(original_landmarks) == len(custom_for_check):
+                for i in range(len(original_landmarks)):
+                    orig = original_landmarks[i]
+                    custom_point = custom_for_check[i]
+                    diff = ((custom_point[0] - orig[0])**2 + (custom_point[1] - orig[1])**2)**0.5
+                    if diff > 0.1:
+                        landmarks_changed = True
+                        break
+            
+            # result 초기화
+            result = None
+            
+            # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았으면 원본 이미지 반환
+            if not conditions_met:
+                # 슬라이더가 모두 기본값이면 custom_landmarks를 원본으로 복원
+                if hasattr(self, 'landmark_manager'):
+                    original_face = self.landmark_manager.get_original_face_landmarks()
+                    if original_face is not None:
+                        self.landmark_manager.set_custom_landmarks(list(original_face), reason="슬라이더 초기화")
+                        # 하위 호환성
+                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
+                elif hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                    self.custom_landmarks = list(self.original_landmarks)
+                
+                # 랜드마크도 변형되지 않았으면 원본 이미지 반환
+                if not landmarks_changed:
+                    print(f"[얼굴편집] 슬라이더와 랜드마크가 모두 기본값이므로 원본 이미지로 복원")
+                    result = base_image
+                else:
+                    # 랜드마크는 변형되었지만 슬라이더는 기본값이므로 morph_face_by_polygons 호출
+                    print(f"[얼굴편집] 슬라이더는 기본값이지만 랜드마크가 변형되어 있으므로 morph_face_by_polygons 호출")
+                    result = None  # 아래에서 morph_face_by_polygons 호출
+            
+            # result가 None이면 morph_face_by_polygons 호출
+            if result is None:
+                # 랜드마크 변형 적용 (원본 이미지와 원본 랜드마크를 기준으로)
+                # 고급 모드 여부와 관계없이 Delaunay Triangulation 사용
+                # 마지막으로 선택한 포인트 인덱스 전달 (인덱스 기반 직접 매핑을 위해)
+                last_selected_index = getattr(self, 'last_selected_landmark_index', None)
+                # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
+                left_center = None
+                right_center = None
+                if hasattr(self, 'landmark_manager'):
+                    left_center = self.landmark_manager.get_left_iris_center_coord()
+                    right_center = self.landmark_manager.get_right_iris_center_coord()
+                else:
+                    if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
+                        left_center = self._left_iris_center_coord
+                    if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
+                        right_center = self._right_iris_center_coord
+                
+                result = face_morphing.morph_face_by_polygons(
+                    self.current_image,  # 원본 이미지
+                    original_landmarks,  # 원본 랜드마크
+                    self.custom_landmarks,  # 변형된 랜드마크 (공통 슬라이더 변환 포함)
+                    selected_point_indices=[last_selected_index] if last_selected_index is not None else None,  # 선택한 포인트 인덱스
+                    left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
+                    right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
+                )
             
             if result is None:
                 print("[얼굴편집] 랜드마크 변형 결과가 None입니다")

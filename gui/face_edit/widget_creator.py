@@ -86,6 +86,9 @@ class WidgetCreatorMixin:
         btn_zoom_out_original.pack(side=tk.LEFT, padx=2)
         btn_zoom_reset_original = tk.Button(original_zoom_frame, text="원래대로", command=self.zoom_reset_original, width=8)
         btn_zoom_reset_original.pack(side=tk.LEFT, padx=2)
+        # 원본 이미지 좌표 표시 라벨
+        self.original_coord_label = tk.Label(original_zoom_frame, text="", fg="gray", font=("", 8))
+        self.original_coord_label.pack(side=tk.LEFT, padx=(5, 0))
         
         # 원본 이미지 드래그 이벤트 바인딩
         self.canvas_original.bind("<Button-1>", self.on_canvas_original_drag_start)
@@ -108,10 +111,47 @@ class WidgetCreatorMixin:
         
         self.canvas_original.bind("<MouseWheel>", on_mousewheel_original_wrapper)
         
-        # 마우스 이동 시 위치 저장 (버튼 클릭 시 사용)
+        # 마우스 이동 시 위치 저장 및 좌표 표시
         def on_mouse_move_original(event):
             self._last_mouse_x_original = event.x
             self._last_mouse_y_original = event.y
+            
+            # 이미지 좌표 계산 및 표시
+            if self.current_image is not None:
+                img_width, img_height = self.current_image.size
+                pos_x = getattr(self, 'canvas_original_pos_x', None)
+                pos_y = getattr(self, 'canvas_original_pos_y', None)
+                
+                if pos_x is not None and pos_y is not None:
+                    display_size = getattr(self.canvas_original, 'display_size', None)
+                    if display_size is None:
+                        display_width = img_width
+                        display_height = img_height
+                    else:
+                        display_width, display_height = display_size
+                    
+                    scale_x = display_width / img_width
+                    scale_y = display_height / img_height
+                    
+                    # 캔버스 좌표를 이미지 좌표로 변환
+                    rel_x = (event.x - pos_x) / scale_x
+                    rel_y = (event.y - pos_y) / scale_y
+                    img_x = int(img_width / 2 + rel_x)
+                    img_y = int(img_height / 2 + rel_y)
+                    
+                    # 이미지 범위 내인지 확인
+                    if 0 <= img_x < img_width and 0 <= img_y < img_height:
+                        if hasattr(self, 'original_coord_label'):
+                            self.original_coord_label.config(text=f"({img_x}, {img_y})")
+                    else:
+                        if hasattr(self, 'original_coord_label'):
+                            self.original_coord_label.config(text="")
+                else:
+                    if hasattr(self, 'original_coord_label'):
+                        self.original_coord_label.config(text="")
+            else:
+                if hasattr(self, 'original_coord_label'):
+                    self.original_coord_label.config(text="")
         
         self.canvas_original.bind("<Motion>", on_mouse_move_original)
         
@@ -119,6 +159,12 @@ class WidgetCreatorMixin:
         def on_enter_canvas_original(event):
             self.canvas_original.focus_set()
         self.canvas_original.bind("<Enter>", on_enter_canvas_original)
+        
+        # 캔버스에서 마우스가 나갈 때 좌표 라벨 초기화
+        def on_leave_canvas_original(event):
+            if hasattr(self, 'original_coord_label'):
+                self.original_coord_label.config(text="")
+        self.canvas_original.bind("<Leave>", on_leave_canvas_original)
         
         # 우측: 편집된 이미지 프리뷰
         edited_preview_frame = tk.LabelFrame(content_frame, text="편집된 이미지", padx=5, pady=5)
@@ -144,6 +190,9 @@ class WidgetCreatorMixin:
         btn_zoom_out_edited.pack(side=tk.LEFT, padx=2)
         btn_zoom_reset_edited = tk.Button(edited_zoom_frame, text="원래대로", command=self.zoom_reset_edited, width=8)
         btn_zoom_reset_edited.pack(side=tk.LEFT, padx=2)
+        # 편집 이미지 좌표 표시 라벨
+        self.edited_coord_label = tk.Label(edited_zoom_frame, text="", fg="gray", font=("", 8))
+        self.edited_coord_label.pack(side=tk.LEFT, padx=(5, 0))
         
         # 편집된 이미지 드래그 이벤트 바인딩
         self.canvas_edited.bind("<Button-1>", self.on_canvas_edited_drag_start)
@@ -166,10 +215,47 @@ class WidgetCreatorMixin:
         
         self.canvas_edited.bind("<MouseWheel>", on_mousewheel_edited_wrapper)
         
-        # 마우스 이동 시 위치 저장 (버튼 클릭 시 사용)
+        # 마우스 이동 시 위치 저장 및 좌표 표시
         def on_mouse_move_edited(event):
             self._last_mouse_x_edited = event.x
             self._last_mouse_y_edited = event.y
+            
+            # 이미지 좌표 계산 및 표시
+            if self.edited_image is not None:
+                img_width, img_height = self.edited_image.size
+                pos_x = getattr(self, 'canvas_edited_pos_x', None)
+                pos_y = getattr(self, 'canvas_edited_pos_y', None)
+                
+                if pos_x is not None and pos_y is not None:
+                    display_size = getattr(self.canvas_edited, 'display_size', None)
+                    if display_size is None:
+                        display_width = img_width
+                        display_height = img_height
+                    else:
+                        display_width, display_height = display_size
+                    
+                    scale_x = display_width / img_width
+                    scale_y = display_height / img_height
+                    
+                    # 캔버스 좌표를 이미지 좌표로 변환
+                    rel_x = (event.x - pos_x) / scale_x
+                    rel_y = (event.y - pos_y) / scale_y
+                    img_x = int(img_width / 2 + rel_x)
+                    img_y = int(img_height / 2 + rel_y)
+                    
+                    # 이미지 범위 내인지 확인
+                    if 0 <= img_x < img_width and 0 <= img_y < img_height:
+                        if hasattr(self, 'edited_coord_label'):
+                            self.edited_coord_label.config(text=f"({img_x}, {img_y})")
+                    else:
+                        if hasattr(self, 'edited_coord_label'):
+                            self.edited_coord_label.config(text="")
+                else:
+                    if hasattr(self, 'edited_coord_label'):
+                        self.edited_coord_label.config(text="")
+            else:
+                if hasattr(self, 'edited_coord_label'):
+                    self.edited_coord_label.config(text="")
         
         self.canvas_edited.bind("<Motion>", on_mouse_move_edited)
         
@@ -177,6 +263,12 @@ class WidgetCreatorMixin:
         def on_enter_canvas_edited(event):
             self.canvas_edited.focus_set()
         self.canvas_edited.bind("<Enter>", on_enter_canvas_edited)
+        
+        # 캔버스에서 마우스가 나갈 때 좌표 라벨 초기화
+        def on_leave_canvas_edited(event):
+            if hasattr(self, 'edited_coord_label'):
+                self.edited_coord_label.config(text="")
+        self.canvas_edited.bind("<Leave>", on_leave_canvas_edited)
         
         # 상태 표시
         self.status_label = tk.Label(main_frame, text="준비됨", fg="gray", anchor="w")

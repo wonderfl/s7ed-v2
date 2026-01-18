@@ -76,7 +76,7 @@ class UIMixin:
         expansion_spinbox = tk.Spinbox(
             expansion_frame,
             from_=0,
-            to=5,
+            to=15,
             width=3,
             textvariable=self.polygon_expansion_level,
             command=self.on_landmarks_display_change

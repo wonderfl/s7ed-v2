@@ -204,10 +204,24 @@ class LandmarkDisplayMixin:
                 target_indices = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
                 # 눈동자 인덱스 추가 (refine_landmarks=True일 때 사용 가능)
                 # custom_landmarks를 사용할 때는 눈동자 포인트(468-477)가 제거되고 중앙 포인트로 대체됨
-                if len(landmarks) > 468:
+                # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+                has_iris_landmarks = False
+                has_iris_centers = False
+                if hasattr(self, 'landmark_manager'):
+                    iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                    iris_centers = self.landmark_manager.get_custom_iris_centers()
+                    has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+                    has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
+                else:
+                    # 하위 호환성: 길이 체크
+                    has_iris_landmarks = len(landmarks) > 468
+                    has_iris_centers = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
+                                       len(self.custom_landmarks) == 470)
+                
+                if has_iris_landmarks or has_iris_centers:
                     # custom_landmarks를 사용하는 경우 눈동자 포인트 인덱스 제외
                     use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks
-                    if not use_custom:
+                    if not use_custom and has_iris_landmarks:
                         # 원본 랜드마크를 사용하는 경우에만 눈동자 포인트 인덱스 추가 (MediaPipe 정의 사용)
                         try:
                             from utils.face_morphing.region_extraction import get_iris_indices
@@ -219,7 +233,7 @@ class LandmarkDisplayMixin:
                         for idx in iris_indices:
                             if idx < len(landmarks):
                                 target_indices.add(idx)
-                    else:
+                    elif use_custom and has_iris_centers:
                         # custom_landmarks를 사용하는 경우 중앙 포인트 인덱스만 추가
                         if hasattr(self, '_left_iris_center_index') and self._left_iris_center_index is not None:
                             if self._left_iris_center_index < len(landmarks):
@@ -230,7 +244,21 @@ class LandmarkDisplayMixin:
             elif current_tab == '눈동자':
                 # 눈동자 탭: 눈동자 인덱스만 표시
                 target_indices = set()
-                if len(landmarks) > 468:
+                # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+                has_iris_landmarks = False
+                has_iris_centers = False
+                if hasattr(self, 'landmark_manager'):
+                    iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                    iris_centers = self.landmark_manager.get_custom_iris_centers()
+                    has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+                    has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
+                else:
+                    # 하위 호환성: 길이 체크
+                    has_iris_landmarks = len(landmarks) > 468
+                    has_iris_centers = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
+                                       len(self.custom_landmarks) == 470)
+                
+                if has_iris_landmarks or has_iris_centers:
                     use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks
                     if not use_custom:
                         # 원본 랜드마크를 사용하는 경우에만 눈동자 포인트 인덱스 추가

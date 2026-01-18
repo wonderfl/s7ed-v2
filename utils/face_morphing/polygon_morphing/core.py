@@ -194,6 +194,7 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             print(f"[얼굴모핑] Delaunay 포인트 구성: 원본 {len(original_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(original_landmarks_no_iris)}개")
             print(f"[얼굴모핑] Delaunay 포인트 구성: 변환 {len(transformed_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(transformed_landmarks_no_iris)}개")
             print(f"[얼굴모핑] 중앙 포인트 인덱스: 왼쪽={len(original_landmarks_no_iris) - 2}, 오른쪽={len(original_landmarks_no_iris) - 1} (Delaunay 배열 내 인덱스)")
+            print(f"[얼굴모핑] 중앙 포인트: 왼쪽={left_iris_center_trans}, 오른쪽={right_iris_center_trans}")
         
         # 이미지 경계 포인트 추가 (Delaunay Triangulation을 위해)
         # 경계 포인트: 4개 모서리

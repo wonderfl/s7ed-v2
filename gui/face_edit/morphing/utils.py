@@ -147,6 +147,31 @@ class UtilsMixin:
             right_eye_region_offset_y_value = self.right_eye_region_offset_y.get()
             self.right_eye_region_offset_y_label.config(text=f"{int(right_eye_region_offset_y_value)}")
         
+        # 공통 슬라이더 라벨 업데이트 (Region Adjustment)
+        if hasattr(self, 'region_center_offset_x_label') and self.region_center_offset_x_label is not None:
+            region_center_offset_x_value = self.region_center_offset_x.get()
+            self.region_center_offset_x_label.config(text=f"{int(region_center_offset_x_value)}")
+        
+        if hasattr(self, 'region_center_offset_y_label') and self.region_center_offset_y_label is not None:
+            region_center_offset_y_value = self.region_center_offset_y.get()
+            self.region_center_offset_y_label.config(text=f"{int(region_center_offset_y_value)}")
+        
+        if hasattr(self, 'region_size_x_label') and self.region_size_x_label is not None:
+            region_size_x_value = self.region_size_x.get()
+            self.region_size_x_label.config(text=f"{int(region_size_x_value * 100)}%")
+        
+        if hasattr(self, 'region_size_y_label') and self.region_size_y_label is not None:
+            region_size_y_value = self.region_size_y.get()
+            self.region_size_y_label.config(text=f"{int(region_size_y_value * 100)}%")
+        
+        if hasattr(self, 'region_position_x_label') and self.region_position_x_label is not None:
+            region_position_x_value = self.region_position_x.get()
+            self.region_position_x_label.config(text=f"{int(region_position_x_value)}")
+        
+        if hasattr(self, 'region_position_y_label') and self.region_position_y_label is not None:
+            region_position_y_value = self.region_position_y.get()
+            self.region_position_y_label.config(text=f"{int(region_position_y_value)}")
+        
         # 슬라이더 드래그 중 폴리곤 업데이트 (이미지 편집 없이 랜드마크만 계산)
         if self.current_image is not None:
             if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():

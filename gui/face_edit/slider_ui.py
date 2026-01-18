@@ -872,12 +872,12 @@ class SliderUIMixin:
         adjustment_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
         
         # 공통 슬라이더 6개 생성 (Size X, Size Y 분리)
-        self.region_center_offset_x_label = create_slider(adjustment_frame, "Center Offset X:", self.region_center_offset_x, -50, 50, 1, "0", default_value=0.0)
-        self.region_center_offset_y_label = create_slider(adjustment_frame, "Center Offset Y:", self.region_center_offset_y, -50, 50, 1, "0", default_value=0.0)
-        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 2.0, 0.01, "100%", default_value=1.0)
-        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 2.0, 0.01, "100%", default_value=1.0)
-        self.region_position_x_label = create_slider(adjustment_frame, "Position X:", self.region_position_x, -50, 50, 1, "0", default_value=0.0)
-        self.region_position_y_label = create_slider(adjustment_frame, "Position Y:", self.region_position_y, -50, 50, 1, "0", default_value=0.0)
+        self.region_center_offset_x_label = create_slider(adjustment_frame, "Center Offset X:", self.region_center_offset_x, -100, 100, 1, "0", default_value=0.0)
+        self.region_center_offset_y_label = create_slider(adjustment_frame, "Center Offset Y:", self.region_center_offset_y, -100, 100, 1, "0", default_value=0.0)
+        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.75, 1.25, 0.01, "100%", default_value=1.0)
+        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.75, 1.25, 0.01, "100%", default_value=1.0)
+        self.region_position_x_label = create_slider(adjustment_frame, "Position X:", self.region_position_x, -100, 100, 1, "0", default_value=0.0)
+        self.region_position_y_label = create_slider(adjustment_frame, "Position Y:", self.region_position_y, -100, 100, 1, "0", default_value=0.0)
         
         # 슬라이더 위젯 참조 저장 (상태 업데이트용)
         self.region_sliders = []
@@ -1039,14 +1039,15 @@ class SliderUIMixin:
             
             def reset_slider(event):
                 variable.set(default_value)
-                # value_label도 직접 업데이트
+                # value_label도 직접 업데이트 (개별 슬라이더 라벨)
+                if default_label.endswith("%"):
+                    value_label.config(text=f"{int(default_value * 100)}%")
+                else:
+                    value_label.config(text=f"{int(default_value)}")
+                # 모든 라벨 업데이트 (다른 슬라이더 라벨도 동기화)
                 if hasattr(self, 'update_labels_only'):
                     self.update_labels_only()
-                else:
-                    if default_label.endswith("%"):
-                        value_label.config(text=f"{int(default_value * 100)}%")
-                    else:
-                        value_label.config(text=f"{int(default_value)}")
+                # 이미지 업데이트
                 self.on_morphing_change()
             
             title_label.bind("<Button-1>", reset_slider)

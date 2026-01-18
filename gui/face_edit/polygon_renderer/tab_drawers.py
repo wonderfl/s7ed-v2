@@ -35,7 +35,16 @@ class TabDrawersMixin:
                 RIGHT_IRIS = []
 
             # 눈동자 연결 정보 추가 (중심점은 연결 정보에 포함되지 않음)
-            if LEFT_IRIS and RIGHT_IRIS and len(landmarks) > 468:
+            # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+            has_iris_landmarks = False
+            if hasattr(self, 'landmark_manager'):
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+            else:
+                # 하위 호환성: 길이 체크
+                has_iris_landmarks = len(landmarks) > 468
+            
+            if LEFT_IRIS and RIGHT_IRIS and has_iris_landmarks:
                 for idx1, idx2 in LEFT_IRIS + RIGHT_IRIS:
                     if idx1 < len(landmarks) and idx2 < len(landmarks):
                         eye_indices.add(idx1)
@@ -134,7 +143,16 @@ class TabDrawersMixin:
             except AttributeError:
                 LEFT_IRIS = []
 
-            if LEFT_IRIS and len(landmarks) > 468:
+            # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+            has_iris_landmarks_left = False
+            if hasattr(self, 'landmark_manager'):
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                has_iris_landmarks_left = (iris_landmarks is not None and len(iris_landmarks) > 0)
+            else:
+                # 하위 호환성: 길이 체크
+                has_iris_landmarks_left = len(landmarks) > 468
+            
+            if LEFT_IRIS and has_iris_landmarks_left:
                 left_iris_indices_set = set()
                 for idx1, idx2 in LEFT_IRIS:
                     if idx1 < len(landmarks) and idx2 < len(landmarks):
@@ -195,7 +213,16 @@ class TabDrawersMixin:
             except AttributeError:
                 RIGHT_IRIS = []
 
-            if RIGHT_IRIS and len(landmarks) > 468:
+            # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+            has_iris_landmarks = False
+            if hasattr(self, 'landmark_manager'):
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+            else:
+                # 하위 호환성: 길이 체크
+                has_iris_landmarks = len(landmarks) > 468
+            
+            if RIGHT_IRIS and has_iris_landmarks:
                 right_iris_indices_set = set()
                 for idx1, idx2 in RIGHT_IRIS:
                     if idx1 < len(landmarks) and idx2 < len(landmarks):
@@ -304,11 +331,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in nose_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in nose_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             nose_points = self._get_polygon_from_indices(
                 [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
@@ -351,11 +378,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in nose_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in nose_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
             nose_points = self._get_polygon_from_indices(NOSE_INDICES, landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y)
             if nose_points and len(nose_points) >= 3:
                 polygon_id = canvas.create_polygon(
@@ -414,11 +441,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in lips_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in lips_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             lips_points = self._get_polygon_from_indices(
                 [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
@@ -466,11 +493,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in lips_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in lips_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
             lips_points = self._get_polygon_from_indices(MOUTH_ALL_INDICES, landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y)
             if lips_points and len(lips_points) >= 3:
                 polygon_id = canvas.create_polygon(
@@ -531,11 +558,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in eyebrow_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in eyebrow_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             # 왼쪽 눈썹: 눈썹 폴리곤 (삼각형 메쉬)
             left_eyebrow_points = self._get_polygon_from_indices(
@@ -616,11 +643,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in eyebrow_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in eyebrow_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             # 왼쪽 눈썹 폴리곤
             left_eyebrow_points = self._get_polygon_from_indices(LEFT_EYEBROW_INDICES, landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y)
@@ -746,11 +773,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in jaw_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in jaw_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             jaw_points = self._get_polygon_from_indices(
                 [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
@@ -796,11 +823,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in jaw_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in jaw_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
             jaw_points = self._get_polygon_from_indices(jaw_indices, landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y)
             if jaw_points and len(jaw_points) >= 3:
                 polygon_id = canvas.create_polygon(
@@ -814,7 +841,7 @@ class TabDrawersMixin:
                 bind_polygon_click_events(polygon_id, jaw_indices_set)
 
 
-    def _draw_iris_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False):
+    def _draw_iris_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_centers=None):
         """iris 탭 폴리곤 그리기 - 눈동자만 표시"""
         try:
             import mediapipe as mp
@@ -828,7 +855,16 @@ class TabDrawersMixin:
                 LEFT_IRIS = []
                 RIGHT_IRIS = []
             
-            if not LEFT_IRIS or not RIGHT_IRIS or len(landmarks) <= 468:
+            # LandmarkManager를 통해 얼굴/눈동자 분리 확인
+            has_iris_landmarks = False
+            if hasattr(self, 'landmark_manager'):
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+            else:
+                # 하위 호환성: 길이 체크
+                has_iris_landmarks = len(landmarks) > 468
+            
+            if not LEFT_IRIS or not RIGHT_IRIS or not has_iris_landmarks:
                 return
             
             # 눈동자 인덱스 수집
@@ -894,7 +930,18 @@ class TabDrawersMixin:
             
             # 눈동자 중앙 포인트 표시 (전체탭과 동일한 로직)
             # 왼쪽 눈동자 중앙 포인트
-            if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
+            center_x = None
+            center_y = None
+            
+            # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
+            if iris_centers is not None and len(iris_centers) == 2:
+                center_pt = iris_centers[0]  # 왼쪽 눈동자 중앙 포인트
+                if isinstance(center_pt, tuple):
+                    center_x, center_y = center_pt
+                else:
+                    center_x = center_pt.x * img_width
+                    center_y = center_pt.y * img_height
+            elif hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
                 center_x, center_y = self._left_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
                 if hasattr(self, 'landmark_manager'):
@@ -965,7 +1012,18 @@ class TabDrawersMixin:
                 canvas.tag_bind(center_id, "<ButtonRelease-1>", on_left_iris_center_release)
             
             # 오른쪽 눈동자 중앙 포인트
-            if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
+            center_x = None
+            center_y = None
+            
+            # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
+            if iris_centers is not None and len(iris_centers) == 2:
+                center_pt = iris_centers[1]  # 오른쪽 눈동자 중앙 포인트
+                if isinstance(center_pt, tuple):
+                    center_x, center_y = center_pt
+                else:
+                    center_x = center_pt.x * img_width
+                    center_y = center_pt.y * img_height
+            elif hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
                 center_x, center_y = self._right_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
                 if hasattr(self, 'landmark_manager'):
@@ -1087,11 +1145,11 @@ class TabDrawersMixin:
             if canvas == self.canvas_original:
                 for idx in face_oval_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_original[idx] = True
+                        self.polygon_point_map_original.add(idx)
             elif canvas == self.canvas_edited:
                 for idx in face_oval_indices_set:
                     if idx < len(landmarks):
-                        self.polygon_point_map_edited[idx] = True
+                        self.polygon_point_map_edited.add(idx)
 
             face_oval_points = self._get_polygon_from_indices(
                 [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,

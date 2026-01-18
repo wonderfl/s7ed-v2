@@ -19,10 +19,39 @@ from .tab_drawers import TabDrawersMixin
 class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
     """폴리곤 그리기 기능 Mixin"""
     
-    def _draw_landmark_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, current_tab, force_use_custom=False):
-        """랜드마크 폴리곤 그리기 (해당 부위의 모든 랜드마크 포인트를 찾아서 폴리곤으로 그리기)"""
-        if image is None or pos_x is None or pos_y is None or landmarks is None:
+    def _draw_landmark_polygons(self, canvas, image, face_landmarks, pos_x, pos_y, items_list, color, current_tab, iris_landmarks=None, iris_centers=None, force_use_custom=False):
+        """랜드마크 폴리곤 그리기 (해당 부위의 모든 랜드마크 포인트를 찾아서 폴리곤으로 그리기)
+        
+        Args:
+            face_landmarks: 얼굴 랜드마크 (468개)
+            iris_landmarks: 눈동자 랜드마크 (10개 또는 None)
+            iris_centers: 눈동자 중앙 포인트 (2개 또는 None, Tesselation용)
+        """
+        if image is None or pos_x is None or pos_y is None or face_landmarks is None:
             return
+        
+        # 하위 호환성: landmarks 파라미터가 전달된 경우 (기존 코드 호환)
+        landmarks = face_landmarks
+        if iris_landmarks is not None:
+            # 478개 구조로 병합 (하위 호환성)
+            try:
+                from utils.face_morphing.region_extraction import get_iris_indices
+                left_iris_indices, right_iris_indices = get_iris_indices()
+                iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                iris_center_indices = {468, 473}
+                iris_indices = sorted(iris_contour_indices | iris_center_indices)
+                
+                # 얼굴 랜드마크에 눈동자 랜드마크 삽입
+                landmarks = list(face_landmarks)
+                for i, idx in enumerate(iris_indices):
+                    if i < len(iris_landmarks):
+                        if idx < len(landmarks):
+                            landmarks.insert(idx, iris_landmarks[i])
+                        else:
+                            landmarks.append(iris_landmarks[i])
+            except Exception as e:
+                print(f"[폴리곤렌더러] 눈동자 병합 실패: {e}")
+                landmarks = face_landmarks
         try:
             import math
             img_width, img_height = image.size
@@ -168,79 +197,70 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         # custom_landmarks 사용
                         landmarks = self.custom_landmarks
             
-            # custom_landmarks를 사용할 때는 먼저 중앙 포인트를 설정 - LandmarkManager 사용
-            if hasattr(self, 'landmark_manager'):
+            # iris_centers 파라미터가 전달된 경우 (Tesselation용)
+            # 주의: iris_centers는 _draw_all_tab_polygons에 전달하기 위해 보존해야 함
+            if iris_centers is not None and len(iris_centers) == 2:
+                # Tesselation 모드: face_landmarks(468개) + iris_centers(2개) = 470개 구조
+                # custom_landmarks에 저장
+                if hasattr(self, 'landmark_manager'):
+                    # face_landmarks + iris_centers를 합쳐서 custom_landmarks로 저장
+                    custom_landmarks_with_centers = list(face_landmarks)
+                    custom_landmarks_with_centers.extend(iris_centers)  # +2개 = 470개
+                    self.landmark_manager.set_custom_landmarks(custom_landmarks_with_centers, reason="tesselation_with_iris_centers")
+                    self.landmark_manager.set_custom_iris_centers(iris_centers)
+                    landmarks = self.landmark_manager.get_custom_landmarks()
+                else:
+                    landmarks = list(face_landmarks)
+                    landmarks.extend(iris_centers)
+                # iris_centers는 그대로 유지 (draw_iris 함수에서 사용)
+                print(f"[폴리곤렌더러] Tesselation 모드 - iris_centers 사용, 길이: {len(landmarks)}, 탭: {current_tab}")
+            # iris_centers가 없고 custom_landmarks가 있는 경우
+            elif hasattr(self, 'landmark_manager'):
                 custom = self.landmark_manager.get_custom_landmarks()
-                # get_custom_landmarks()는 복사본을 반환하므로 is 대신 길이와 내용 비교
-                use_custom = (custom is not None and landmarks is not None and 
-                             len(landmarks) == len(custom) and 
-                             (landmarks is custom or landmarks == custom))
-            else:
-                use_custom = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
-                             landmarks is not None and
-                             (landmarks is self.custom_landmarks or 
-                              (len(landmarks) == len(self.custom_landmarks) and landmarks == self.custom_landmarks)))
+                if custom is not None and len(custom) == len(landmarks):
+                    landmarks = custom
+                    print(f"[폴리곤렌더러] custom_landmarks 사용 - 길이: {len(landmarks)}, 탭: {current_tab}")
+            elif hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                if len(landmarks) == len(self.custom_landmarks):
+                    landmarks = self.custom_landmarks
+                    print(f"[폴리곤렌더러] custom_landmarks 사용 - 길이: {len(landmarks)}, 탭: {current_tab}")
             
-            if use_custom:
-                print(f"[폴리곤렌더러] custom_landmarks 사용 중 - 길이: {len(landmarks)}, 탭: {current_tab}")
-                # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
-                if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                    # custom_landmarks에 중앙 포인트가 이미 있는지 확인
-                    # 중앙 포인트는 항상 original_landmarks에서 계산 (custom_landmarks는 수정하지 않음)
-                    # 드래그로 이동한 좌표가 있으면 사용, 없으면 original_landmarks에서 계산
-                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                        left_iris_indices, right_iris_indices = self._get_iris_indices()
-                        
-                        # original_landmarks 가져오기 (LandmarkManager 사용)
-                        if hasattr(self, 'landmark_manager'):
-                            original = self.landmark_manager.get_original_landmarks()
-                            left_center = self.landmark_manager.get_left_iris_center_coord()
-                            right_center = self.landmark_manager.get_right_iris_center_coord()
-                        else:
-                            original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
-                            left_center = self._left_iris_center_coord if hasattr(self, '_left_iris_center_coord') else None
-                            right_center = self._right_iris_center_coord if hasattr(self, '_right_iris_center_coord') else None
-                        
-                        # 왼쪽 중앙 포인트 계산
-                        # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
-                        # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
-                        # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS
-                        if left_center is None:
-                            if original is not None:
-                                left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
-                            else:
-                                left_center = None
-                        
-                        # 오른쪽 중앙 포인트 계산
-                        # 사용자 관점: 오른쪽 = MediaPipe LEFT_IRIS
-                        if right_center is None:
-                            if original is not None:
-                                right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                            else:
-                                right_center = None
-                        
-                        # 좌표를 저장 (다음 렌더링에서 사용)
-                        if hasattr(self, 'landmark_manager'):
-                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
-                            # 하위 호환성
-                            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-                            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
-                        else:
-                            if left_center is not None:
-                                self._left_iris_center_coord = left_center
-                            if right_center is not None:
-                                self._right_iris_center_coord = right_center
-                    else:
-                        left_center = None
-                        right_center = None
-                    
-                    # landmarks는 custom_landmarks 그대로 사용 (수정하지 않음)
-                    if hasattr(self, 'landmark_manager'):
-                        landmarks = self.landmark_manager.get_custom_landmarks()
-                    else:
-                        landmarks = self.custom_landmarks
-            else:
-                print(f"[폴리곤렌더러] 원본 랜드마크 사용 - 길이: {len(landmarks) if landmarks else 0}, 탭: {current_tab}, custom_landmarks 존재: {hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None}")
+            # 중앙 포인트 좌표 초기화 (iris_centers가 없을 때만)
+            if iris_centers is None and hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+                # original_landmarks 가져오기 (LandmarkManager 사용)
+                if hasattr(self, 'landmark_manager'):
+                    original = self.landmark_manager.get_original_landmarks()
+                    left_center = self.landmark_manager.get_left_iris_center_coord()
+                    right_center = self.landmark_manager.get_right_iris_center_coord()
+                else:
+                    original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                    left_center = self._left_iris_center_coord if hasattr(self, '_left_iris_center_coord') else None
+                    right_center = self._right_iris_center_coord if hasattr(self, '_right_iris_center_coord') else None
+                
+                # 왼쪽 중앙 포인트 계산
+                if left_center is None and original is not None:
+                    left_iris_indices, right_iris_indices = self._get_iris_indices()
+                    # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS
+                    left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                
+                # 오른쪽 중앙 포인트 계산
+                if right_center is None and original is not None:
+                    left_iris_indices, right_iris_indices = self._get_iris_indices()
+                    # 사용자 관점: 오른쪽 = MediaPipe LEFT_IRIS
+                    right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                
+                # 좌표를 저장
+                if hasattr(self, 'landmark_manager'):
+                    if left_center is not None or right_center is not None:
+                        self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                        # 하위 호환성
+                        self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+                        self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+                else:
+                    if left_center is not None:
+                        self._left_iris_center_coord = left_center
+                    if right_center is not None:
+                        self._right_iris_center_coord = right_center
             
             # 인덱스 표시 여부 확인
             show_indices = getattr(self, 'show_landmark_indices', None)
@@ -341,7 +361,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 self._draw_all_tab_polygons(
                     canvas, image, landmarks, pos_x, pos_y, items_list, color,
                     scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
-                    bind_polygon_click_events, force_use_custom
+                    bind_polygon_click_events, force_use_custom, iris_landmarks, iris_centers
                 )
             elif current_tab == '눈':
                 self._draw_eye_tab_polygons(
@@ -353,7 +373,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 self._draw_iris_tab_polygons(
                     canvas, image, landmarks, pos_x, pos_y, items_list, color,
                     scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
-                    bind_polygon_click_events, force_use_custom
+                    bind_polygon_click_events, force_use_custom, iris_centers
                 )
             elif current_tab == '코':
                 self._draw_nose_tab_polygons(

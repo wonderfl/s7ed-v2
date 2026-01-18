@@ -261,7 +261,9 @@ class HandlersMixin:
                     
                     # 공통 슬라이더 적용
                     print(f"[얼굴편집] 고급 모드: 공통 슬라이더 적용 시작")
-                    result = self._apply_common_sliders(result)
+                    # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
+                    base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
+                    result = self._apply_common_sliders(result, base_image=base_image)
                     
                     if result is not None:
                         self.edited_image = result
