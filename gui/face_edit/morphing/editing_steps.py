@@ -200,25 +200,66 @@ class EditingStepsMixin:
             # 변형된 랜드마크 저장 (폴리곤 표시용)
             self.face_landmarks = transformed_landmarks
 
+            # 이전 transformed_landmarks 가져오기 (드래그 오프셋 계산용, 업데이트 전에 가져와야 함!)
+            # custom_landmarks는 이전 사이즈 변환 + 드래그가 적용된 상태이므로,
+            # 드래그 오프셋을 계산하려면 이전 사이즈 변환 상태를 알아야 함
+            prev_transformed = self.landmark_manager.get_transformed_landmarks()
+
             # LandmarkManager를 사용하여 랜드마크 상태 관리
             self.landmark_manager.set_transformed_landmarks(transformed_landmarks)
 
             # custom_landmarks 업데이트
             if has_size_change:
                 # 사이즈 변경이 있으면 transformed_landmarks를 기준으로 설정
-                # 드래그된 포인트가 있으면 현재 위치 유지 (사이즈 변환 적용 안 함)
+                # 드래그된 포인트는 custom_landmarks에서 가져와서 변환된 위치에 적용
                 custom = self.landmark_manager.get_custom_landmarks()
                 if custom is None or not dragged_indices:
                     # custom_landmarks가 없거나 드래그된 포인트가 없으면 전체를 변환된 랜드마크로 설정
                     # transformed_landmarks는 이미 복사본이므로 직접 참조로 저장 가능
                     self.landmark_manager.set_custom_landmarks(transformed_landmarks, reason="apply_editing_size_change")
                 else:
-                    # 드래그된 포인트가 있으면: transformed_landmarks를 복사하고 드래그된 포인트는 원본 위치에서 변환된 위치로 업데이트
-                    # transformed_landmarks는 이미 원본 기준으로 변환된 상태이므로, 드래그된 포인트도 변환된 위치를 사용
-                    # 복사본 생성 (드래그된 포인트는 이미 transformed_landmarks에 변환된 위치로 포함되어 있음)
+                    # 드래그된 포인트가 있으면: transformed_landmarks를 복사하고 드래그된 포인트는 custom_landmarks에서 가져와서 변환 적용
                     new_custom = list(transformed_landmarks)
-                    # 드래그된 포인트는 transformed_landmarks에 이미 원본 기준으로 변환된 위치가 있으므로 그대로 사용
-                    # 드래그 표시는 유지 (변환은 했지만 드래그로 변경된 것으로 표시 유지)
+                    
+                    # 이전 transformed_landmarks가 없으면 (드래그 시작 시 원본에서 시작한 경우)
+                    # custom[idx]는 원본 + 드래그 상태이므로, base_landmarks를 기준으로 오프셋 계산
+                    if prev_transformed is None or len(prev_transformed) != len(custom):
+                        # 이전 사이즈 변환이 없었던 경우: 드래그 오프셋 = custom[idx] - base_landmarks[idx]
+                        print(f"[얼굴편집] 드래그 오프셋 계산: 이전 사이즈 변환 없음, 원본 기준")
+                        for idx in dragged_indices:
+                            if idx < len(custom) and idx < len(new_custom) and idx < len(base_landmarks):
+                                orig_x, orig_y = base_landmarks[idx]
+                                dragged_x, dragged_y = custom[idx]
+                                transformed_x, transformed_y = transformed_landmarks[idx]
+                                # 드래그 오프셋 (원본 기준)
+                                offset_x = dragged_x - orig_x
+                                offset_y = dragged_y - orig_y
+                                # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
+                                new_custom[idx] = (transformed_x + offset_x, transformed_y + offset_y)
+                                if idx < 5:  # 처음 5개만 디버깅 출력
+                                    print(f"  [idx={idx}] 원본=({orig_x:.1f},{orig_y:.1f}), 드래그=({dragged_x:.1f},{dragged_y:.1f}), 변환=({transformed_x:.1f},{transformed_y:.1f}), 오프셋=({offset_x:.1f},{offset_y:.1f}), 최종=({transformed_x + offset_x:.1f},{transformed_y + offset_y:.1f})")
+                    else:
+                        # 이전 사이즈 변환이 있었던 경우: 드래그 오프셋 = custom[idx] - prev_transformed[idx]
+                        # (순수 드래그 오프셋만 계산)
+                        print(f"[얼굴편집] 드래그 오프셋 계산: 이전 사이즈 변환 있음, 이전 변환 기준")
+                        for idx in dragged_indices:
+                            if idx < len(custom) and idx < len(new_custom) and idx < len(prev_transformed):
+                                # 이전 사이즈 변환된 위치
+                                prev_transformed_x, prev_transformed_y = prev_transformed[idx]
+                                # 드래그된 위치 (이전 사이즈 변환 + 드래그)
+                                dragged_x, dragged_y = custom[idx]
+                                # 새로운 사이즈 변환된 위치
+                                transformed_x, transformed_y = transformed_landmarks[idx]
+                                
+                                # 순수 드래그 오프셋 (이전 사이즈 변환 기준)
+                                drag_offset_x = dragged_x - prev_transformed_x
+                                drag_offset_y = dragged_y - prev_transformed_y
+                                
+                                # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
+                                new_custom[idx] = (transformed_x + drag_offset_x, transformed_y + drag_offset_y)
+                                if idx < 5:  # 처음 5개만 디버깅 출력
+                                    print(f"  [idx={idx}] 이전변환=({prev_transformed_x:.1f},{prev_transformed_y:.1f}), 드래그=({dragged_x:.1f},{dragged_y:.1f}), 새변환=({transformed_x:.1f},{transformed_y:.1f}), 오프셋=({drag_offset_x:.1f},{drag_offset_y:.1f}), 최종=({transformed_x + drag_offset_x:.1f},{transformed_y + drag_offset_y:.1f})")
+                    
                     self.landmark_manager.set_custom_landmarks(new_custom, reason="apply_editing_size_change")
                     # 드래그 표시는 유지 (변환은 했지만 드래그로 변경된 것으로 표시 유지)
                 print(f"[얼굴편집] apply_editing - 사이즈 변경 적용, 드래그 표시 유지: {len(self.landmark_manager.get_dragged_indices())}개")

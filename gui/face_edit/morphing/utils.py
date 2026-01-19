@@ -248,8 +248,58 @@ class UtilsMixin:
                     lower_lip_width=self.lower_lip_width.get()
                 )
                 
-                # custom_landmarks 업데이트 (LandmarkManager 사용)
-                self.landmark_manager.set_custom_landmarks(transformed, reason="update_polygons_only")
+                # custom_landmarks 업데이트 (드래그된 포인트 보존)
+                # 드래그된 포인트 인덱스 가져오기
+                dragged_indices = self.landmark_manager.get_dragged_indices()
+                custom = self.landmark_manager.get_custom_landmarks()
+                
+                # 이전 transformed_landmarks 가져오기 (드래그 오프셋 계산용)
+                prev_transformed = self.landmark_manager.get_transformed_landmarks()
+                
+                # transformed_landmarks 업데이트
+                self.landmark_manager.set_transformed_landmarks(transformed)
+                
+                if custom is None or not dragged_indices:
+                    # custom_landmarks가 없거나 드래그된 포인트가 없으면 전체를 변환된 랜드마크로 설정
+                    self.landmark_manager.set_custom_landmarks(transformed, reason="update_polygons_only")
+                else:
+                    # 드래그된 포인트가 있으면: transformed를 복사하고 드래그된 포인트는 custom_landmarks에서 가져와서 변환 적용
+                    new_custom = list(transformed)
+                    
+                    # 이전 transformed_landmarks가 없으면 (드래그 시작 시 원본에서 시작한 경우)
+                    if prev_transformed is None or len(prev_transformed) != len(custom):
+                        # 이전 사이즈 변환이 없었던 경우: 드래그 오프셋 = custom[idx] - base_landmarks[idx]
+                        print(f"[얼굴편집] update_polygons_only - 드래그 오프셋 계산: 이전 사이즈 변환 없음, 원본 기준")
+                        for idx in dragged_indices:
+                            if idx < len(custom) and idx < len(new_custom) and idx < len(base_landmarks):
+                                orig_x, orig_y = base_landmarks[idx]
+                                dragged_x, dragged_y = custom[idx]
+                                transformed_x, transformed_y = transformed[idx]
+                                # 드래그 오프셋 (원본 기준)
+                                offset_x = dragged_x - orig_x
+                                offset_y = dragged_y - orig_y
+                                # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
+                                new_custom[idx] = (transformed_x + offset_x, transformed_y + offset_y)
+                    else:
+                        # 이전 사이즈 변환이 있었던 경우: 드래그 오프셋 = custom[idx] - prev_transformed[idx]
+                        print(f"[얼굴편집] update_polygons_only - 드래그 오프셋 계산: 이전 사이즈 변환 있음, 이전 변환 기준")
+                        for idx in dragged_indices:
+                            if idx < len(custom) and idx < len(new_custom) and idx < len(prev_transformed):
+                                # 이전 사이즈 변환된 위치
+                                prev_transformed_x, prev_transformed_y = prev_transformed[idx]
+                                # 드래그된 위치 (이전 사이즈 변환 + 드래그)
+                                dragged_x, dragged_y = custom[idx]
+                                # 새로운 사이즈 변환된 위치
+                                transformed_x, transformed_y = transformed[idx]
+                                
+                                # 순수 드래그 오프셋 (이전 사이즈 변환 기준)
+                                drag_offset_x = dragged_x - prev_transformed_x
+                                drag_offset_y = dragged_y - prev_transformed_y
+                                
+                                # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
+                                new_custom[idx] = (transformed_x + drag_offset_x, transformed_y + drag_offset_y)
+                    
+                    self.landmark_manager.set_custom_landmarks(new_custom, reason="update_polygons_only")
                 # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
                 if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
                     if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
