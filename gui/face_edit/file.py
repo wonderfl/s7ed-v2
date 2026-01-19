@@ -190,17 +190,9 @@ class FileManagerMixin:
             
             # 랜드마크 초기화 (새 이미지 로드 시)
             # LandmarkManager 사용하여 초기화
-            if hasattr(self, 'landmark_manager'):
-                self.landmark_manager.reset(keep_original=False)
-                # 하위 호환성
-                self.original_landmarks = self.landmark_manager.get_original_landmarks()
-                self.face_landmarks = self.landmark_manager.get_face_landmarks()
-                self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-            else:
-                # LandmarkManager가 없으면 기존 방식 사용
-                self.original_landmarks = None
-                self.face_landmarks = None
-                self.custom_landmarks = None
+            self.landmark_manager.reset(keep_original=False)
+            self.original_landmarks = self.landmark_manager.get_original_landmarks()
+            self.face_landmarks = self.landmark_manager.get_face_landmarks()
             
             # 자동 정렬이 활성화되어 있으면 정렬 적용
             if self.auto_align.get():

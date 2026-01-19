@@ -101,17 +101,16 @@ class LogicMixin(EditingStepsMixin):
         new_iris_center_y = trans_eye_center[1] + new_rel_iris_y
         
         # 중앙 포인트 좌표 업데이트 (LandmarkManager 사용)
-        if hasattr(self, 'landmark_manager'):
-            if eye_side == 'left':
-                self.landmark_manager.set_iris_center_coords(
-                    (new_iris_center_x, new_iris_center_y),
-                    self.landmark_manager.get_right_iris_center_coord()
-                )
-            else:
-                self.landmark_manager.set_iris_center_coords(
-                    self.landmark_manager.get_left_iris_center_coord(),
-                    (new_iris_center_x, new_iris_center_y)
-                )
+        if eye_side == 'left':
+            self.landmark_manager.set_iris_center_coords(
+                (new_iris_center_x, new_iris_center_y),
+                self.landmark_manager.get_right_iris_center_coord()
+            )
+        else:
+            self.landmark_manager.set_iris_center_coords(
+                self.landmark_manager.get_left_iris_center_coord(),
+                (new_iris_center_x, new_iris_center_y)
+            )
         
         # 하위 호환성
         if eye_side == 'left':
@@ -386,94 +385,49 @@ class LogicMixin(EditingStepsMixin):
         print(f"[얼굴편집] _apply_common_sliders_to_landmarks 호출: 선택된 부위={selected_regions}")
         """고급 모드: 공통 슬라이더로 custom_landmarks의 포인트를 직접 조절"""
         # custom_landmarks 확인 (LandmarkManager 사용)
-        if hasattr(self, 'landmark_manager'):
-            custom = self.landmark_manager.get_custom_landmarks()
-            if custom is None:
-                return image
-        else:
-            if self.custom_landmarks is None:
-                return image
+        custom = self.landmark_manager.get_custom_landmarks()
+        if custom is None:
+            return image
         
         try:
             from utils.face_morphing.region_extraction import _get_region_center
             import utils.face_landmarks as face_landmarks
             
             # 원본 랜드마크 가져오기 (LandmarkManager 사용)
-            if hasattr(self, 'landmark_manager'):
-                if not self.landmark_manager.has_original_face_landmarks():
-                    # MediaPipe로 랜드마크 감지 (478개 또는 468개)
-                    original_landmarks_full, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                    if original_landmarks_full is None:
-                        return image
-                    
-                    # LandmarkManager에 저장 (자동으로 얼굴/눈동자 분리)
-                    self.landmark_manager.set_original_landmarks(original_landmarks_full)
-                    # 하위 호환성
-                    self.original_landmarks = self.landmark_manager.get_original_landmarks_full()
+            if not self.landmark_manager.has_original_face_landmarks():
+                # MediaPipe로 랜드마크 감지 (478개 또는 468개)
+                original_landmarks_full, _ = face_landmarks.detect_face_landmarks(self.current_image)
+                if original_landmarks_full is None:
+                    return image
                 
-                # 얼굴 랜드마크 (468개) 가져오기
-                original_face_landmarks = self.landmark_manager.get_original_face_landmarks()
-                # 눈동자 랜드마크 (10개) 가져오기
-                original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                # 하위 호환성: 전체 랜드마크
-                original_landmarks = self.landmark_manager.get_original_landmarks_full()
-            else:
-                # LandmarkManager가 없으면 기존 방식 사용
-                if not hasattr(self, 'original_landmarks') or self.original_landmarks is None:
-                    original_landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                    if original_landmarks is None:
-                        return image
-                    self.original_landmarks = original_landmarks
-                    
-                    # 얼굴과 눈동자 분리
-                    if len(original_landmarks) == 478:
-                        try:
-                            from utils.face_morphing.region_extraction import get_iris_indices
-                            left_iris_indices, right_iris_indices = get_iris_indices()
-                            iris_contour_indices = set(left_iris_indices + right_iris_indices)
-                            iris_center_indices = {468, 473}
-                            iris_indices = iris_contour_indices | iris_center_indices
-                            
-                            original_face_landmarks = [pt for i, pt in enumerate(original_landmarks) if i not in iris_indices]
-                            original_iris_landmarks = [original_landmarks[i] for i in sorted(iris_indices) if i < len(original_landmarks)]
-                        except Exception as e:
-                            print(f"[얼굴편집] 눈동자 분리 실패: {e}")
-                            original_face_landmarks = original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks
-                            original_iris_landmarks = None
-                    else:
-                        original_face_landmarks = original_landmarks
-                        original_iris_landmarks = None
-                else:
-                    original_landmarks = self.original_landmarks
-                    # 얼굴과 눈동자 분리
-                    if len(original_landmarks) == 478:
-                        try:
-                            from utils.face_morphing.region_extraction import get_iris_indices
-                            left_iris_indices, right_iris_indices = get_iris_indices()
-                            iris_contour_indices = set(left_iris_indices + right_iris_indices)
-                            iris_center_indices = {468, 473}
-                            iris_indices = iris_contour_indices | iris_center_indices
-                            
-                            original_face_landmarks = [pt for i, pt in enumerate(original_landmarks) if i not in iris_indices]
-                            original_iris_landmarks = [original_landmarks[i] for i in sorted(iris_indices) if i < len(original_landmarks)]
-                        except Exception as e:
-                            print(f"[얼굴편집] 눈동자 분리 실패: {e}")
-                            original_face_landmarks = original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks
-                            original_iris_landmarks = None
-                    else:
-                        original_face_landmarks = original_landmarks
-                        original_iris_landmarks = None
+                # LandmarkManager에 저장 (자동으로 얼굴/눈동자 분리)
+                self.landmark_manager.set_original_landmarks(original_landmarks_full)
+                self.original_landmarks = self.landmark_manager.get_original_landmarks_full()
+            
+            # 얼굴 랜드마크 (468개) 가져오기
+            original_face_landmarks = self.landmark_manager.get_original_face_landmarks()
+            # 눈동자 랜드마크 (10개) 가져오기
+            original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            # 전체 랜드마크
+            original_landmarks = self.landmark_manager.get_original_landmarks_full()
             
             # custom_landmarks 초기화 (얼굴 랜드마크만, 468개)
             if self.custom_landmarks is None or len(self.custom_landmarks) != 468:
                 if original_face_landmarks is not None:
-                    self.custom_landmarks = list(original_face_landmarks)  # 468개
+                    # original_face_landmarks는 원본이므로 복사본이 필요할 수 있지만,
+                    # 직접 참조로 저장 (원본은 읽기 전용이므로 안전)
+                    self.custom_landmarks = original_face_landmarks
             
-            # 원본 얼굴 랜드마크를 기준으로 시작 (이전 변형 제거)
-            # custom_landmarks는 이전 변형이 포함되어 있을 수 있으므로 원본으로 초기화
+            # 드래그로 변경된 포인트 추적 (LandmarkManager에서 직접 가져오기)
+            # 슬라이더 변형을 적용할 때 이 포인트들은 건너뛰어야 함
+            dragged_indices = self.landmark_manager.get_dragged_indices()
+            
+            # 사이즈 변환 중복 적용 방지: 원본 랜드마크를 기준으로 변환 적용
+            # 드래그된 포인트만 custom_landmarks에서 보존
             updated_landmarks = []
             img_width, img_height = image.size
-            # original_face_landmarks 사용 (468개)
+            
+            # 원본 랜드마크를 기준으로 초기화 (사이즈 변환 중복 방지)
             base_landmarks = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
             for idx in range(len(base_landmarks)):
                 if isinstance(base_landmarks[idx], tuple):
@@ -483,6 +437,22 @@ class LogicMixin(EditingStepsMixin):
                         base_landmarks[idx].x * img_width,
                         base_landmarks[idx].y * img_height
                     ))
+            
+            # 드래그된 포인트는 custom_landmarks에서 가져와서 보존 (사이즈 변환 포함된 상태)
+            custom = self.landmark_manager.get_custom_landmarks()
+            
+            if custom is not None and len(custom) == 468 and dragged_indices:
+                # 드래그된 포인트만 custom_landmarks에서 가져와서 보존
+                for idx in dragged_indices:
+                    if 0 <= idx < len(custom) and idx < len(updated_landmarks):
+                        if isinstance(custom[idx], tuple):
+                            updated_landmarks[idx] = custom[idx]
+                        else:
+                            updated_landmarks[idx] = (
+                                custom[idx].x * img_width,
+                                custom[idx].y * img_height
+                            )
+                print(f"[얼굴편집] 드래그된 포인트 {len(dragged_indices)}개를 custom_landmarks에서 보존 (사이즈 변환 포함)")
             
             # 확장 레벨 가져오기
             expansion_level = getattr(self, 'polygon_expansion_level', tk.IntVar(value=1)).get() if hasattr(self, 'polygon_expansion_level') else 1
@@ -546,9 +516,11 @@ class LogicMixin(EditingStepsMixin):
                         face_indices.update(next_level_indices)
                         current_indices = next_level_indices
                 
-                # Tesselation 변형 적용
+                # Tesselation 변형 적용 (드래그로 변경된 포인트는 제외)
+                # face_indices에서 드래그로 변경된 포인트 제거
+                face_indices_for_transform = face_indices - dragged_indices
                 self._apply_tesselation_transform(
-                    updated_landmarks, face_indices, iris_indices_in_all,
+                    updated_landmarks, face_indices_for_transform, iris_indices_in_all,
                     center_offset_x, center_offset_y, size_x, size_y,
                     position_x, position_y, image
                 )
@@ -654,23 +626,15 @@ class LogicMixin(EditingStepsMixin):
                             
                             # 중앙 포인트 좌표 업데이트 (LandmarkManager 사용)
                             if region_name == 'left_iris':
-                                if hasattr(self, 'landmark_manager'):
-                                    self.landmark_manager.set_iris_center_coords(
-                                        (new_iris_center_x, new_iris_center_y),
-                                        self.landmark_manager.get_right_iris_center_coord()
-                                    )
-                                # 하위 호환성
-                                if hasattr(self, '_left_iris_center_coord'):
-                                    self._left_iris_center_coord = (new_iris_center_x, new_iris_center_y)
+                                self.landmark_manager.set_iris_center_coords(
+                                    (new_iris_center_x, new_iris_center_y),
+                                    self.landmark_manager.get_right_iris_center_coord()
+                                )
                             elif region_name == 'right_iris':
-                                if hasattr(self, 'landmark_manager'):
-                                    self.landmark_manager.set_iris_center_coords(
-                                        self.landmark_manager.get_left_iris_center_coord(),
-                                        (new_iris_center_x, new_iris_center_y)
-                                    )
-                                # 하위 호환성
-                                if hasattr(self, '_right_iris_center_coord'):
-                                    self._right_iris_center_coord = (new_iris_center_x, new_iris_center_y)
+                                self.landmark_manager.set_iris_center_coords(
+                                    self.landmark_manager.get_left_iris_center_coord(),
+                                    (new_iris_center_x, new_iris_center_y)
+                                )
                             
                             # 모든 눈동자 포인트를 중앙 포인트로 설정
                             for idx in region_indices:
@@ -681,9 +645,12 @@ class LogicMixin(EditingStepsMixin):
                         # 일반 부위: 각 포인트를 개별적으로 변형
                         # 부위의 랜드마크 포인트들을 중심점 기준으로 조절 (확장된 포인트 포함)
                         # 이미 변형된 포인트는 제외 (중복 변형 방지)
+                        # 드래그로 변경된 포인트도 제외 (드래그 변경 보존)
                         for idx in region_indices:
                             if idx in transformed_indices:
                                 continue  # 이미 다른 부위에서 변형된 포인트는 건너뛰기
+                            if idx in dragged_indices:
+                                continue  # 드래그로 변경된 포인트는 건너뛰기 (보존)
                             if idx >= len(updated_landmarks):
                                 continue
                             
@@ -757,9 +724,13 @@ class LogicMixin(EditingStepsMixin):
                                 transformed_point_indices.add(idx)
             
             # 변형되지 않은 포인트는 원본 위치로 복원 (선택하지 않은 부위는 변형되지 않도록)
+            # 단, 드래그로 변경된 포인트는 보존해야 함
             final_landmarks = list(updated_landmarks)  # 468개
             base_landmarks_for_restore = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
             for idx in range(len(base_landmarks_for_restore)):
+                # 드래그로 변경된 포인트는 원본으로 복원하지 않음 (보존)
+                if idx in dragged_indices:
+                    continue
                 if idx not in transformed_point_indices:
                     # 변형되지 않은 포인트는 원본 위치 유지
                     if isinstance(base_landmarks_for_restore[idx], tuple):
@@ -789,16 +760,8 @@ class LogicMixin(EditingStepsMixin):
             # Tesselation 선택 시: 중앙 포인트 추가 (눈동자 제거 불필요, 이미 468개)
             if 'tesselation' in selected_regions and len(selected_regions) == 1:
                 # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표 또는 계산)
-                left_center = None
-                right_center = None
-                if hasattr(self, 'landmark_manager'):
-                    left_center = self.landmark_manager.get_left_iris_center_coord()
-                    right_center = self.landmark_manager.get_right_iris_center_coord()
-                else:
-                    if hasattr(self, '_left_iris_center_coord'):
-                        left_center = self._left_iris_center_coord
-                    if hasattr(self, '_right_iris_center_coord'):
-                        right_center = self._right_iris_center_coord
+                left_center = self.landmark_manager.get_left_iris_center_coord()
+                right_center = self.landmark_manager.get_right_iris_center_coord()
                 
                 # 중앙 포인트가 없으면 원본 눈동자에서 계산
                 if left_center is None or right_center is None:
@@ -839,8 +802,7 @@ class LogicMixin(EditingStepsMixin):
                     original_landmarks_for_morph = original_face_landmarks_tuple  # 470개
                     
                     # LandmarkManager에 중앙 포인트 저장
-                    if hasattr(self, 'landmark_manager'):
-                        self.landmark_manager.set_custom_iris_centers([left_center, right_center])
+                    self.landmark_manager.set_custom_iris_centers([left_center, right_center])
                 else:
                     print(f"[얼굴편집] 경고: Tesselation 선택 시 중앙 포인트 계산 실패")
                     final_landmarks_for_custom = final_landmarks  # 468개
@@ -851,39 +813,21 @@ class LogicMixin(EditingStepsMixin):
                 original_landmarks_for_morph = original_face_landmarks_tuple  # 468개
             
             # custom_landmarks 업데이트 (LandmarkManager 사용)
-            if hasattr(self, 'landmark_manager'):
-                self.landmark_manager.set_custom_landmarks(final_landmarks_for_custom, reason="_apply_common_sliders_to_landmarks")
-                # 하위 호환성: 기존 속성도 동기화
-                self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-            else:
-                # LandmarkManager가 없으면 기존 방식 사용
-                self.custom_landmarks = final_landmarks_for_custom
+            self.landmark_manager.set_custom_landmarks(final_landmarks_for_custom, reason="_apply_common_sliders_to_landmarks")
             
             # 랜드마크 변형을 이미지에 적용
             import utils.face_morphing as face_morphing
             # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
-            left_center = None
-            right_center = None
-            if hasattr(self, 'landmark_manager'):
-                left_center = self.landmark_manager.get_left_iris_center_coord()
-                right_center = self.landmark_manager.get_right_iris_center_coord()
-            else:
-                if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
-                    left_center = self._left_iris_center_coord
-                if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
-                    right_center = self._right_iris_center_coord
+            left_center = self.landmark_manager.get_left_iris_center_coord()
+            right_center = self.landmark_manager.get_right_iris_center_coord()
             
             # morph_face_by_polygons 호출 시: Tesselation 선택 시에는 이미 눈동자 제거 + 중앙 포인트 추가된 구조 전달
             # LandmarkManager의 get_landmarks_for_tesselation() 사용 (원본, 변형 모두 470개 구조)
             if 'tesselation' in selected_regions and len(selected_regions) == 1:
-                if hasattr(self, 'landmark_manager'):
-                    original_for_morph, transformed_for_morph = self.landmark_manager.get_landmarks_for_tesselation()
-                    if original_for_morph is None:
-                        original_for_morph = original_landmarks_for_morph
-                    if transformed_for_morph is None:
-                        transformed_for_morph = final_landmarks_for_custom
-                else:
+                original_for_morph, transformed_for_morph = self.landmark_manager.get_copied_landmarks_for_tesselation_with_centers()
+                if original_for_morph is None:
                     original_for_morph = original_landmarks_for_morph
+                if transformed_for_morph is None:
                     transformed_for_morph = final_landmarks_for_custom
             else:
                 # Tesselation이 아닌 경우: 468개 구조
@@ -928,16 +872,14 @@ class LogicMixin(EditingStepsMixin):
                         
                         if 'tesselation' in selected_regions and len(selected_regions) == 1:
                             # Tesselation 선택 시: iris_centers 사용 (470개 구조)
-                            if hasattr(self, 'landmark_manager'):
-                                iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
+                            iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
                             if iris_centers_for_drawing is None and len(final_landmarks_for_custom) == 470:
                                 # final_landmarks_for_custom에서 중앙 포인트 추출
                                 iris_centers_for_drawing = final_landmarks_for_custom[-2:]
                                 face_landmarks_for_drawing = final_landmarks_for_custom[:-2]  # 468개
                         else:
                             # Tesselation이 아닌 경우: iris_landmarks 사용 (478개 구조)
-                            if hasattr(self, 'landmark_manager'):
-                                iris_landmarks_for_drawing = self.landmark_manager.get_original_iris_landmarks()
+                            iris_landmarks_for_drawing = self.landmark_manager.get_original_iris_landmarks()
                         
                         self._draw_landmark_polygons(
                             self.canvas_original,
@@ -1027,42 +969,28 @@ class LogicMixin(EditingStepsMixin):
             self._right_iris_center_coord = None
         
         # LandmarkManager를 사용하여 초기화
-        if hasattr(self, 'landmark_manager'):
-            self.landmark_manager.reset(keep_original=True)
-            # 하위 호환성: 기존 속성도 동기화
-            self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-            self.face_landmarks = self.landmark_manager.get_face_landmarks()
-            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
-            
-            # Tesselation 모드일 때 _custom_iris_centers 복원
-            is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
-            if is_tesselation_selected and hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                if self.current_image is not None:
-                    img_width, img_height = self.current_image.size
-                    original_landmarks = self.landmark_manager.get_original_landmarks()
-                    if original_landmarks is not None:
-                        left_iris_indices, right_iris_indices = self._get_iris_indices()
-                        left_center = self._calculate_iris_center(original_landmarks, left_iris_indices, img_width, img_height)
-                        right_center = self._calculate_iris_center(original_landmarks, right_iris_indices, img_width, img_height)
-                        if left_center is not None and right_center is not None:
-                            self.landmark_manager.set_custom_iris_centers([left_center, right_center])
-                            self._left_iris_center_coord = left_center
-                            self._right_iris_center_coord = right_center
-            
-            custom_count = len(self.custom_landmarks) if self.custom_landmarks else 0
-            print(f"[얼굴편집] reset_morphing: custom_landmarks를 original_landmarks로 복원 (길이: {custom_count})")
-        else:
-            # LandmarkManager가 없으면 기존 방식 사용
-            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
-                self.face_landmarks = list(self.original_landmarks)
-                print(f"[얼굴편집] reset_morphing: face_landmarks를 original_landmarks로 초기화 (길이: {len(self.face_landmarks)})")
-                
-                self.custom_landmarks = list(self.original_landmarks)
-                print(f"[얼굴편집] reset_morphing: custom_landmarks를 original_landmarks로 복원 (길이: {len(self.custom_landmarks)})")
-            elif hasattr(self, 'face_landmarks') and self.face_landmarks is not None:
-                self.custom_landmarks = list(self.face_landmarks)
-                print(f"[얼굴편집] reset_morphing: custom_landmarks를 face_landmarks로 복원 (길이: {len(self.custom_landmarks)})")
+        self.landmark_manager.reset(keep_original=True)
+        # property가 자동으로 처리하므로 동기화 코드 불필요
+        self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+        self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+        
+        # Tesselation 모드일 때 _custom_iris_centers 복원
+        is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
+        if is_tesselation_selected and hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
+            if self.current_image is not None:
+                img_width, img_height = self.current_image.size
+                original_landmarks = self.landmark_manager.get_original_landmarks()
+                if original_landmarks is not None:
+                    left_iris_indices, right_iris_indices = self._get_iris_indices()
+                    left_center = self._calculate_iris_center(original_landmarks, left_iris_indices, img_width, img_height)
+                    right_center = self._calculate_iris_center(original_landmarks, right_iris_indices, img_width, img_height)
+                    if left_center is not None and right_center is not None:
+                        self.landmark_manager.set_custom_iris_centers([left_center, right_center])
+                        self._left_iris_center_coord = left_center
+                        self._right_iris_center_coord = right_center
+        
+        custom_count = len(self.custom_landmarks) if self.custom_landmarks else 0
+        print(f"[얼굴편집] reset_morphing: custom_landmarks를 original_landmarks로 복원 (길이: {custom_count})")
         
         # UI 업데이트 (개별 적용 모드 변경)
         self.on_individual_region_change()

@@ -205,18 +205,10 @@ class LandmarkDisplayMixin:
                 # 눈동자 인덱스 추가 (refine_landmarks=True일 때 사용 가능)
                 # custom_landmarks를 사용할 때는 눈동자 포인트(468-477)가 제거되고 중앙 포인트로 대체됨
                 # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-                has_iris_landmarks = False
-                has_iris_centers = False
-                if hasattr(self, 'landmark_manager'):
-                    iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                    iris_centers = self.landmark_manager.get_custom_iris_centers()
-                    has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
-                    has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
-                else:
-                    # 하위 호환성: 길이 체크
-                    has_iris_landmarks = len(landmarks) > 468
-                    has_iris_centers = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
-                                       len(self.custom_landmarks) == 470)
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                iris_centers = self.landmark_manager.get_custom_iris_centers()
+                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+                has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
                 
                 if has_iris_landmarks or has_iris_centers:
                     # custom_landmarks를 사용하는 경우 눈동자 포인트 인덱스 제외
@@ -245,18 +237,10 @@ class LandmarkDisplayMixin:
                 # 눈동자 탭: 눈동자 인덱스만 표시
                 target_indices = set()
                 # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-                has_iris_landmarks = False
-                has_iris_centers = False
-                if hasattr(self, 'landmark_manager'):
-                    iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                    iris_centers = self.landmark_manager.get_custom_iris_centers()
-                    has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
-                    has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
-                else:
-                    # 하위 호환성: 길이 체크
-                    has_iris_landmarks = len(landmarks) > 468
-                    has_iris_centers = (hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and 
-                                       len(self.custom_landmarks) == 470)
+                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                iris_centers = self.landmark_manager.get_custom_iris_centers()
+                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
+                has_iris_centers = (iris_centers is not None and len(iris_centers) == 2)
                 
                 if has_iris_landmarks or has_iris_centers:
                     use_custom = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None and landmarks is self.custom_landmarks

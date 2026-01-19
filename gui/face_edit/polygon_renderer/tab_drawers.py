@@ -36,13 +36,8 @@ class TabDrawersMixin:
 
             # 눈동자 연결 정보 추가 (중심점은 연결 정보에 포함되지 않음)
             # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-            has_iris_landmarks = False
-            if hasattr(self, 'landmark_manager'):
-                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
-            else:
-                # 하위 호환성: 길이 체크
-                has_iris_landmarks = len(landmarks) > 468
+            iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
             
             if LEFT_IRIS and RIGHT_IRIS and has_iris_landmarks:
                 for idx1, idx2 in LEFT_IRIS + RIGHT_IRIS:
@@ -144,13 +139,8 @@ class TabDrawersMixin:
                 LEFT_IRIS = []
 
             # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-            has_iris_landmarks_left = False
-            if hasattr(self, 'landmark_manager'):
-                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                has_iris_landmarks_left = (iris_landmarks is not None and len(iris_landmarks) > 0)
-            else:
-                # 하위 호환성: 길이 체크
-                has_iris_landmarks_left = len(landmarks) > 468
+            iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            has_iris_landmarks_left = (iris_landmarks is not None and len(iris_landmarks) > 0)
             
             if LEFT_IRIS and has_iris_landmarks_left:
                 left_iris_indices_set = set()
@@ -214,13 +204,8 @@ class TabDrawersMixin:
                 RIGHT_IRIS = []
 
             # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-            has_iris_landmarks = False
-            if hasattr(self, 'landmark_manager'):
-                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
-            else:
-                # 하위 호환성: 길이 체크
-                has_iris_landmarks = len(landmarks) > 468
+            iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
             
             if RIGHT_IRIS and has_iris_landmarks:
                 right_iris_indices_set = set()
@@ -856,13 +841,8 @@ class TabDrawersMixin:
                 RIGHT_IRIS = []
             
             # LandmarkManager를 통해 얼굴/눈동자 분리 확인
-            has_iris_landmarks = False
-            if hasattr(self, 'landmark_manager'):
-                iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
-            else:
-                # 하위 호환성: 길이 체크
-                has_iris_landmarks = len(landmarks) > 468
+            iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            has_iris_landmarks = (iris_landmarks is not None and len(iris_landmarks) > 0)
             
             if not LEFT_IRIS or not RIGHT_IRIS or not has_iris_landmarks:
                 return
@@ -944,10 +924,7 @@ class TabDrawersMixin:
             elif hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
                 center_x, center_y = self._left_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                if hasattr(self, 'landmark_manager'):
-                    original = self.landmark_manager.get_original_landmarks()
-                else:
-                    original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                original = self.landmark_manager.get_original_landmarks()
                 
                 if original is not None:
                     left_iris_indices, _ = self._get_iris_indices()
@@ -1026,10 +1003,7 @@ class TabDrawersMixin:
             elif hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
                 center_x, center_y = self._right_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                if hasattr(self, 'landmark_manager'):
-                    original = self.landmark_manager.get_original_landmarks()
-                else:
-                    original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                original = self.landmark_manager.get_original_landmarks()
                 
                 if original is not None:
                     _, right_iris_indices = self._get_iris_indices()

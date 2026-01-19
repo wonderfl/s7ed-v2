@@ -2,8 +2,7 @@
 랜드마크 상태 관리 클래스
 모든 랜드마크 관련 상태를 중앙에서 관리
 """
-from typing import List, Tuple, Optional, Dict, Any
-import copy
+from typing import List, Tuple, Optional, Dict, Any, Set
 
 
 class LandmarkManager:
@@ -36,24 +35,25 @@ class LandmarkManager:
         self._left_iris_center_coord: Optional[Tuple[float, float]] = None
         self._right_iris_center_coord: Optional[Tuple[float, float]] = None
         
+        # 드래그로 변경된 포인트 인덱스 추적
+        self._dragged_indices: Set[int] = set()
+        
         # 변경 이력 (디버깅용, 선택사항)
         self._change_history: List[Dict[str, Any]] = []
     
     # ========== 원본 얼굴 랜드마크 (468개) ==========
     
     def set_original_face_landmarks(self, landmarks: List[Tuple[float, float]]):
-        """원본 얼굴 랜드마크 설정 (468개, 읽기 전용)"""
+        """원본 얼굴 랜드마크 설정 (468개, 직접 참조로 저장, 복사본 없음)"""
         if landmarks is not None:
-            self._original_face_landmarks = list(landmarks)
+            self._original_face_landmarks = landmarks
             self._log_change("set_original_face", len(landmarks))
         else:
             self._original_face_landmarks = None
     
     def get_original_face_landmarks(self) -> Optional[List[Tuple[float, float]]]:
-        """원본 얼굴 랜드마크 반환 (468개)"""
-        if self._original_face_landmarks is not None:
-            return list(self._original_face_landmarks)  # 복사본 반환
-        return None
+        """원본 얼굴 랜드마크 반환 (468개, 직접 참조, 복사본 없음)"""
+        return self._original_face_landmarks
     
     def has_original_face_landmarks(self) -> bool:
         """원본 얼굴 랜드마크 존재 여부"""
@@ -62,18 +62,16 @@ class LandmarkManager:
     # ========== 원본 눈동자 랜드마크 (10개) ==========
     
     def set_original_iris_landmarks(self, landmarks: Optional[List[Tuple[float, float]]]):
-        """원본 눈동자 랜드마크 설정 (10개)"""
+        """원본 눈동자 랜드마크 설정 (10개, 직접 참조로 저장, 복사본 없음)"""
         if landmarks is not None:
-            self._original_iris_landmarks = list(landmarks)
+            self._original_iris_landmarks = landmarks
             self._log_change("set_original_iris", len(landmarks))
         else:
             self._original_iris_landmarks = None
     
     def get_original_iris_landmarks(self) -> Optional[List[Tuple[float, float]]]:
-        """원본 눈동자 랜드마크 반환 (10개)"""
-        if self._original_iris_landmarks is not None:
-            return list(self._original_iris_landmarks)  # 복사본 반환
-        return None
+        """원본 눈동자 랜드마크 반환 (10개, 직접 참조, 복사본 없음)"""
+        return self._original_iris_landmarks
     
     def has_original_iris_landmarks(self) -> bool:
         """원본 눈동자 랜드마크 존재 여부"""
@@ -106,20 +104,20 @@ class LandmarkManager:
                     self._original_iris_landmarks = iris_landmarks if iris_landmarks else None
                 except Exception as e:
                     print(f"[LandmarkManager] 눈동자 분리 실패: {e}")
-                    # 폴백: 전체를 얼굴로 저장
-                    self._original_face_landmarks = list(landmarks[:468]) if len(landmarks) >= 468 else list(landmarks)
-                    self._original_iris_landmarks = list(landmarks[468:]) if len(landmarks) > 468 else None
+                    # 폴백: 전체를 얼굴로 저장 (슬라이싱은 새 리스트 생성, 직접 참조 불가)
+                    self._original_face_landmarks = landmarks[:468] if len(landmarks) >= 468 else landmarks
+                    self._original_iris_landmarks = landmarks[468:] if len(landmarks) > 468 else None
             elif len(landmarks) == 468:
-                # 468개인 경우 얼굴로만 저장
-                self._original_face_landmarks = list(landmarks)
+                # 468개인 경우 얼굴로만 저장 (직접 참조)
+                self._original_face_landmarks = landmarks
                 self._original_iris_landmarks = None
             else:
-                # 기타: 그대로 저장 (하위 호환성)
-                self._original_face_landmarks = list(landmarks)
+                # 기타: 그대로 저장 (하위 호환성, 직접 참조)
+                self._original_face_landmarks = landmarks
                 self._original_iris_landmarks = None
             
-            # 하위 호환성: 기존 필드도 유지
-            self._original_landmarks = list(landmarks)
+            # 하위 호환성: 기존 필드도 유지 (직접 참조)
+            self._original_landmarks = landmarks
             self._log_change("set_original", len(landmarks))
         else:
             self._original_face_landmarks = None
@@ -141,42 +139,54 @@ class LandmarkManager:
     # ========== Face 랜드마크 ==========
     
     def set_face_landmarks(self, landmarks: Optional[List[Tuple[float, float]]]):
-        """현재 편집된 랜드마크 설정"""
+        """현재 편집된 랜드마크 설정 (직접 참조로 저장, 복사본 없음)
+        
+        Args:
+            landmarks: 설정할 랜드마크 리스트 (직접 참조로 저장됨)
+        """
         if landmarks is not None:
-            self._face_landmarks = list(landmarks)
+            # 항상 직접 참조로 저장 (복사본 생성 안 함)
+            self._face_landmarks = landmarks
             self._log_change("set_face", len(landmarks))
         else:
             self._face_landmarks = None
     
     def get_face_landmarks(self) -> Optional[List[Tuple[float, float]]]:
-        """현재 편집된 랜드마크 반환"""
-        if self._face_landmarks is not None:
-            return list(self._face_landmarks)  # 복사본 반환
-        return None
+        """현재 편집된 랜드마크 반환 (직접 참조, 복사본 없음)"""
+        return self._face_landmarks
     
     # ========== 변형된 랜드마크 ==========
     
     def set_transformed_landmarks(self, landmarks: Optional[List[Tuple[float, float]]]):
-        """변형된 랜드마크 설정"""
+        """변형된 랜드마크 설정 (직접 참조로 저장, 복사본 없음)
+        
+        Args:
+            landmarks: 설정할 랜드마크 리스트 (직접 참조로 저장됨)
+        """
         if landmarks is not None:
-            self._transformed_landmarks = list(landmarks)
+            # 항상 직접 참조로 저장 (복사본 생성 안 함)
+            self._transformed_landmarks = landmarks
             self._log_change("set_transformed", len(landmarks))
         else:
             self._transformed_landmarks = None
     
     def get_transformed_landmarks(self) -> Optional[List[Tuple[float, float]]]:
-        """변형된 랜드마크 반환"""
-        if self._transformed_landmarks is not None:
-            return list(self._transformed_landmarks)  # 복사본 반환
-        return None
+        """변형된 랜드마크 반환 (직접 참조, 복사본 없음)"""
+        return self._transformed_landmarks
     
     # ========== Custom 랜드마크 ==========
     
     def set_custom_landmarks(self, landmarks: Optional[List[Tuple[float, float]]], 
                              reason: str = "unknown"):
-        """사용자 수정 랜드마크 설정 (468개 또는 470개)"""
+        """사용자 수정 랜드마크 설정 (468개 또는 470개, 직접 참조로 저장, 복사본 없음)
+        
+        Args:
+            landmarks: 설정할 랜드마크 리스트 (직접 참조로 저장됨)
+            reason: 설정 이유 (디버깅용)
+        """
         if landmarks is not None:
-            self._custom_landmarks = list(landmarks)
+            # 항상 직접 참조로 저장 (복사본 생성 안 함)
+            self._custom_landmarks = landmarks
             self._log_change("set_custom", len(landmarks), reason)
         else:
             self._custom_landmarks = None
@@ -191,7 +201,7 @@ class LandmarkManager:
             centers: [left_center, right_center] 형태의 리스트 (2개)
         """
         if centers is not None and len(centers) == 2:
-            self._custom_iris_centers = list(centers)
+            self._custom_iris_centers = centers  # 직접 참조 (복사본 없음)
             # 하위 호환성: 기존 좌표도 업데이트
             self._left_iris_center_coord = centers[0]
             self._right_iris_center_coord = centers[1]
@@ -201,37 +211,44 @@ class LandmarkManager:
             self._log_change("set_custom_iris_centers", 0)
     
     def get_custom_iris_centers(self) -> Optional[List[Tuple[float, float]]]:
-        """사용자 수정 눈동자 중앙 포인트 반환 (2개, Tesselation용)"""
-        if self._custom_iris_centers is not None:
-            return list(self._custom_iris_centers)  # 복사본 반환
-        return None
+        """사용자 수정 눈동자 중앙 포인트 반환 (2개, Tesselation용, 직접 참조, 복사본 없음)"""
+        return self._custom_iris_centers
     
     def has_custom_iris_centers(self) -> bool:
         """사용자 수정 눈동자 중앙 포인트 존재 여부"""
         return self._custom_iris_centers is not None
     
     def get_custom_landmarks(self) -> Optional[List[Tuple[float, float]]]:
-        """사용자 수정 랜드마크 반환"""
-        if self._custom_landmarks is not None:
-            return list(self._custom_landmarks)  # 복사본 반환
-        return None
+        """사용자 수정 랜드마크 반환 (직접 참조, 복사본 없음)"""
+        return self._custom_landmarks
     
     def has_custom_landmarks(self) -> bool:
         """사용자 수정 랜드마크 존재 여부"""
         return self._custom_landmarks is not None
     
-    def update_custom_landmarks(self, index: int, new_position: Tuple[float, float]):
-        """특정 인덱스의 랜드마크 위치 업데이트 (드래그용)"""
+    def update_custom_landmark(self, index: int, new_position: Tuple[float, float]):
+        """특정 인덱스의 랜드마크 위치 업데이트 (드래그용)
+        
+        Args:
+            index: 랜드마크 인덱스
+            new_position: 새로운 위치 (x, y)
+        """
         if self._custom_landmarks is not None and 0 <= index < len(self._custom_landmarks):
             self._custom_landmarks[index] = new_position
+            # 드래그로 변경된 포인트로 표시
+            self._dragged_indices.add(index)
             self._log_change("update_custom_point", index, f"pos={new_position}")
+    
+    def update_custom_landmarks(self, index: int, new_position: Tuple[float, float]):
+        """하위 호환성: update_custom_landmark의 별칭"""
+        self.update_custom_landmark(index, new_position)
     
     def apply_transform_to_custom(self, transform_func, *args, **kwargs):
         """변환 함수를 custom_landmarks에 적용"""
         if self._custom_landmarks is not None:
             result = transform_func(self._custom_landmarks, *args, **kwargs)
             if result is not None:
-                self._custom_landmarks = list(result)
+                self._custom_landmarks = result  # 직접 참조 (복사본 없음, transform_func가 새 리스트 반환할 수 있음)
                 self._log_change("apply_transform", len(self._custom_landmarks), 
                                f"func={transform_func.__name__}")
     
@@ -259,6 +276,50 @@ class LandmarkManager:
         return (self._left_iris_center_coord is not None and 
                 self._right_iris_center_coord is not None)
     
+    # ========== 드래그 추적 ==========
+    
+    def mark_as_dragged(self, index: int):
+        """드래그로 변경된 포인트로 표시
+        
+        Args:
+            index: 랜드마크 인덱스
+        """
+        self._dragged_indices.add(index)
+        self._log_change("mark_as_dragged", index)
+    
+    def unmark_as_dragged(self, index: int):
+        """드래그 표시 제거 (취소 시)
+        
+        Args:
+            index: 랜드마크 인덱스
+        """
+        self._dragged_indices.discard(index)
+        self._log_change("unmark_as_dragged", index)
+    
+    def get_dragged_indices(self) -> Set[int]:
+        """드래그로 변경된 포인트 인덱스 반환
+        
+        Returns:
+            드래그로 변경된 포인트 인덱스 집합 (복사본)
+        """
+        return set(self._dragged_indices)  # 복사본 반환
+    
+    def clear_dragged_indices(self):
+        """드래그 표시 초기화"""
+        self._dragged_indices.clear()
+        self._log_change("clear_dragged_indices")
+    
+    def is_dragged(self, index: int) -> bool:
+        """특정 인덱스가 드래그로 변경되었는지 확인
+        
+        Args:
+            index: 랜드마크 인덱스
+            
+        Returns:
+            드래그로 변경되었으면 True
+        """
+        return index in self._dragged_indices
+    
     # ========== 상태 관리 ==========
     
     def reset(self, keep_original: bool = True):
@@ -271,9 +332,10 @@ class LandmarkManager:
             self._custom_iris_centers = None
             self._left_iris_center_coord = None
             self._right_iris_center_coord = None
+            self._dragged_indices.clear()  # 드래그 표시도 초기화
             if self._original_face_landmarks is not None:
-                # 원본 얼굴 랜드마크로 복원
-                self._custom_landmarks = list(self._original_face_landmarks)
+                # 원본 얼굴 랜드마크로 복원 (직접 참조, 복사본 없음)
+                self._custom_landmarks = self._original_face_landmarks
         else:
             # 모두 초기화
             self._original_face_landmarks = None
@@ -285,40 +347,57 @@ class LandmarkManager:
             self._custom_iris_centers = None
             self._left_iris_center_coord = None
             self._right_iris_center_coord = None
+            self._dragged_indices.clear()  # 드래그 표시도 초기화
         
         self._log_change("reset", keep_original=keep_original)
     
     def get_current_landmarks_for_display(self) -> Optional[List[Tuple[float, float]]]:
-        """표시용 랜드마크 반환 (우선순위: custom > transformed > face > original)"""
+        """표시용 랜드마크 반환 (우선순위: custom > transformed > face > original, 직접 참조, 복사본 없음)"""
         if self._custom_landmarks is not None:
-            return list(self._custom_landmarks)
+            return self._custom_landmarks
         elif self._transformed_landmarks is not None:
-            return list(self._transformed_landmarks)
+            return self._transformed_landmarks
         elif self._face_landmarks is not None:
-            return list(self._face_landmarks)
+            return self._face_landmarks
         elif self._original_landmarks is not None:
-            return list(self._original_landmarks)
+            return self._original_landmarks
         return None
     
     def get_landmarks_for_morphing(self) -> Tuple[Optional[List], Optional[List]]:
-        """모핑용 랜드마크 반환 (원본, 변형)"""
-        original = self.get_original_landmarks_full()
-        transformed = self.get_custom_landmarks()
+        """모핑용 랜드마크 반환 (원본, 변형, 직접 참조, 복사본 없음)
+        
+        주의: morph_face_by_polygons는 읽기만 하므로 직접 참조 반환 (복사본 없음)
+        """
+        original = self.get_original_landmarks_full()  # 직접 참조 (복사본 없음)
+        transformed = self.get_custom_landmarks()  # 직접 참조 (복사본 없음)
         if transformed is None:
-            transformed = self.get_transformed_landmarks()
+            transformed = self.get_transformed_landmarks()  # 직접 참조 (복사본 없음)
         return original, transformed
     
     # ========== 편의 메서드 ==========
     
     def get_original_landmarks_full(self) -> Optional[List[Tuple[float, float]]]:
-        """원본 랜드마크 전체 반환 (하위 호환용, 468+10=478개)
+        """원본 랜드마크 전체 반환 (직접 참조, 복사본 없음)
+        
+        주의: 눈동자가 있으면 얼굴 랜드마크만 반환 (468개)
+        눈동자 포함 전체가 필요하면 get_copied_original_landmarks_full_with_iris() 사용
         
         Returns:
-            468개 얼굴 랜드마크 + 10개 눈동자 랜드마크 = 478개
+            468개 얼굴 랜드마크 (직접 참조)
+        """
+        return self._original_face_landmarks
+    
+    def get_copied_original_landmarks_full_with_iris(self) -> Optional[List[Tuple[float, float]]]:
+        """원본 랜드마크 전체 반환 (눈동자 포함, 468+10=478개, 복사본 생성)
+        
+        주의: 구조 변경(눈동자 추가)을 위해 복사본 생성
+        
+        Returns:
+            468개 얼굴 랜드마크 + 10개 눈동자 랜드마크 = 478개 (복사본)
         """
         if self._original_face_landmarks is not None:
-            result = list(self._original_face_landmarks)  # 468개
             if self._original_iris_landmarks is not None:
+                result = list(self._original_face_landmarks)  # 눈동자 추가를 위해 복사본 필요
                 # 눈동자 랜드마크를 올바른 인덱스 위치에 삽입
                 try:
                     from utils.face_morphing.region_extraction import get_iris_indices
@@ -338,21 +417,46 @@ class LandmarkManager:
                     print(f"[LandmarkManager] 눈동자 병합 실패: {e}")
                     # 폴백: 끝에 추가
                     result.extend(self._original_iris_landmarks)
-            return result
+                return result
+            else:
+                # 눈동자가 없으면 직접 참조 반환 (복사본 없음)
+                return self._original_face_landmarks
         return None
     
     def get_landmarks_for_tesselation(self) -> Tuple[Optional[List[Tuple[float, float]]], Optional[List[Tuple[float, float]]]]:
-        """Tesselation용 랜드마크 반환 (원본, 변형)
+        """Tesselation용 랜드마크 반환 (원본, 변형, 직접 참조, 복사본 없음)
+        
+        주의: 중앙 포인트가 없으면 468개만 반환
+        중앙 포인트 포함이 필요하면 get_copied_landmarks_for_tesselation_with_centers() 사용
         
         Returns:
             (original_landmarks, transformed_landmarks)
-            - original_landmarks: 468개 얼굴 + 2개 중앙 포인트 = 470개
-            - transformed_landmarks: 468개 얼굴 + 2개 중앙 포인트 = 470개
+            - original_landmarks: 468개 얼굴 (직접 참조, 복사본 없음)
+            - transformed_landmarks: 468개 또는 470개 (직접 참조, 복사본 없음)
+        """
+        # 원본: 직접 참조 반환 (복사본 없음)
+        original = self._original_face_landmarks
+        
+        # 변형: custom_landmarks 사용 (이미 470개 구조일 수 있음)
+        transformed = self.get_custom_landmarks()
+        if transformed is None:
+            transformed = self.get_transformed_landmarks()
+        
+        return original, transformed
+    
+    def get_copied_landmarks_for_tesselation_with_centers(self) -> Tuple[Optional[List[Tuple[float, float]]], Optional[List[Tuple[float, float]]]]:
+        """Tesselation용 랜드마크 반환 (중앙 포인트 포함, 복사본 생성)
+        
+        주의: 구조 변경(중앙 포인트 추가)을 위해 복사본 생성
+        
+        Returns:
+            (original_landmarks, transformed_landmarks)
+            - original_landmarks: 468개 얼굴 + 2개 중앙 포인트 = 470개 (복사본)
+            - transformed_landmarks: 468개 또는 470개 (직접 참조, 복사본 없음)
         """
         # 원본: 얼굴 468개 + 중앙 포인트 2개
         original = None
         if self._original_face_landmarks is not None:
-            original = list(self._original_face_landmarks)  # 468개
             # 중앙 포인트 추가 (우선순위: custom_iris_centers > 좌표 > 계산)
             left_center = None
             right_center = None
@@ -394,8 +498,13 @@ class LandmarkManager:
             
             # 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
             if left_center is not None and right_center is not None:
+                # 중앙 포인트 추가를 위해 새 리스트 생성 (구조 변경 필요)
+                original = list(self._original_face_landmarks)  # 중앙 포인트 추가를 위해 복사본 필요
                 original.append(left_center)   # MediaPipe LEFT_IRIS (사용자 왼쪽, len-2)
                 original.append(right_center)  # MediaPipe RIGHT_IRIS (사용자 오른쪽, len-1)
+            else:
+                # 중앙 포인트가 없으면 직접 참조 반환 (복사본 없음)
+                original = self._original_face_landmarks
         
         # 변형: custom_landmarks 사용 (이미 470개 구조일 수 있음)
         transformed = self.get_custom_landmarks()

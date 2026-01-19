@@ -63,11 +63,11 @@ class FaceEditPanel(
         self.aligned_image = None  # 정렬된 이미지 (편집의 기반)
         self.edited_image = None  # 편집된 이미지 (최종 결과)
         
+        # 랜드마크 상태 관리자 (중앙화) - property setter가 사용하므로 먼저 초기화 필요
+        self.landmark_manager = LandmarkManager()
+        
         # 얼굴 랜드마크 정보 (나중에 추가)
         self.face_landmarks = None
-        
-        # 랜드마크 상태 관리자 (중앙화)
-        self.landmark_manager = LandmarkManager()
         
         # 얼굴 특징 보정 설정 (Phase 1)
         self.eye_size = tk.DoubleVar(value=1.0)  # 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
@@ -201,18 +201,16 @@ class FaceEditPanel(
         self.polygon_drag_start_y = None  # 드래그 시작 y 좌표
         self.polygon_drag_start_img_x = None  # 드래그 시작 이미지 x 좌표
         self.polygon_drag_start_img_y = None  # 드래그 시작 이미지 y 좌표
-        self.custom_landmarks = None
+        # 랜드마크는 property로 관리 (아래에 정의)
         self.selected_landmark_indicator_original = None  # 원본 이미지의 선택된 포인트 표시 아이템
         self.selected_landmark_indicator_edited = None  # 편집된 이미지의 선택된 포인트 표시 아이템
         self.selected_landmark_lines_original = []  # 원본 이미지의 선택된 포인트 연결선 아이템
-        self.selected_landmark_lines_edited = []  # 편집된 이미지의 선택된 포인트 연결선 아이템  # 사용자가 수정한 랜드마크 (드래그로 변경된 경우)
-        self.original_landmarks = None  # 원본 이미지의 랜드마크 (항상 보존)
+        self.selected_landmark_lines_edited = []  # 편집된 이미지의 선택된 포인트 연결선 아이템
         
         # 성능 최적화: 이미지 변경 감지 및 리사이즈 캐싱
         self._last_edited_image_hash = None  # 이전 편집된 이미지 해시
         self._resize_cache = {}  # 이미지 리사이즈 캐시
         self._resize_cache_max_size = 10  # 최대 캐시 크기
-        self.transformed_landmarks = None  # 변형된 랜드마크 (apply_editing에서 계산)
         
         # 이미지 위치 추적 변수 (드래그용)
         self.canvas_original_pos_x = None
@@ -282,6 +280,75 @@ class FaceEditPanel(
         # 창 닫기 이벤트
         self.protocol("WM_DELETE_WINDOW", self.on_close)
     
+    
+    # ========== 랜드마크 Property (직접 참조, 복사본 없음) ==========
+    
+    @property
+    def custom_landmarks(self):
+        """사용자 수정 랜드마크 (LandmarkManager의 _custom_landmarks 직접 참조, 복사본 없음)"""
+        return self.landmark_manager._custom_landmarks  # 직접 참조
+    
+    @custom_landmarks.setter
+    def custom_landmarks(self, value):
+        """사용자 수정 랜드마크 설정 (LandmarkManager를 통해서만)
+        
+        직접 참조로 저장 (복사본 없음)
+        """
+        # value가 이미 LandmarkManager의 _custom_landmarks인 경우 저장 불필요
+        if value is self.landmark_manager._custom_landmarks:
+            return
+        # 직접 참조로 저장 (복사본 없음)
+        self.landmark_manager.set_custom_landmarks(value, reason="legacy_setter")
+    
+    @property
+    def original_landmarks(self):
+        """원본 랜드마크 (LandmarkManager의 get_original_landmarks_full() 직접 참조, 복사본 없음)
+        
+        주의: 기본적으로 직접 참조 반환 (복사본 없음)
+        눈동자 포함이 필요하면 get_copied_original_landmarks_full_with_iris() 사용
+        """
+        return self.landmark_manager.get_original_landmarks_full()  # 468개 (직접 참조, 복사본 없음)
+    
+    @original_landmarks.setter
+    def original_landmarks(self, value):
+        """원본 랜드마크 설정 (LandmarkManager를 통해서만)"""
+        self.landmark_manager.set_original_landmarks(value)
+    
+    @property
+    def face_landmarks(self):
+        """현재 편집된 랜드마크 (LandmarkManager의 _face_landmarks 직접 참조, 복사본 없음)"""
+        return self.landmark_manager._face_landmarks  # 직접 참조 (복사본 없음)
+    
+    @face_landmarks.setter
+    def face_landmarks(self, value):
+        """현재 편집된 랜드마크 설정 (LandmarkManager를 통해서만)
+        
+        직접 참조로 저장 (복사본 없음)
+        """
+        # value가 이미 LandmarkManager의 _face_landmarks인 경우 저장 불필요
+        if value is self.landmark_manager._face_landmarks:
+            return
+        # 직접 참조로 저장 (복사본 없음)
+        self.landmark_manager.set_face_landmarks(value)
+    
+    @property
+    def transformed_landmarks(self):
+        """변형된 랜드마크 (LandmarkManager의 _transformed_landmarks 직접 참조, 복사본 없음)"""
+        return self.landmark_manager._transformed_landmarks  # 직접 참조 (복사본 없음)
+    
+    @transformed_landmarks.setter
+    def transformed_landmarks(self, value):
+        """변형된 랜드마크 설정 (LandmarkManager를 통해서만)
+        
+        직접 참조로 저장 (복사본 없음)
+        """
+        # value가 이미 LandmarkManager의 _transformed_landmarks인 경우 저장 불필요
+        if value is self.landmark_manager._transformed_landmarks:
+            return
+        # 직접 참조로 저장 (복사본 없음)
+        self.landmark_manager.set_transformed_landmarks(value)
+    
+    # ========== 기타 메서드 ==========
     
     def show_file_list_popup(self):
         """파일 리스트 팝업창 표시"""
@@ -659,35 +726,21 @@ class FaceEditPanelV2(FaceEditPanel):
             # 원본 랜드마크 가져오기 (항상 원본을 기준으로 변형)
             base_landmarks = None
             # original_landmarks 가져오기 (LandmarkManager 사용)
-            if hasattr(self, 'landmark_manager'):
-                if not self.landmark_manager.has_original_landmarks():
-                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                    if self.landmark_manager.get_face_landmarks() is None:
-                        detected, _ = face_landmarks.detect_face_landmarks(base_image)
-                        if detected is not None:
-                            self.landmark_manager.set_face_landmarks(detected)
-                            self.landmark_manager.set_original_landmarks(detected)
-                            # 하위 호환성
-                            self.face_landmarks = self.landmark_manager.get_face_landmarks()
-                            self.original_landmarks = self.landmark_manager.get_original_landmarks()
-                    base_landmarks = self.landmark_manager.get_face_landmarks()
-                else:
-                    base_landmarks = self.landmark_manager.get_original_landmarks()
-                # 하위 호환성
-                if base_landmarks is None:
-                    base_landmarks = self.landmark_manager.get_face_landmarks()
+            if not self.landmark_manager.has_original_landmarks():
+                # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
+                if self.landmark_manager.get_face_landmarks() is None:
+                    detected, _ = face_landmarks.detect_face_landmarks(base_image)
+                    if detected is not None:
+                        self.landmark_manager.set_face_landmarks(detected)
+                        self.landmark_manager.set_original_landmarks(detected)
+                        self.face_landmarks = self.landmark_manager.get_face_landmarks()
+                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
+                base_landmarks = self.landmark_manager.get_face_landmarks()
             else:
-                # LandmarkManager가 없으면 기존 방식 사용
-                if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
-                    base_landmarks = self.original_landmarks
-                else:
-                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                    if self.face_landmarks is None:
-                        self.face_landmarks, _ = face_landmarks.detect_face_landmarks(base_image)
-                        # 원본 랜드마크 저장
-                        if self.face_landmarks is not None:
-                            self.original_landmarks = list(self.face_landmarks)
-                    base_landmarks = self.face_landmarks
+                base_landmarks = self.landmark_manager.get_original_landmarks()
+            # 폴백
+            if base_landmarks is None:
+                base_landmarks = self.landmark_manager.get_face_landmarks()
             
             if self.use_landmark_warping.get():
                 # 랜드마크 기반 변형 모드: 변형된 랜드마크 계산
@@ -728,36 +781,32 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # transformed_landmarks 및 custom_landmarks 업데이트 (LandmarkManager 사용)
-                    if hasattr(self, 'landmark_manager'):
-                        self.landmark_manager.set_transformed_landmarks(transformed)
-                        self.landmark_manager.set_custom_landmarks(transformed, reason="__init__ use_landmark_warping")
-                        # 하위 호환성
-                        self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
-                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-                        
-                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
-                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                            original = self.landmark_manager.get_original_landmarks()
-                            if original is not None:
-                                img_width, img_height = self.current_image.size
-                                left_iris_indices, right_iris_indices = self._get_iris_indices()
-                                # 드래그 좌표가 없으면 original_landmarks에서 계산
-                                left_center = self.landmark_manager.get_left_iris_center_coord()
-                                right_center = self.landmark_manager.get_right_iris_center_coord()
-                                
-                                if left_center is None:
-                                    left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                                if right_center is None:
-                                    right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
-                                
-                                self.landmark_manager.set_iris_center_coords(left_center, right_center)
-                                # 하위 호환성
-                                self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-                                self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+                    self.landmark_manager.set_transformed_landmarks(transformed)
+                    self.landmark_manager.set_custom_landmarks(transformed, reason="__init__ use_landmark_warping")
+                    self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+                    
+                    # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
+                        original = self.landmark_manager.get_original_landmarks()
+                        if original is not None:
+                            img_width, img_height = self.current_image.size
+                            left_iris_indices, right_iris_indices = self._get_iris_indices()
+                            # 드래그 좌표가 없으면 original_landmarks에서 계산
+                            left_center = self.landmark_manager.get_left_iris_center_coord()
+                            right_center = self.landmark_manager.get_right_iris_center_coord()
+                            
+                            if left_center is None:
+                                left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                            if right_center is None:
+                                right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                            
+                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+                            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
                     else:
                         # LandmarkManager가 없으면 기존 방식 사용
                         self.transformed_landmarks = transformed
-                        self.custom_landmarks = list(transformed)
+                        self.custom_landmarks = transformed  # 직접 참조 (복사본 없음)
                         # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
                         if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
                             if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
@@ -774,16 +823,9 @@ class FaceEditPanelV2(FaceEditPanel):
                                         self._right_iris_center_coord = right_center
                 else:
                     # transformed_landmarks 및 custom_landmarks 초기화 (LandmarkManager 사용)
-                    if hasattr(self, 'landmark_manager'):
-                        self.landmark_manager.set_transformed_landmarks(None)
-                        self.landmark_manager.set_custom_landmarks(None, reason="__init__ use_landmark_warping_false")
-                        # 하위 호환성
-                        self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
-                        self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-                    else:
-                        # LandmarkManager가 없으면 기존 방식 사용
-                        self.transformed_landmarks = None
-                        self.custom_landmarks = None
+                    self.landmark_manager.set_transformed_landmarks(None)
+                    self.landmark_manager.set_custom_landmarks(None, reason="__init__ use_landmark_warping_false")
+                    self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
             else:
                 self.transformed_landmarks = None
                 # use_landmark_warping이 꺼져 있어도 슬라이더 값에 따라 랜드마크 변형
@@ -824,10 +866,10 @@ class FaceEditPanelV2(FaceEditPanel):
                     )
                     
                     # custom_landmarks 업데이트 (중앙 포인트는 좌표 기반으로 별도 관리)
-                    self.custom_landmarks = list(transformed)
+                    self.custom_landmarks = transformed  # 직접 참조 (복사본 없음)
                     # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
                     if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                        if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
+                        if self.original_landmarks is not None:
                             img_width, img_height = self.current_image.size
                             left_iris_indices, right_iris_indices = self._get_iris_indices()
                             # 드래그 좌표가 없으면 original_landmarks에서 계산
@@ -1083,10 +1125,7 @@ class FaceEditPanelV2(FaceEditPanel):
                     current_tab = getattr(self, 'current_morphing_tab', '눈')
                     if hasattr(self, '_draw_landmark_polygons'):
                         # custom_landmarks 가져오기 (LandmarkManager 사용)
-                        if hasattr(self, 'landmark_manager'):
-                            custom = self.landmark_manager.get_custom_landmarks()
-                        else:
-                            custom = self.custom_landmarks
+                        custom = self.landmark_manager.get_custom_landmarks()
                         
                         if custom is not None:
                             self._draw_landmark_polygons(

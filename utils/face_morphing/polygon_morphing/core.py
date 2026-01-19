@@ -97,7 +97,10 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             iris_indices = iris_contour_indices | iris_center_indices
         except ImportError:
             # 폴백: 하드코딩된 인덱스 사용
-            iris_contour_indices = set([469, 470, 471, 472, 474, 475, 476, 477])
+            # 실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472]
+            left_iris_indices = [474, 475, 476, 477]
+            right_iris_indices = [469, 470, 471, 472]
+            iris_contour_indices = set(left_iris_indices + right_iris_indices)
             iris_center_indices = {468, 473}
             iris_indices = iris_contour_indices | iris_center_indices
         

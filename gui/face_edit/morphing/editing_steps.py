@@ -138,38 +138,24 @@ class EditingStepsMixin:
         import utils.face_morphing as face_morphing
 
         # 원본 랜드마크 가져오기 (LandmarkManager 사용)
-        if hasattr(self, 'landmark_manager'):
-            if not self.landmark_manager.has_original_landmarks():
-                if self.current_image is not None:
-                    original, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                    if original is not None:
-                        self.landmark_manager.set_original_landmarks(original)
-                        # 하위 호환성
-                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
-
-            # face_landmarks가 없으면 원본 랜드마크 사용
-            if self.landmark_manager.get_face_landmarks() is None:
-                original = self.landmark_manager.get_original_landmarks()
+        if not self.landmark_manager.has_original_landmarks():
+            if self.current_image is not None:
+                original, _ = face_landmarks.detect_face_landmarks(self.current_image)
                 if original is not None:
-                    self.landmark_manager.set_face_landmarks(original)
-                    # 하위 호환성
-                    self.face_landmarks = self.landmark_manager.get_face_landmarks()
-            else:
-                self.face_landmarks = self.landmark_manager.get_face_landmarks()
+                    self.landmark_manager.set_original_landmarks(original)
+                    self.original_landmarks = self.landmark_manager.get_original_landmarks()
 
+        # face_landmarks가 없으면 원본 랜드마크 사용
+        if self.landmark_manager.get_face_landmarks() is None:
             original = self.landmark_manager.get_original_landmarks()
-            face = self.landmark_manager.get_face_landmarks()
+            if original is not None:
+                self.landmark_manager.set_face_landmarks(original)
+                self.face_landmarks = self.landmark_manager.get_face_landmarks()
         else:
-            # LandmarkManager가 없으면 기존 방식 사용
-            if not hasattr(self, 'original_landmarks') or self.original_landmarks is None:
-                if self.current_image is not None:
-                    self.original_landmarks, _ = face_landmarks.detect_face_landmarks(self.current_image)
+            self.face_landmarks = self.landmark_manager.get_face_landmarks()
 
-            if self.face_landmarks is None:
-                self.face_landmarks = list(self.original_landmarks) if self.original_landmarks else None
-
-            original = self.original_landmarks
-            face = self.face_landmarks
+        original = self.landmark_manager.get_original_landmarks()
+        face = self.landmark_manager.get_face_landmarks()
 
         if face is not None and original is not None:
             # 눈 크기 조정으로 변형된 랜드마크 계산
@@ -180,113 +166,111 @@ class EditingStepsMixin:
                 left_eye_size = self.left_eye_size.get()
                 right_eye_size = self.left_eye_size.get()
 
-            # 원본 랜드마크를 기준으로 변형된 랜드마크 계산
-            transformed_landmarks = list(original)
+            # 사이즈 변경 기준 랜드마크 결정: 항상 원본을 기준으로 변환
+            # 드래그된 포인트는 원본 위치에서 변환하고, 드래그 표시는 유지
+            # 드래그된 포인트 인덱스 가져오기
+            dragged_indices = self.landmark_manager.get_dragged_indices()
+            # 원본을 기준으로 변환 (드래그된 포인트도 원본 위치에서 변환)
+            base_landmarks = original
+            
+            # 눈 크기 변형 적용 (불필요한 복사본 생성 제거: 함수 내부에서 복사본 생성)
             if left_eye_size is not None or right_eye_size is not None:
                 left_ratio = left_eye_size if left_eye_size is not None else 1.0
                 right_ratio = right_eye_size if right_eye_size is not None else 1.0
-                if abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01:
-                    print(f"[얼굴편집] apply_editing - 눈 크기 변형 적용: 왼쪽={left_ratio}, 오른쪽={right_ratio}")
+                has_size_change = (abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01)
+                
+                if has_size_change:
+                    print(f"[얼굴편집] apply_editing - 눈 크기 변형 적용: 왼쪽={left_ratio}, 오른쪽={right_ratio}, 드래그된 포인트 {len(dragged_indices)}개")
+                    # transform_points_for_eye_size는 내부에서 복사본을 생성하므로 직접 참조 전달 (불필요한 복사본 생성 제거)
+                    # 원본을 기준으로 변환 (드래그된 포인트도 원본 위치에서 변환)
                     transformed_landmarks = face_morphing.transform_points_for_eye_size(
-                        transformed_landmarks,
+                        base_landmarks,
                         eye_size_ratio=1.0,
                         left_eye_size_ratio=left_eye_size,
                         right_eye_size_ratio=right_eye_size
                     )
                 else:
                     print(f"[얼굴편집] apply_editing - 눈 크기 변형 없음 (기본값)")
+                    transformed_landmarks = base_landmarks
+                    has_size_change = False
+            else:
+                transformed_landmarks = base_landmarks
+                has_size_change = False
 
             # 변형된 랜드마크 저장 (폴리곤 표시용)
             self.face_landmarks = transformed_landmarks
 
             # LandmarkManager를 사용하여 랜드마크 상태 관리
-            has_size_change = (abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01)
+            self.landmark_manager.set_transformed_landmarks(transformed_landmarks)
 
-            # transformed_landmarks 저장
-            if hasattr(self, 'landmark_manager'):
-                self.landmark_manager.set_transformed_landmarks(transformed_landmarks)
-
-                # custom_landmarks 업데이트
-                if has_size_change:
-                    # 사이즈 변경이 있으면 transformed_landmarks 사용
+            # custom_landmarks 업데이트
+            if has_size_change:
+                # 사이즈 변경이 있으면 transformed_landmarks를 기준으로 설정
+                # 드래그된 포인트가 있으면 현재 위치 유지 (사이즈 변환 적용 안 함)
+                custom = self.landmark_manager.get_custom_landmarks()
+                if custom is None or not dragged_indices:
+                    # custom_landmarks가 없거나 드래그된 포인트가 없으면 전체를 변환된 랜드마크로 설정
+                    # transformed_landmarks는 이미 복사본이므로 직접 참조로 저장 가능
                     self.landmark_manager.set_custom_landmarks(transformed_landmarks, reason="apply_editing_size_change")
-                # 사이즈 변경이 없으면 기존 custom_landmarks 유지 (_apply_common_sliders_to_landmarks에서 변환한 내용)
+                else:
+                    # 드래그된 포인트가 있으면: transformed_landmarks를 복사하고 드래그된 포인트는 원본 위치에서 변환된 위치로 업데이트
+                    # transformed_landmarks는 이미 원본 기준으로 변환된 상태이므로, 드래그된 포인트도 변환된 위치를 사용
+                    # 복사본 생성 (드래그된 포인트는 이미 transformed_landmarks에 변환된 위치로 포함되어 있음)
+                    new_custom = list(transformed_landmarks)
+                    # 드래그된 포인트는 transformed_landmarks에 이미 원본 기준으로 변환된 위치가 있으므로 그대로 사용
+                    # 드래그 표시는 유지 (변환은 했지만 드래그로 변경된 것으로 표시 유지)
+                    self.landmark_manager.set_custom_landmarks(new_custom, reason="apply_editing_size_change")
+                    # 드래그 표시는 유지 (변환은 했지만 드래그로 변경된 것으로 표시 유지)
+                print(f"[얼굴편집] apply_editing - 사이즈 변경 적용, 드래그 표시 유지: {len(self.landmark_manager.get_dragged_indices())}개")
+            # 사이즈 변경이 없으면 기존 custom_landmarks 유지 (_apply_common_sliders_to_landmarks에서 변환한 내용)
 
-                # 중앙 포인트 좌표 업데이트
-                if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                    if self.landmark_manager.has_original_landmarks():
-                        img_width, img_height = base_image.size
-                        left_iris_indices, right_iris_indices = self._get_iris_indices()
+            # 중앙 포인트 좌표 업데이트
+            if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
+                if self.landmark_manager.has_original_landmarks():
+                    img_width, img_height = base_image.size
+                    left_iris_indices, right_iris_indices = self._get_iris_indices()
 
-                        if has_size_change:
-                            # 사이즈 변경이 있으면 변환된 랜드마크에서 중앙 포인트 재계산
-                            print(f"[얼굴편집] apply_editing - 사이즈 변경 감지, 변환된 랜드마크에서 중앙 포인트 재계산")
-                            left_center = self._calculate_iris_center(transformed_landmarks, left_iris_indices, img_width, img_height)
-                            right_center = self._calculate_iris_center(transformed_landmarks, right_iris_indices, img_width, img_height)
-                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
-                        else:
-                            # 사이즈 변경이 없으면 드래그 좌표가 있으면 유지, 없으면 original_landmarks에서 계산
-                            left_center = self.landmark_manager.get_left_iris_center_coord()
-                            right_center = self.landmark_manager.get_right_iris_center_coord()
+                    if has_size_change:
+                        # 사이즈 변경이 있으면 변환된 랜드마크에서 중앙 포인트 재계산
+                        print(f"[얼굴편집] apply_editing - 사이즈 변경 감지, 변환된 랜드마크에서 중앙 포인트 재계산")
+                        left_center = self._calculate_iris_center(transformed_landmarks, left_iris_indices, img_width, img_height)
+                        right_center = self._calculate_iris_center(transformed_landmarks, right_iris_indices, img_width, img_height)
+                        self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                    else:
+                        # 사이즈 변경이 없으면 드래그 좌표가 있으면 유지, 없으면 original_landmarks에서 계산
+                        left_center = self.landmark_manager.get_left_iris_center_coord()
+                        right_center = self.landmark_manager.get_right_iris_center_coord()
 
-                            if left_center is None:
-                                left_center = self._calculate_iris_center(
-                                    self.landmark_manager.get_original_landmarks(), 
-                                    left_iris_indices, img_width, img_height)
-                            if right_center is None:
-                                right_center = self._calculate_iris_center(
-                                    self.landmark_manager.get_original_landmarks(), 
-                                    right_iris_indices, img_width, img_height)
+                        if left_center is None:
+                            left_center = self._calculate_iris_center(
+                                self.landmark_manager.get_original_landmarks(), 
+                                left_iris_indices, img_width, img_height)
+                        if right_center is None:
+                            right_center = self._calculate_iris_center(
+                                self.landmark_manager.get_original_landmarks(), 
+                                right_iris_indices, img_width, img_height)
 
-                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                        self.landmark_manager.set_iris_center_coords(left_center, right_center)
 
-                # 하위 호환성: 기존 속성도 동기화
-                self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-                self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
-                self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-                self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+            # property가 자동으로 처리하므로 동기화 코드 불필요
+            self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
 
-                custom_count = len(self.custom_landmarks) if self.custom_landmarks else 0
-                print(f"[얼굴편집] apply_editing - custom_landmarks 업데이트 완료: 길이={custom_count}")
-            else:
-                # LandmarkManager가 없으면 기존 방식 사용 (하위 호환성)
-                if has_size_change:
-                    self.custom_landmarks = list(transformed_landmarks)
-                self.transformed_landmarks = transformed_landmarks
-                print(f"[얼굴편집] apply_editing - custom_landmarks 업데이트 (기존 방식): 길이={len(self.custom_landmarks) if self.custom_landmarks else 0}")
+            custom_count = len(self.custom_landmarks) if self.custom_landmarks else 0
+            print(f"[얼굴편집] apply_editing - custom_landmarks 업데이트 완료: 길이={custom_count}")
 
             # 폴리곤 기반 변형: 변형된 랜드마크로 이미지 변형
             # apply_all_adjustments 대신 morph_face_by_polygons 사용
-            if hasattr(self, 'landmark_manager'):
-                original, transformed = self.landmark_manager.get_landmarks_for_morphing()
-                if original is not None and transformed is not None:
-                    # 중앙 포인트 좌표 가져오기
-                    left_center = self.landmark_manager.get_left_iris_center_coord()
-                    right_center = self.landmark_manager.get_right_iris_center_coord()
-                    result = face_morphing.morph_face_by_polygons(
-                        base_image,  # 원본 이미지
-                        original,  # 원본 랜드마크
-                        transformed,  # 변형된 랜드마크 (폴리곤으로 수정된 랜드마크)
-                        selected_point_indices=None,  # 모든 포인트 처리
-                        left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                        right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
-                    )
-                else:
-                    result = None
-            elif self.original_landmarks is not None and self.custom_landmarks is not None:
-                # LandmarkManager가 없으면 기존 방식 사용
+            original, transformed = self.landmark_manager.get_landmarks_for_morphing()
+            if original is not None and transformed is not None:
                 # 중앙 포인트 좌표 가져오기
-                left_center = None
-                right_center = None
-                if hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
-                    left_center = self._left_iris_center_coord
-                if hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
-                    right_center = self._right_iris_center_coord
-
+                left_center = self.landmark_manager.get_left_iris_center_coord()
+                right_center = self.landmark_manager.get_right_iris_center_coord()
                 result = face_morphing.morph_face_by_polygons(
                     base_image,  # 원본 이미지
-                    self.original_landmarks,  # 원본 랜드마크
-                    self.custom_landmarks,  # 변형된 랜드마크 (폴리곤으로 수정된 랜드마크)
+                    original,  # 원본 랜드마크
+                    transformed,  # 변형된 랜드마크 (폴리곤으로 수정된 랜드마크)
                     selected_point_indices=None,  # 모든 포인트 처리
                     left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
                     right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트

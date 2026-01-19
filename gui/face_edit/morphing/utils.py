@@ -199,32 +199,18 @@ class UtilsMixin:
             
             # 원본 랜드마크 가져오기 (항상 원본을 기준으로 변형)
             base_landmarks = None
-            if hasattr(self, 'landmark_manager'):
-                if not self.landmark_manager.has_original_landmarks():
-                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                    if self.landmark_manager.get_face_landmarks() is None:
-                        detected, _ = face_landmarks.detect_face_landmarks(base_image)
-                        if detected is not None:
-                            self.landmark_manager.set_original_landmarks(detected)
-                            self.landmark_manager.set_face_landmarks(detected)
-                            # 하위 호환성
-                            self.original_landmarks = self.landmark_manager.get_original_landmarks()
-                            self.face_landmarks = self.landmark_manager.get_face_landmarks()
-                base_landmarks = self.landmark_manager.get_original_landmarks()
-                if base_landmarks is None:
-                    base_landmarks = self.landmark_manager.get_face_landmarks()
-            else:
-                # LandmarkManager가 없으면 기존 방식 사용
-                if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
-                    base_landmarks = self.original_landmarks
-                else:
-                    # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                    if self.face_landmarks is None:
-                        self.face_landmarks, _ = face_landmarks.detect_face_landmarks(base_image)
-                        # 원본 랜드마크 저장
-                        if self.face_landmarks is not None:
-                            self.original_landmarks = list(self.face_landmarks)
-                    base_landmarks = self.face_landmarks
+            if not self.landmark_manager.has_original_landmarks():
+                # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
+                if self.landmark_manager.get_face_landmarks() is None:
+                    detected, _ = face_landmarks.detect_face_landmarks(base_image)
+                    if detected is not None:
+                        self.landmark_manager.set_original_landmarks(detected)
+                        self.landmark_manager.set_face_landmarks(detected)
+                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
+                        self.face_landmarks = self.landmark_manager.get_face_landmarks()
+            base_landmarks = self.landmark_manager.get_original_landmarks()
+            if base_landmarks is None:
+                base_landmarks = self.landmark_manager.get_face_landmarks()
             
             if base_landmarks is not None:
                 # 변형된 랜드마크 계산 (항상 원본을 기준으로)
@@ -263,13 +249,7 @@ class UtilsMixin:
                 )
                 
                 # custom_landmarks 업데이트 (LandmarkManager 사용)
-                if hasattr(self, 'landmark_manager'):
-                    self.landmark_manager.set_custom_landmarks(transformed, reason="update_polygons_only")
-                    # 하위 호환성: 기존 속성도 동기화
-                    self.custom_landmarks = self.landmark_manager.get_custom_landmarks()
-                else:
-                    # LandmarkManager가 없으면 기존 방식 사용
-                    self.custom_landmarks = list(transformed)
+                self.landmark_manager.set_custom_landmarks(transformed, reason="update_polygons_only")
                 # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
                 if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
                     if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
@@ -319,10 +299,7 @@ class UtilsMixin:
                     current_tab = getattr(self, 'current_morphing_tab', '눈')
                     if hasattr(self, '_draw_landmark_polygons'):
                         # custom_landmarks 가져오기 (LandmarkManager 사용)
-                        if hasattr(self, 'landmark_manager'):
-                            custom = self.landmark_manager.get_custom_landmarks()
-                        else:
-                            custom = self.custom_landmarks
+                        custom = self.landmark_manager.get_custom_landmarks()
                         
                         if custom is not None:
                             self._draw_landmark_polygons(

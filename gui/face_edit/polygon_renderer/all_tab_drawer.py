@@ -352,10 +352,7 @@ class AllTabDrawerMixin:
                     center_x, center_y = getattr(self, iris_center_coord_attr)
                     print(f"[폴리곤렌더러] 전체탭 - 4. {iris_side} 눈동자 중앙 포인트 좌표: {center_x}, {center_y}")
                 elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                    if hasattr(self, 'landmark_manager'):
-                        original = self.landmark_manager.get_original_landmarks()
-                    else:
-                        original = self.original_landmarks if hasattr(self, 'original_landmarks') else None
+                    original = self.landmark_manager.get_original_landmarks()
                     
                     if original is not None:
                         left_iris_indices, right_iris_indices = self._get_iris_indices()
@@ -456,8 +453,7 @@ class AllTabDrawerMixin:
                         # iris_centers가 없으면 LandmarkManager나 custom_landmarks에서 가져오기
                         iris_centers_for_draw = iris_centers
                         if iris_centers_for_draw is None:
-                            if hasattr(self, 'landmark_manager'):
-                                iris_centers_for_draw = self.landmark_manager.get_custom_iris_centers()
+                            iris_centers_for_draw = self.landmark_manager.get_custom_iris_centers()
                             if iris_centers_for_draw is None and len(landmarks) == 470:
                                 # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
                                 iris_centers_for_draw = landmarks[-2:]

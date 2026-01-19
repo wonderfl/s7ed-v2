@@ -303,10 +303,7 @@ class HandlersMixin:
                     current_tab = getattr(self, 'current_morphing_tab', '눈')
                     if hasattr(self, '_draw_landmark_polygons'):
                         # custom_landmarks 가져오기 (LandmarkManager 사용)
-                        if hasattr(self, 'landmark_manager'):
-                            custom = self.landmark_manager.get_custom_landmarks()
-                        else:
-                            custom = self.custom_landmarks
+                        custom = self.landmark_manager.get_custom_landmarks()
                         
                         if custom is not None:
                             self._draw_landmark_polygons(
