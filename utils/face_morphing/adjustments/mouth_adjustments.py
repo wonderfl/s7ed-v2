@@ -22,7 +22,7 @@ except ImportError:
     get_key_landmarks = None
 
 
-def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landmarks=None):
+def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landmarks=None, blend_ratio=1.0):
     """
     입 크기와 너비를 조정합니다.
     
@@ -31,6 +31,7 @@ def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landma
         mouth_size_ratio: 입 크기 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         mouth_width_ratio: 입 너비 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -101,13 +102,21 @@ def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landma
         # 리사이즈된 입 영역을 실제 크기에 맞춤
         mouth_final = cv2.resize(mouth_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 마스크 생성 (부드러운 블렌딩을 위해, 개선된 버전: 시그모이드 함수 기반)
         mask = _create_blend_mask(actual_width, actual_height, mask_type='ellipse')
         
-        # 원본 이미지에 블렌딩
+        # 블렌딩 비율 적용
+        mask_adjusted = mask * blend_ratio
+        
+        # 원본 이미지 복사
         result = img_array.copy()
+        
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         roi = result[new_y1:new_y2, new_x1:new_x2]
-        mask_3channel = np.stack([mask] * 3, axis=-1)  # RGB 채널로 확장
+        mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)  # RGB 채널로 확장
         
         # 시그모이드 함수 기반 부드러운 블렌딩
         blended = (roi * (1 - mask_3channel) + mouth_final * mask_3channel).astype(np.uint8)
@@ -123,7 +132,7 @@ def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landma
 
 
 
-def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio=1.0, landmarks=None):
+def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio=1.0, landmarks=None, blend_ratio=1.0):
     """
     윗입술 크기와 너비를 조정합니다.
     
@@ -132,6 +141,7 @@ def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio
         upper_lip_size_ratio: 윗입술 크기 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         upper_lip_width_ratio: 윗입술 너비 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -213,15 +223,24 @@ def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio
         # 리사이즈된 윗입술 영역을 실제 크기에 맞춤
         upper_lip_final = cv2.resize(upper_lip_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 마스크 생성 (부드러운 블렌딩을 위해)
         mask = np.ones((actual_height, actual_width), dtype=np.uint8) * 255
         mask = cv2.GaussianBlur(mask, (15, 15), 0)
+        mask_normalized = mask.astype(np.float32) / 255.0
         
-        # 원본 이미지에 블렌딩
+        # 블렌딩 비율 적용
+        mask_adjusted = mask_normalized * blend_ratio
+        
+        # 원본 이미지 복사
         result = img_array.copy()
+        
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         roi = result[new_y1:new_y2, new_x1:new_x2]
-        mask_3channel = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB) / 255.0
-        blended = (roi * (1 - mask_3channel) + upper_lip_final * mask_3channel).astype(np.uint8)
+        mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)
+        blended = (roi.astype(np.float32) * (1 - mask_3channel) + upper_lip_final.astype(np.float32) * mask_3channel).astype(np.uint8)
         result[new_y1:new_y2, new_x1:new_x2] = blended
         
         return Image.fromarray(result)
@@ -234,7 +253,7 @@ def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio
 
 
 
-def adjust_lower_lip_size(image, lower_lip_size_ratio=1.0, lower_lip_width_ratio=1.0, landmarks=None):
+def adjust_lower_lip_size(image, lower_lip_size_ratio=1.0, lower_lip_width_ratio=1.0, landmarks=None, blend_ratio=1.0):
     """
     아래입술 크기와 너비를 조정합니다.
     
@@ -243,6 +262,7 @@ def adjust_lower_lip_size(image, lower_lip_size_ratio=1.0, lower_lip_width_ratio
         lower_lip_size_ratio: 아래입술 크기 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         lower_lip_width_ratio: 아래입술 너비 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -324,15 +344,24 @@ def adjust_lower_lip_size(image, lower_lip_size_ratio=1.0, lower_lip_width_ratio
         # 리사이즈된 아래입술 영역을 실제 크기에 맞춤
         lower_lip_final = cv2.resize(lower_lip_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 마스크 생성 (부드러운 블렌딩을 위해)
         mask = np.ones((actual_height, actual_width), dtype=np.uint8) * 255
         mask = cv2.GaussianBlur(mask, (15, 15), 0)
+        mask_normalized = mask.astype(np.float32) / 255.0
         
-        # 원본 이미지에 블렌딩
+        # 블렌딩 비율 적용
+        mask_adjusted = mask_normalized * blend_ratio
+        
+        # 원본 이미지 복사
         result = img_array.copy()
+        
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         roi = result[new_y1:new_y2, new_x1:new_x2]
-        mask_3channel = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB) / 255.0
-        blended = (roi * (1 - mask_3channel) + lower_lip_final * mask_3channel).astype(np.uint8)
+        mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)
+        blended = (roi.astype(np.float32) * (1 - mask_3channel) + lower_lip_final.astype(np.float32) * mask_3channel).astype(np.uint8)
         result[new_y1:new_y2, new_x1:new_x2] = blended
         
         return Image.fromarray(result)

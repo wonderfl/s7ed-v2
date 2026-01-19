@@ -331,6 +331,9 @@ class PreviewManagerMixin:
             # 입술 영역 표시 업데이트
             if self.show_lip_region.get():
                 self.update_lip_region_display()
+            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+                self.update_bbox_display()
             # 랜드마크 또는 연결선 표시 업데이트 (확대/축소 중이면 스킵)
             if not getattr(self, '_is_zooming', False):
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
@@ -472,6 +475,9 @@ class PreviewManagerMixin:
             # 입술 영역 표시 업데이트 (편집된 이미지에도 표시)
             if self.show_lip_region.get():
                 self.update_lip_region_display()
+            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+                self.update_bbox_display()
             # 랜드마크 또는 연결선 표시 업데이트 (편집된 이미지에도 표시, 확대/축소 중이면 스킵)
             if not getattr(self, '_is_zooming', False):
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
@@ -951,6 +957,104 @@ class PreviewManagerMixin:
             import traceback
             traceback.print_exc()
     
+    def clear_bbox_display(self):
+        """바운딩 박스 표시 제거"""
+        # 원본 이미지의 바운딩 박스 제거
+        if self.bbox_rect_original is not None:
+            try:
+                self.canvas_original.delete(self.bbox_rect_original)
+            except Exception as e:
+                print(f"[얼굴편집] 바운딩 박스 제거 실패: {e}")
+        self.bbox_rect_original = None
+    
+    def update_bbox_display(self):
+        """바운딩 박스 표시 업데이트"""
+        if self.current_image is None:
+            return
+        
+        try:
+            # 기존 바운딩 박스 제거
+            self.clear_bbox_display()
+            
+            # 바운딩 박스 가져오기
+            if not hasattr(self, 'landmark_manager'):
+                print(f"[얼굴편집] 바운딩 박스 표시 실패: landmark_manager가 없음")
+                return
+            
+            img_width, img_height = self.current_image.size
+            bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
+            
+            # 바운딩 박스가 None이면 계산 시도
+            if bbox is None:
+                # 랜드마크를 사용하여 바운딩 박스 계산
+                landmarks = self.landmark_manager.get_original_landmarks()
+                if landmarks is None:
+                    landmarks = self.landmark_manager.get_face_landmarks()
+                
+                if landmarks is not None:
+                    from utils.face_morphing.polygon_morphing.core import _calculate_landmark_bounding_box
+                    try:
+                        from utils.face_morphing.region_extraction import get_iris_indices
+                        left_iris_indices, right_iris_indices = get_iris_indices()
+                        iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                        iris_center_indices = {468, 473}
+                        iris_indices = iris_contour_indices | iris_center_indices
+                    except:
+                        iris_indices = {468, 469, 470, 471, 472, 473, 474, 475, 476, 477}
+                    
+                    landmarks_no_iris = [pt for i, pt in enumerate(landmarks) if i not in iris_indices]
+                    bbox = _calculate_landmark_bounding_box(landmarks_no_iris, img_width, img_height, padding_ratio=0.5)
+                    
+                    if bbox is not None:
+                        # 계산된 바운딩 박스를 캐시에 저장
+                        self.landmark_manager.set_original_bbox(bbox, img_width, img_height)
+                        print(f"[얼굴편집] 바운딩 박스 계산 완료: ({bbox[0]}, {bbox[1]}) ~ ({bbox[2]}, {bbox[3]})")
+            
+            if bbox is None:
+                print(f"[얼굴편집] 바운딩 박스 표시 실패: 바운딩 박스가 None (이미지 크기: {img_width}x{img_height})")
+                return
+            
+            min_x, min_y, max_x, max_y = bbox
+            print(f"[얼굴편집] 바운딩 박스 표시: ({min_x}, {min_y}) ~ ({max_x}, {max_y}), 크기: {max_x-min_x}x{max_y-min_y}")
+            
+            # 원본 이미지에 바운딩 박스 표시
+            if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:
+                return
+            
+            display_size = getattr(self.canvas_original, 'display_size', None)
+            if display_size is None:
+                return
+            
+            pos_x = self.canvas_original_pos_x
+            pos_y = self.canvas_original_pos_y
+            display_width, display_height = display_size
+            
+            # 이미지 스케일 계산
+            scale_x = display_width / img_width
+            scale_y = display_height / img_height
+            
+            # 바운딩 박스 좌표를 캔버스 좌표로 변환
+            rel_x1 = (min_x - img_width / 2) * scale_x
+            rel_y1 = (min_y - img_height / 2) * scale_y
+            rel_x2 = (max_x - img_width / 2) * scale_x
+            rel_y2 = (max_y - img_height / 2) * scale_y
+            
+            canvas_x1 = pos_x + rel_x1
+            canvas_y1 = pos_y + rel_y1
+            canvas_x2 = pos_x + rel_x2
+            canvas_y2 = pos_y + rel_y2
+            
+            # 바운딩 박스 사각형 그리기 (빨간색, 두꺼운 선)
+            self.bbox_rect_original = self.canvas_original.create_rectangle(
+                canvas_x1, canvas_y1, canvas_x2, canvas_y2,
+                outline="red", width=3, tags="bbox"
+            )
+            
+        except Exception as e:
+            print(f"[얼굴편집] 바운딩 박스 표시 실패: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def clear_landmarks_display(self):
         """랜드마크 표시 제거"""
         # 변형된 랜드마크 아이템도 제거
@@ -1062,6 +1166,9 @@ class PreviewManagerMixin:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
+            # 폴리곤이 체크 해제되면 바운딩 박스도 제거
+            if not show_polygons and hasattr(self, 'clear_bbox_display'):
+                self.clear_bbox_display()
             return
 
         try:
@@ -1172,7 +1279,8 @@ class PreviewManagerMixin:
 
             if not detected or landmarks is None:
                 if show_lines or show_polygons:
-                    print(f"[얼굴편집] 경고: 연결선/폴리곤 표시를 위해 랜드마크가 필요하지만 감지되지 않음")
+                    from utils.logger import print_warning
+                    print_warning("얼굴편집", "연결선/폴리곤 표시를 위해 랜드마크가 필요하지만 감지되지 않음")
                 return
 
             # 현재 탭 가져오기
@@ -1241,6 +1349,10 @@ class PreviewManagerMixin:
 
             # 편집된 이미지에 랜드마크 표시 제거 (불필요한 감지 및 렌더링 제거)
             # 편집된 이미지는 변형된 결과만 보여주면 되므로 랜드마크 표시 불필요
+            
+            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+            if show_polygons and hasattr(self, 'update_bbox_display'):
+                self.update_bbox_display()
         
         except Exception as e:
             print(f"[얼굴편집] 랜드마크 표시 실패: {e}")

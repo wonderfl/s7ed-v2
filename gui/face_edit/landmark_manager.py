@@ -42,6 +42,10 @@ class LandmarkManager:
         # 드래그로 변경된 포인트 인덱스 추적
         self._dragged_indices: Set[int] = set()
         
+        # 원본 랜드마크 바운딩 박스 (이미지 로딩 시 한 번만 계산)
+        self._original_bbox: Optional[Tuple[int, int, int, int]] = None  # (min_x, min_y, max_x, max_y)
+        self._original_bbox_img_size: Optional[Tuple[int, int]] = None  # (img_width, img_height)
+        
         # 변경 이력 (디버깅용, 선택사항)
         self._change_history: List[Dict[str, Any]] = []
     
@@ -83,11 +87,16 @@ class LandmarkManager:
     
     # ========== 하위 호환성: 원본 랜드마크 (deprecated) ==========
     
-    def set_original_landmarks(self, landmarks: List[Tuple[float, float]]):
+    def set_original_landmarks(self, landmarks: List[Tuple[float, float]], img_width: Optional[int] = None, img_height: Optional[int] = None):
         """원본 랜드마크 설정 (하위 호환성, 478개 또는 468개)
         
         주의: 이 메서드는 하위 호환성을 위해 유지됩니다.
         새로운 코드는 set_original_face_landmarks와 set_original_iris_landmarks를 사용하세요.
+        
+        Args:
+            landmarks: 랜드마크 리스트
+            img_width: 이미지 너비 (바운딩 박스 계산용, 선택사항)
+            img_height: 이미지 높이 (바운딩 박스 계산용, 선택사항)
         """
         if landmarks is not None:
             # 478개인 경우 얼굴(468개)과 눈동자(10개)로 분리
@@ -123,10 +132,45 @@ class LandmarkManager:
             # 하위 호환성: 기존 필드도 유지 (직접 참조)
             self._original_landmarks = landmarks
             self._log_change("set_original", len(landmarks))
+            
+            # 원본 바운딩 박스 계산 및 캐싱 (이미지 크기가 제공된 경우)
+            if img_width is not None and img_height is not None:
+                try:
+                    from utils.face_morphing.polygon_morphing.core import _calculate_landmark_bounding_box
+                    # 바운딩 박스 계산 (복사본 생성 없이 인덱스로 필터링)
+                    try:
+                        from utils.face_morphing.region_extraction import get_iris_indices
+                        left_iris_indices, right_iris_indices = get_iris_indices()
+                        iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                        iris_center_indices = {468, 473}
+                        iris_indices = iris_contour_indices | iris_center_indices
+                    except:
+                        # 폴백: 하드코딩된 인덱스 사용
+                        iris_indices = {468, 469, 470, 471, 472, 473, 474, 475, 476, 477}
+                    
+                    # 바운딩 박스 계산: 모든 랜드마크를 사용하여 얼굴 전체 포함
+                    # 눈동자 랜드마크는 제외하되, 얼굴 랜드마크 전체를 사용
+                    # 경계 포인트는 이미지 경계 밖에 있어서 포함하면 전체 이미지가 되므로 제외
+                    # 패딩을 50%로 늘려서 얼굴 전체(턱, 이마 등)를 포함하도록 함
+                    landmarks_no_iris = [pt for i, pt in enumerate(landmarks) if i not in iris_indices]
+                    bbox = _calculate_landmark_bounding_box(landmarks_no_iris, img_width, img_height, padding_ratio=0.5)
+                    if bbox is not None:
+                        self._original_bbox = bbox
+                        self._original_bbox_img_size = (img_width, img_height)
+                except Exception as e:
+                    print(f"[LandmarkManager] 바운딩 박스 계산 실패: {e}")
+                    self._original_bbox = None
+                    self._original_bbox_img_size = None
+            else:
+                # 이미지 크기가 없으면 초기화만
+                self._original_bbox = None
+                self._original_bbox_img_size = None
         else:
             self._original_face_landmarks = None
             self._original_iris_landmarks = None
             self._original_landmarks = None
+            self._original_bbox = None
+            self._original_bbox_img_size = None
     
     def get_original_landmarks(self) -> Optional[List[Tuple[float, float]]]:
         """원본 랜드마크 반환 (하위 호환성, 468+10=478개 또는 468개)
@@ -354,6 +398,37 @@ class LandmarkManager:
         return index in self._dragged_indices
     
     # ========== 상태 관리 ==========
+    
+    # ========== 원본 바운딩 박스 캐싱 ==========
+    
+    def set_original_bbox(self, bbox: Tuple[int, int, int, int], img_width: int, img_height: int):
+        """원본 랜드마크 바운딩 박스 설정 (이미지 로딩 시 한 번만 계산)
+        
+        Args:
+            bbox: (min_x, min_y, max_x, max_y) 바운딩 박스 좌표
+            img_width: 이미지 너비
+            img_height: 이미지 높이
+        """
+        self._original_bbox = bbox
+        self._original_bbox_img_size = (img_width, img_height)
+    
+    def get_original_bbox(self, img_width: int, img_height: int) -> Optional[Tuple[int, int, int, int]]:
+        """원본 랜드마크 바운딩 박스 반환 (캐시된 값 사용)
+        
+        Args:
+            img_width: 현재 이미지 너비 (캐시 검증용)
+            img_height: 현재 이미지 높이 (캐시 검증용)
+        
+        Returns:
+            (min_x, min_y, max_x, max_y) 바운딩 박스 좌표 또는 None
+        """
+        # 이미지 크기가 변경되었으면 캐시 무효화
+        if self._original_bbox_img_size is not None:
+            cached_width, cached_height = self._original_bbox_img_size
+            if cached_width != img_width or cached_height != img_height:
+                self._original_bbox = None
+                self._original_bbox_img_size = None
+        return self._original_bbox
     
     def reset(self, keep_original: bool = True):
         """랜드마크 상태 초기화"""

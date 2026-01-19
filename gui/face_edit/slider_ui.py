@@ -27,7 +27,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_eye_slider_change(value):
                 # 개별 조정 모드가 아니면 동기화
@@ -79,6 +79,9 @@ class SliderUIMixin:
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_eye_slider_release)
             
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 눈 위치 조정 슬라이더 생성 헬퍼 함수 (눈 수평 전용 - 반대 동기화 처리를 위해)
@@ -93,7 +96,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_eye_position_x_slider_change(value):
                 # 눈 간격 조정이 활성화되어 있으면 반대쪽 눈도 반대로 동기화
@@ -160,6 +163,9 @@ class SliderUIMixin:
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_eye_position_x_slider_release)
             
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 눈 위치 조정 슬라이더 생성 헬퍼 함수 (눈 수직 전용 - 동기화 처리를 위해)
@@ -174,7 +180,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_eye_position_y_slider_change(value):
                 # 개별 조정 모드가 아니면 동기화
@@ -227,6 +233,9 @@ class SliderUIMixin:
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_eye_position_y_slider_release)
             
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 눈 영역 크기 조절 슬라이더 생성 헬퍼 함수
@@ -267,7 +276,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_eye_region_slider_change(value):
                 # 개별 조정 모드가 아니면 동기화
@@ -317,6 +326,9 @@ class SliderUIMixin:
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_eye_region_slider_release)
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         
@@ -386,7 +398,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_slider_change(value):
                 # 라벨 및 폴리곤 업데이트 (드래그 중 - 이미지 편집 적용 안 함)
@@ -418,6 +430,9 @@ class SliderUIMixin:
             scale.pack(side=tk.LEFT, padx=(0, 0))
             scale.bind("<ButtonRelease-1>", on_slider_release)
             
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 코 크기
@@ -448,7 +463,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_slider_change(value):
                 # 라벨 및 폴리곤 업데이트 (드래그 중 - 이미지 편집 적용 안 함)
@@ -479,6 +494,9 @@ class SliderUIMixin:
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_slider_release)
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         
@@ -530,7 +548,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_lip_region_slider_change(value):
                 if not self.use_individual_eye_region.get():  # 통합된 개별 적용 변수 사용
@@ -582,6 +600,9 @@ class SliderUIMixin:
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_lip_region_slider_release)
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         
@@ -650,7 +671,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_slider_change(value):
                 # 라벨 및 폴리곤 업데이트 (드래그 중 - 이미지 편집 적용 안 함)
@@ -696,6 +717,9 @@ class SliderUIMixin:
             scale.pack(side=tk.LEFT, padx=(0, 0))
             scale.bind("<ButtonRelease-1>", on_slider_release)
             
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         return tab_frame
@@ -726,16 +750,18 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_slider_change(value):
-                # 라벨 업데이트
+                # 드래그 중에는 라벨만 업데이트 (성능 최적화)
                 val = float(value)
                 if default_label.endswith("%"):
                     value_label.config(text=f"{int(val * 100)}%")
                 else:
                     value_label.config(text=f"{int(val)}")
-                
-                # 슬라이더 값 변경 시 즉시 적용
+            
+            def on_slider_release(event):
+                # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
             
             def reset_slider(event):
@@ -756,11 +782,12 @@ class SliderUIMixin:
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=on_slider_change,
+                command=on_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
                 showvalue=False
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_slider_release)  # 드래그 종료 시 적용
             
             # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
@@ -874,10 +901,13 @@ class SliderUIMixin:
         # 공통 슬라이더 6개 생성 (Size X, Size Y 분리)
         self.region_center_offset_x_label = create_slider(adjustment_frame, "Center Offset X:", self.region_center_offset_x, -100, 100, 1, "0", default_value=0.0)
         self.region_center_offset_y_label = create_slider(adjustment_frame, "Center Offset Y:", self.region_center_offset_y, -100, 100, 1, "0", default_value=0.0)
-        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.75, 1.25, 0.01, "100%", default_value=1.0)
-        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.75, 1.25, 0.01, "100%", default_value=1.0)
+        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 1.5, 0.01, "100%", default_value=1.0)
+        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 1.5, 0.01, "100%", default_value=1.0)
         self.region_position_x_label = create_slider(adjustment_frame, "Position X:", self.region_position_x, -100, 100, 1, "0", default_value=0.0)
         self.region_position_y_label = create_slider(adjustment_frame, "Position Y:", self.region_position_y, -100, 100, 1, "0", default_value=0.0)
+        
+        # 블렌딩 비율 슬라이더 추가
+        self.blend_ratio_label = create_slider(adjustment_frame, "Blend Ratio:", self.blend_ratio, 0.0, 1.0, 0.01, "100%", default_value=1.0)
         
         # 슬라이더 위젯 참조 저장 (상태 업데이트용)
         self.region_sliders = []
@@ -934,7 +964,7 @@ class SliderUIMixin:
             
             # value_label을 먼저 생성 (콜백 함수에서 사용하기 위해)
             value_label = tk.Label(frame, text=default_label, width=width)
-            value_label.pack(side=tk.LEFT)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def on_slider_change(value):
                 # 라벨 및 폴리곤 업데이트 (드래그 중 - 이미지 편집 적용 안 함)
@@ -979,6 +1009,9 @@ class SliderUIMixin:
             )
             scale.pack(side=tk.LEFT, padx=(0, 0))
             scale.bind("<ButtonRelease-1>", on_slider_release)
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         
@@ -1065,6 +1098,9 @@ class SliderUIMixin:
             )
             scale.pack(side=tk.LEFT, padx=(0, 0))
             scale.bind("<ButtonRelease-1>", on_slider_release)
+            
+            # value_label을 슬라이더 오른쪽에 배치
+            value_label.pack(side=tk.LEFT)
             
             return value_label
         

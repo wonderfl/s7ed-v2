@@ -45,7 +45,8 @@ class PolygonBuilderMixin:
             invalid_indices = [idx for idx in indices if idx >= len(landmarks)]
             
             if invalid_indices:
-                print(f"[얼굴편집] 경고: 유효하지 않은 인덱스 {len(invalid_indices)}개: {invalid_indices[:10]}{'...' if len(invalid_indices) > 10 else ''}")
+                from utils.logger import print_warning
+                print_warning("얼굴편집", f"유효하지 않은 인덱스 {len(invalid_indices)}개: {invalid_indices[:10]}{'...' if len(invalid_indices) > 10 else ''}")
             
             if len(valid_indices) < 3:
                 print(f"[얼굴편집] 폴리곤 경로 생성 실패: 유효한 인덱스가 3개 미만 ({len(valid_indices)}개)")
@@ -69,18 +70,21 @@ class PolygonBuilderMixin:
                         img_x = pt.x * img_width
                         img_y = pt.y * img_height
                     else:
-                        print(f"[얼굴편집] 경고: 인덱스 {idx}의 랜드마크 포인트 형식이 예상과 다름: {type(pt)}")
+                        from utils.logger import print_warning
+                        print_warning("얼굴편집", f"인덱스 {idx}의 랜드마크 포인트 형식이 예상과 다름: {type(pt)}")
                         failed_count += 1
                         continue
                     
                     point_coords_with_idx.append((idx, img_x, img_y))
                 except Exception as e:
-                    print(f"[얼굴편집] 경고: 인덱스 {idx}의 좌표 추출 실패: {e}")
+                    from utils.logger import print_warning
+                    print_warning("얼굴편집", f"인덱스 {idx}의 좌표 추출 실패: {e}")
                     failed_count += 1
                     continue
             
             if failed_count > 0:
-                print(f"[얼굴편집] 경고: {failed_count}개 포인트의 좌표 추출 실패")
+                from utils.logger import print_warning
+                print_warning("얼굴편집", f"{failed_count}개 포인트의 좌표 추출 실패")
             
             print(f"[얼굴편집] 좌표 추출 완료: {len(point_coords_with_idx)}개 포인트")
             
@@ -147,10 +151,12 @@ class PolygonBuilderMixin:
             mp_face_mesh = mp.solutions.face_mesh
             tesselation = mp_face_mesh.FACEMESH_TESSELATION
         except ImportError:
-            print(f"[얼굴편집] 경고: MediaPipe를 사용할 수 없어 기본 방법 사용")
+            from utils.logger import print_warning
+            print_warning("얼굴편집", "MediaPipe를 사용할 수 없어 기본 방법 사용")
             tesselation = None
         except Exception as e:
-            print(f"[얼굴편집] 경고: TESSELATION 로드 실패: {e}")
+            from utils.logger import print_warning
+            print_warning("얼굴편집", f"TESSELATION 로드 실패: {e}")
             tesselation = None
         
         try:
@@ -233,7 +239,6 @@ class PolygonBuilderMixin:
                         part_name.append("입")
                     if is_face_oval:
                         part_name.append("얼굴외곽")
-                    #print(f"[얼굴편집] {'/'.join(part_name)} 주변 확장 (레벨 {expansion_level}): {len(all_indices_set)}개 포인트 (원본 {original_count}개에서 확장)")
                 
                 # TESSELATION에서 확장된 포인트들만 포함하는 연결 필터링
                 filtered_connections = []
@@ -259,7 +264,8 @@ class PolygonBuilderMixin:
                                 filtered_connections.append((idx1, idx2))
                 
                 if len(filtered_connections) == 0:
-                    print(f"[얼굴편집] 경고: TESSELATION에서 필터링된 연결이 없음, 기본 방법 사용")
+                    from utils.logger import print_warning
+                    print_warning("얼굴편집", "TESSELATION에서 필터링된 연결이 없음, 기본 방법 사용")
                     filtered_connections = list(connections)
             else:
                 filtered_connections = list(connections)
@@ -299,7 +305,8 @@ class PolygonBuilderMixin:
                                     triangles.append(triangle)
             
             if len(triangles) == 0:
-                print(f"[얼굴편집] 경고: 삼각형을 찾을 수 없음, 각도 순 정렬로 폴백")
+                from utils.logger import print_warning
+                print_warning("얼굴편집", "삼각형을 찾을 수 없음, 각도 순 정렬로 폴백")
                 # 삼각형을 찾을 수 없으면 각도 순 정렬로 폴백
                 point_coords_with_idx = []
                 for idx in all_indices:
@@ -373,8 +380,6 @@ class PolygonBuilderMixin:
                     # 삼각형을 순환 경로로 만들기 (마지막 점을 다시 첫 번째 점으로)
                     triangle_points.append(triangle_points[0])
                     all_triangle_points.extend(triangle_points)
-            
-            #print(f"[얼굴편집] 삼각형 메쉬 구성 완료: {len(triangles)}개 삼각형 (전체 {len(all_indices)}개 포인트 중)")
             
             return all_triangle_points
             

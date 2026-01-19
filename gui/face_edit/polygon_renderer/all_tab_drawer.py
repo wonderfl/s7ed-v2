@@ -49,7 +49,6 @@ class AllTabDrawerMixin:
             # Lips를 하나로 통합
             if hasattr(self, 'show_lips') and self.show_lips.get():
                 selected_regions.append(('lips', LIPS))
-                #print(f"[폴리곤렌더러] 전체탭 - 입술 체크박스 선택됨, selected_regions: {[r[0] for r in selected_regions]}")
             if hasattr(self, 'show_contours') and self.show_contours.get():
                 selected_regions.append(('contours', CONTOURS))
             if hasattr(self, 'show_tesselation') and self.show_tesselation.get():
@@ -336,7 +335,6 @@ class AllTabDrawerMixin:
                         center_x = center_pt.x * img_width
                         center_y = center_pt.y * img_height
                     setattr(self, iris_center_coord_attr, (center_x, center_y))
-                    #print(f"[폴리곤렌더러] 전체탭 - 1. {iris_side} 눈동자 중앙 포인트 좌표 (iris_centers): {center_x}, {center_y}")
                 # Tesselation 모드: custom_landmarks에서 중앙 포인트 추출 (470개 구조만)
                 elif len_landmarks == 470:
                     center_idx = len_landmarks - center_idx_offset
@@ -348,11 +346,9 @@ class AllTabDrawerMixin:
                             center_x = center_pt.x * img_width
                             center_y = center_pt.y * img_height
                         setattr(self, iris_center_coord_attr, (center_x, center_y))
-                        #print(f"[폴리곤렌더러] 전체탭 - 2. {iris_side} 눈동자 중앙 포인트 좌표 (custom_landmarks 470개): {center_x}, {center_y}, {len_landmarks}, {center_idx}")
                 # 468개는 얼굴 랜드마크만 있으므로 저장된 좌표 사용
                 elif hasattr(self, iris_center_coord_attr) and getattr(self, iris_center_coord_attr) is not None:
                     center_x, center_y = getattr(self, iris_center_coord_attr)
-                    #print(f"[폴리곤렌더러] 전체탭 - 4. {iris_side} 눈동자 중앙 포인트 좌표: {center_x}, {center_y}")
                 elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
                     original = self.landmark_manager.get_original_landmarks()
                     
@@ -365,20 +361,16 @@ class AllTabDrawerMixin:
                         if center is not None:
                             center_x, center_y = center
                             setattr(self, iris_center_coord_attr, center)
-                            #print(f"[폴리곤렌더러] 전체탭 - 5. {iris_side} 눈동자 중앙 포인트 좌표: {center_x}, {center_y}")
                 else:
                     if iris_coords:
                         center_x = sum(c[0] for c in iris_coords) / len(iris_coords)
                         center_y = sum(c[1] for c in iris_coords) / len(iris_coords)
-                        #print(f"[폴리곤렌더러] 전체탭 - 6. {iris_side} 눈동자 중앙 포인트 좌표: {center_x}, {center_y}")
                 
                 if center_x is not None and center_y is not None:
                     rel_x = (center_x - img_width / 2) * scale_x
                     rel_y = (center_y - img_height / 2) * scale_y
                     canvas_x = pos_x + rel_x
                     canvas_y = pos_y + rel_y
-
-                    #print(f"[폴리곤렌더러] 전체탭 - 7. {iris_side} 눈동자 중앙 포인트 좌표: {center_x}, {center_y}, {canvas_x}, {canvas_y}")
                     
                     center_radius = 8
                     center_id = canvas.create_oval(
@@ -442,9 +434,7 @@ class AllTabDrawerMixin:
                     elif region_name == 'nose':
                         draw_polygon_mesh(NOSE, "polygon_nose", "코", None)
                     elif region_name == 'lips':
-                        #print(f"[폴리곤렌더러] 전체탭 - 입술 폴리곤 그리기 시작")
                         draw_polygon_mesh(LIPS, "polygon_lips", "Lips", None)
-                        #print(f"[폴리곤렌더러] 전체탭 - 입술 폴리곤 그리기 완료")
                     elif region_name == 'face_oval':
                         draw_polygon_mesh(FACE_OVAL, "polygon_face_oval", "Face Oval", None)
                     elif region_name == 'contours':

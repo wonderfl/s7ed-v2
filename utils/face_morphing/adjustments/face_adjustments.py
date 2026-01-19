@@ -141,7 +141,7 @@ def adjust_jaw(image, jaw_adjustment=0.0, landmarks=None):
 
 
 
-def adjust_face_size(image, width_ratio=1.0, height_ratio=1.0, landmarks=None):
+def adjust_face_size(image, width_ratio=1.0, height_ratio=1.0, landmarks=None, blend_ratio=1.0):
     """
     얼굴 크기를 조정합니다.
     
@@ -150,6 +150,7 @@ def adjust_face_size(image, width_ratio=1.0, height_ratio=1.0, landmarks=None):
         width_ratio: 얼굴 너비 비율 (1.0 = 원본)
         height_ratio: 얼굴 높이 비율 (1.0 = 원본)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -233,15 +234,24 @@ def adjust_face_size(image, width_ratio=1.0, height_ratio=1.0, landmarks=None):
         # 리사이즈된 얼굴 영역을 실제 크기에 맞춤
         face_final = cv2.resize(face_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 마스크 생성 (부드러운 블렌딩을 위해)
         mask = np.ones((actual_height, actual_width), dtype=np.uint8) * 255
         mask = cv2.GaussianBlur(mask, (25, 25), 0)
+        mask_normalized = mask.astype(np.float32) / 255.0
         
-        # 원본 이미지에 블렌딩
+        # 블렌딩 비율 적용
+        mask_adjusted = mask_normalized * blend_ratio
+        
+        # 원본 이미지 복사
         result = img_array.copy()
+        
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         roi = result[new_y1:new_y2, new_x1:new_x2]
-        mask_3channel = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB) / 255.0
-        blended = (roi * (1 - mask_3channel) + face_final * mask_3channel).astype(np.uint8)
+        mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)
+        blended = (roi.astype(np.float32) * (1 - mask_3channel) + face_final.astype(np.float32) * mask_3channel).astype(np.uint8)
         result[new_y1:new_y2, new_x1:new_x2] = blended
         
         return Image.fromarray(result)

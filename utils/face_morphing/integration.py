@@ -52,7 +52,7 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                           lower_lip_region_padding_x=None, lower_lip_region_padding_y=None,
         upper_lip_region_offset_x=None, upper_lip_region_offset_y=None,
         lower_lip_region_offset_x=None, lower_lip_region_offset_y=None,
-        use_landmark_warping=False):
+        use_landmark_warping=False, blend_ratio=1.0):
     """
     모든 얼굴 특징 보정을 한 번에 적용합니다.
     
@@ -284,14 +284,16 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                                         eye_region_padding=None, eye_region_offset_x=None, eye_region_offset_y=None,
                                         left_eye_region_padding=left_eye_region_padding, right_eye_region_padding=right_eye_region_padding,
                                         left_eye_region_offset_x=left_eye_region_offset_x, left_eye_region_offset_y=left_eye_region_offset_y,
-                                        right_eye_region_offset_x=right_eye_region_offset_x, right_eye_region_offset_y=right_eye_region_offset_y)
+                                        right_eye_region_offset_x=right_eye_region_offset_x, right_eye_region_offset_y=right_eye_region_offset_y,
+                                        blend_ratio=blend_ratio)
             else:
                 result = adjust_eye_size(result, eye_size_ratio=1.0, landmarks=landmarks,
                                         left_eye_size_ratio=left_eye_size, right_eye_size_ratio=right_eye_size,
                                         eye_region_padding=eye_region_padding, eye_region_offset_x=eye_region_offset_x, eye_region_offset_y=eye_region_offset_y,
                                         left_eye_region_padding=None, right_eye_region_padding=None,
                                         left_eye_region_offset_x=None, left_eye_region_offset_y=None,
-                                        right_eye_region_offset_x=None, right_eye_region_offset_y=None)
+                                        right_eye_region_offset_x=None, right_eye_region_offset_y=None,
+                                        blend_ratio=blend_ratio)
         elif abs(eye_size - 1.0) >= 0.01:
             # 기본 조정 모드
             if use_individual_region:
@@ -299,16 +301,18 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                                         eye_region_padding=None, eye_region_offset_x=None, eye_region_offset_y=None,
                                         left_eye_region_padding=left_eye_region_padding, right_eye_region_padding=right_eye_region_padding,
                                         left_eye_region_offset_x=left_eye_region_offset_x, left_eye_region_offset_y=left_eye_region_offset_y,
-                                        right_eye_region_offset_x=right_eye_region_offset_x, right_eye_region_offset_y=right_eye_region_offset_y)
+                                        right_eye_region_offset_x=right_eye_region_offset_x, right_eye_region_offset_y=right_eye_region_offset_y,
+                                        blend_ratio=blend_ratio)
             else:
                 result = adjust_eye_size(result, eye_size_ratio=eye_size, landmarks=landmarks,
                                         eye_region_padding=eye_region_padding, eye_region_offset_x=eye_region_offset_x, eye_region_offset_y=eye_region_offset_y,
                                         left_eye_region_padding=None, right_eye_region_padding=None,
                                         left_eye_region_offset_x=None, left_eye_region_offset_y=None,
-                                        right_eye_region_offset_x=None, right_eye_region_offset_y=None)
+                                        right_eye_region_offset_x=None, right_eye_region_offset_y=None,
+                                        blend_ratio=blend_ratio)
         
         # 4. 기타 조정
-        result = adjust_nose_size(result, nose_size, landmarks)
+        result = adjust_nose_size(result, nose_size, landmarks, blend_ratio=blend_ratio)
         
         # 입 편집 (새로운 3가지 파라미터 사용)
         # 입술 영역 파라미터 결정 (개별 적용 여부에 따라, None이면 기본값 사용)
@@ -371,14 +375,14 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
         if upper_lip_shape == 1.0 and lower_lip_shape == 1.0 and abs(upper_lip_vertical_move) < 0.1 and abs(lower_lip_vertical_move) < 0.1:
             if use_individual_lip_region:
                 # 개별 적용 모드: 윗입술과 아래입술 각각 편집
-                result = adjust_upper_lip_size(result, upper_lip_size, upper_lip_width, landmarks)
-                result = adjust_lower_lip_size(result, lower_lip_size, lower_lip_width, landmarks)
+                result = adjust_upper_lip_size(result, upper_lip_size, upper_lip_width, landmarks, blend_ratio=blend_ratio)
+                result = adjust_lower_lip_size(result, lower_lip_size, lower_lip_width, landmarks, blend_ratio=blend_ratio)
             elif abs(mouth_size - 1.0) >= 0.01 or abs(mouth_width - 1.0) >= 0.01:
                 # 통합 모드: 입 전체 편집
-                result = adjust_mouth_size(result, mouth_size, mouth_width, landmarks)
+                result = adjust_mouth_size(result, mouth_size, mouth_width, landmarks, blend_ratio=blend_ratio)
         
         result = adjust_jaw(result, jaw_adjustment, landmarks)
-        result = adjust_face_size(result, face_width, face_height, landmarks)
+        result = adjust_face_size(result, face_width, face_height, landmarks, blend_ratio=blend_ratio)
         
         return result
         

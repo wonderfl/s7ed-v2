@@ -44,9 +44,63 @@ except ImportError:
 
 from .utils import _get_neighbor_points, _check_triangles_flipped
 
+
+def _calculate_landmark_bounding_box(landmarks, img_width, img_height, padding_ratio=0.3, exclude_indices=None):
+    """랜드마크 바운딩 박스 계산
+    
+    Args:
+        landmarks: 랜드마크 포인트 리스트 (얼굴 전체 랜드마크)
+        img_width: 이미지 너비
+        img_height: 이미지 높이
+        padding_ratio: 패딩 비율 (기본 30%, 변형 시 확장 고려)
+        exclude_indices: 제외할 인덱스 집합 (복사본 생성 없이 필터링)
+    
+    Returns:
+        (min_x, min_y, max_x, max_y): 바운딩 박스 좌표 또는 None
+    """
+    if not landmarks:
+        return None
+    
+    # 랜드마크 좌표 추출 (복사본 생성 없이 인덱스로 직접 접근)
+    x_coords = []
+    y_coords = []
+    exclude_set = exclude_indices if exclude_indices is not None else set()
+    for i, pt in enumerate(landmarks):
+        if i in exclude_set:
+            continue
+        if isinstance(pt, tuple) and len(pt) >= 2:
+            x_coords.append(pt[0])
+            y_coords.append(pt[1])
+        elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+            x_coords.append(pt.x * img_width)
+            y_coords.append(pt.y * img_height)
+    
+    if not x_coords or not y_coords:
+        return None
+    
+    min_x = max(0, int(min(x_coords)))
+    min_y = max(0, int(min(y_coords)))
+    max_x = min(img_width, int(max(x_coords)))
+    max_y = min(img_height, int(max(y_coords)))
+    
+    # 패딩 추가 (변형 시 영역 확장 고려, 얼굴 전체 포함을 위해 30%로 증가)
+    width = max_x - min_x
+    height = max_y - min_y
+    padding_x = int(width * padding_ratio)
+    padding_y = int(height * padding_ratio)
+    
+    min_x = max(0, min_x - padding_x)
+    min_y = max(0, min_y - padding_y)
+    max_x = min(img_width, max_x + padding_x)
+    max_y = min(img_height, max_y + padding_y)
+    
+    return (min_x, min_y, max_x, max_y)
+
+
 def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, selected_point_indices=None,
                            left_iris_center_coord=None, right_iris_center_coord=None,
-                           left_iris_center_orig=None, right_iris_center_orig=None):
+                           left_iris_center_orig=None, right_iris_center_orig=None,
+                           cached_original_bbox=None, blend_ratio=1.0):
     """
     Delaunay Triangulation을 사용하여 폴리곤(랜드마크 포인트) 기반 얼굴 변형을 수행합니다.
     뒤집힌 삼각형이 발생하면 변형을 점진적으로 줄여서 재시도합니다.
@@ -317,6 +371,7 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         
         # 이미지 경계 포인트 추가 (Delaunay Triangulation을 위해)
         # 경계 포인트: 4개 모서리
+        # 경계 포인트는 바운딩 박스 경계 근처의 픽셀이 삼각형을 찾을 수 있도록 필요
         margin = 10
         boundary_points = [
             (-margin, -margin),  # 왼쪽 위
@@ -432,7 +487,7 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         # 눈 랜드마크 인덱스 (변형 강도 조정 대상에서 제외)
         eye_indices_set = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
         # 경계 포인트도 제외 (경계 포인트는 항상 원본 유지)
-        boundary_start_idx = len(original_landmarks)
+        boundary_start_idx = len(original_landmarks_no_iris)
         boundary_indices_set = set(range(boundary_start_idx, len(original_points_array)))
         protected_indices = eye_indices_set | boundary_indices_set
         
@@ -448,55 +503,146 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                     transformed_points_array[point_idx] = original_points_array[point_idx].copy()
             print(f"[얼굴모핑] 뒤집힌 삼각형의 문제 포인트 {len(problematic_point_indices)}개를 원본으로 복원했습니다.")
         
-        # 결과 이미지 초기화 (원본 이미지로 시작)
-        result = img_array.copy()
-        
-        
         # 성능 최적화: 역변환 맵 방식 사용 (각 픽셀에 대해 한 번만 샘플링)
         # 이 방식이 각 삼각형마다 전체 이미지를 변환하는 것보다 훨씬 빠름
         
-        # 이미지 크기 최적화: 큰 이미지는 다운샘플링
-        max_dimension = 600  # 최대 차원 크기 (더 작게 설정하여 성능 향상)
-        scale_factor = 1.0
-        working_img = img_array
-        working_width = img_width
-        working_height = img_height
+        # 랜드마크 바운딩 박스 계산 (원본 이미지 크기 기준)
+        # 성능 최적화: 캐시된 원본 바운딩 박스 사용 (이미지 로딩 시 한 번만 계산)
+        # 바운딩 박스는 얼굴 전체를 포함해야 하므로 모든 랜드마크를 사용하여 계산
+        # 경계 포인트는 이미지 경계 밖에 있어서 포함하면 전체 이미지가 되므로 제외
+        # 패딩을 충분히 추가하여 얼굴 전체(턱, 이마 등)를 포함하도록 함
+        if cached_original_bbox is not None:
+            # 캐시된 바운딩 박스 사용 (이미 얼굴 전체를 포함하도록 계산된 값)
+            bbox_orig = cached_original_bbox
+        else:
+            # 캐시가 없으면 모든 랜드마크를 사용하여 계산 (경계 포인트 제외)
+            # 패딩을 50%로 늘려서 얼굴 전체(턱, 이마 등)를 포함하도록 함
+            bbox_orig = _calculate_landmark_bounding_box(original_landmarks_no_iris, img_width, img_height, padding_ratio=0.5)
+            # 참고: 이 값은 landmark_manager.set_original_bbox()로 캐시에 저장되어야 함
+            # 하지만 이 함수는 반환값이 없으므로, 호출하는 쪽에서 캐시에 저장해야 함
+        # 변형된 랜드마크는 매번 계산 필요 (변형될 수 있으므로)
+        # 패딩을 50%로 늘려서 얼굴 전체(턱, 이마 등)를 포함하도록 함
+        bbox_trans = _calculate_landmark_bounding_box(transformed_landmarks_no_iris, img_width, img_height, padding_ratio=0.5)
         
-        if max(img_width, img_height) > max_dimension:
-            scale_factor = max_dimension / max(img_width, img_height)
-            working_width = int(img_width * scale_factor)
-            working_height = int(img_height * scale_factor)
-            # GPU 가속 리사이즈 시도 (CUDA 지원 시)
-            if _cv2_cuda_available:
-                try:
-                    # GPU 메모리로 업로드
-                    gpu_img = cv2.cuda_GpuMat()
-                    gpu_img.upload(img_array)
-                    # GPU에서 리사이즈
-                    gpu_resized = cv2.cuda.resize(gpu_img, (working_width, working_height), interpolation=cv2.INTER_AREA)
-                    # CPU로 다운로드
-                    working_img = gpu_resized.download()
-                except Exception:
-                    # GPU 실패 시 CPU로 폴백
-                    working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_AREA)
-            else:
-                working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_AREA)
+        # 두 바운딩 박스를 합쳐서 처리 영역 결정 (변형 시 확장 고려)
+        # 원본 바운딩 박스 위치 저장 (업샘플링 시 사용)
+        min_x_orig_bbox = None
+        min_y_orig_bbox = None
+        max_x_orig_bbox = None
+        max_y_orig_bbox = None
+        
+        if bbox_orig and bbox_trans:
+            min_x = min(bbox_orig[0], bbox_trans[0])
+            min_y = min(bbox_orig[1], bbox_trans[1])
+            max_x = max(bbox_orig[2], bbox_trans[2])
+            max_y = max(bbox_orig[3], bbox_trans[3])
             
-            # 랜드마크 좌표도 스케일 조정
-            original_points_array_scaled = original_points_array * scale_factor
-            transformed_points_array_scaled = transformed_points_array * scale_factor
+            # 원본 바운딩 박스 위치 저장
+            min_x_orig_bbox = min_x
+            min_y_orig_bbox = min_y
+            max_x_orig_bbox = max_x
+            max_y_orig_bbox = max_y
             
-            # 스케일된 좌표로 Delaunay 재계산
-            tri_scaled = Delaunay(original_points_array_scaled)
-            tri = tri_scaled
-            original_points_array = original_points_array_scaled
-            transformed_points_array = transformed_points_array_scaled
+            # 바운딩 박스 크기 계산
+            bbox_width = max_x - min_x
+            bbox_height = max_y - min_y
+            bbox_max_dimension = max(bbox_width, bbox_height)
+            
+            # 바운딩 박스 크기를 기준으로 다운샘플링 판단
+            # 랜드마크 영역만 처리하므로 작게 설정해도 됨 (얼굴 영역은 보통 500-800px)
+            # 패딩 포함해도 600-1000px 정도이므로 1000으로 설정해도 대부분 원본 해상도 유지
+            max_dimension = 1000  # 랜드마크 영역만 처리하므로 작게 설정해도 충분
+            scale_factor = 1.0
+            working_img = img_array
+            working_width = img_width
+            working_height = img_height
+            
+            if bbox_max_dimension > max_dimension:
+                # 바운딩 박스가 max_dimension보다 크면 다운샘플링
+                scale_factor = max_dimension / bbox_max_dimension
+                # 전체 이미지를 다운샘플링하되, 바운딩 박스 영역만 처리
+                working_width = int(img_width * scale_factor)
+                working_height = int(img_height * scale_factor)
+                # GPU 가속 리사이즈 시도 (CUDA 지원 시)
+                if _cv2_cuda_available:
+                    try:
+                        # GPU 메모리로 업로드
+                        gpu_img = cv2.cuda_GpuMat()
+                        gpu_img.upload(img_array)
+                        # GPU에서 리사이즈 (INTER_LINEAR - 빠르고 품질 양호)
+                        gpu_resized = cv2.cuda.resize(gpu_img, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                        # CPU로 다운로드
+                        working_img = gpu_resized.download()
+                    except Exception:
+                        # GPU 실패 시 CPU로 폴백
+                        working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                else:
+                    working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                
+                # 랜드마크 좌표도 스케일 조정
+                original_points_array_scaled = original_points_array * scale_factor
+                transformed_points_array_scaled = transformed_points_array * scale_factor
+                
+                # 스케일된 좌표로 Delaunay 재계산
+                tri_scaled = Delaunay(original_points_array_scaled)
+                tri = tri_scaled
+                original_points_array = original_points_array_scaled
+                transformed_points_array = transformed_points_array_scaled
+                
+                # 바운딩 박스도 스케일 조정
+                min_x = int(min_x * scale_factor)
+                min_y = int(min_y * scale_factor)
+                max_x = int(max_x * scale_factor)
+                max_y = int(max_y * scale_factor)
+        else:
+            # 바운딩 박스 계산 실패 시 전체 이미지 사용 (폴백)
+            min_x, min_y = 0, 0
+            max_x, max_y = img_width, img_height
+            # 폴백 케이스에서도 원본 바운딩 박스 위치 저장 (전체 이미지)
+            min_x_orig_bbox = 0
+            min_y_orig_bbox = 0
+            max_x_orig_bbox = img_width
+            max_y_orig_bbox = img_height
+            # 기존 로직 유지 (전체 이미지 크기 기준)
+            max_dimension = 1024
+            scale_factor = 1.0
+            working_img = img_array
+            working_width = img_width
+            working_height = img_height
+            
+            if max(img_width, img_height) > max_dimension:
+                scale_factor = max_dimension / max(img_width, img_height)
+                working_width = int(img_width * scale_factor)
+                working_height = int(img_height * scale_factor)
+                if _cv2_cuda_available:
+                    try:
+                        gpu_img = cv2.cuda_GpuMat()
+                        gpu_img.upload(img_array)
+                        gpu_resized = cv2.cuda.resize(gpu_img, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                        working_img = gpu_resized.download()
+                    except Exception:
+                        working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                else:
+                    working_img = cv2.resize(img_array, (working_width, working_height), interpolation=cv2.INTER_LINEAR)
+                
+                original_points_array_scaled = original_points_array * scale_factor
+                transformed_points_array_scaled = transformed_points_array * scale_factor
+                
+                tri_scaled = Delaunay(original_points_array_scaled)
+                tri = tri_scaled
+                original_points_array = original_points_array_scaled
+                transformed_points_array = transformed_points_array_scaled
+                
+                max_x = working_width
+                max_y = working_height
         
         # 정변환 맵 생성: 원본 이미지의 각 픽셀을 변형된 위치로 직접 매핑
         # 정변환의 장점: 역변환 행렬의 오차 누적이 없고, 변형된 포인트 인덱스를 직접 사용하여 원본 삼각형을 찾을 수 있음
-        # 결과 이미지 초기화 (float 타입으로 초기화하여 가중 평균 계산 가능)
-        result = np.zeros((working_height, working_width, 3), dtype=np.float32)
-        result_count = np.zeros((working_height, working_width), dtype=np.float32)  # 가중치 합계
+        # 결과 이미지 초기화 (원본 이미지로 시작)
+        result = working_img.copy().astype(np.float32)
+        result_count = np.ones((working_height, working_width), dtype=np.float32)  # 원본은 이미 1로 설정
+        # 변형된 픽셀이 매핑된 위치 추적 (blend_ratio = 1.0일 때 원본 제거용)
+        transformed_mask = np.zeros((working_height, working_width), dtype=np.bool_)
         
         # 변형된 랜드마크와 원본 랜드마크의 차이 확인 (벡터화)
         # 경계 포인트를 제외한 실제 랜드마크만 확인 (중앙 포인트 포함)
@@ -517,39 +663,45 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             print(f"[얼굴모핑] 랜드마크 변형이 없어 원본 이미지 반환 (max_diff={max_diff:.2f})")
             return image
         
+        # 바운딩 박스 영역만 처리
+        bbox_width = max_x - min_x
+        bbox_height = max_y - min_y
+        bbox_total_pixels = bbox_width * bbox_height
+        
         # 원본 이미지의 각 픽셀에 대해 해당하는 삼각형 찾기 및 정변환 계산
-        # 성능 최적화: 벡터화된 연산 사용
+        # 성능 최적화: 벡터화된 연산 사용, 바운딩 박스 영역만 처리
         # 메모리 효율성을 위해 청크 단위로 처리 (큰 이미지의 경우)
         chunk_size = 100000  # 한 번에 처리할 픽셀 수
-        total_pixels = working_height * working_width
         
-        if total_pixels > chunk_size:
-            # 큰 이미지는 청크 단위로 처리하여 메모리 사용량 감소
-            y_coords_orig, x_coords_orig = np.mgrid[0:working_height, 0:working_width]
-            pixel_coords_orig = np.column_stack([x_coords_orig.ravel(), y_coords_orig.ravel()])
-            # 청크 단위로 삼각형 찾기
-            simplex_indices_orig = np.full(total_pixels, -1, dtype=np.int32)
-            for chunk_start in range(0, total_pixels, chunk_size):
-                chunk_end = min(chunk_start + chunk_size, total_pixels)
-                chunk_coords = pixel_coords_orig[chunk_start:chunk_end]
+        # 바운딩 박스 내부 픽셀 좌표만 생성 (전역 좌표)
+        y_coords_orig, x_coords_orig = np.mgrid[min_y:max_y, min_x:max_x]
+        pixel_coords_orig_global = np.column_stack([x_coords_orig.ravel(), y_coords_orig.ravel()])
+        
+        if bbox_total_pixels > chunk_size:
+            # 큰 바운딩 박스는 청크 단위로 처리하여 메모리 사용량 감소
+            simplex_indices_orig = np.full(bbox_total_pixels, -1, dtype=np.int32)
+            for chunk_start in range(0, bbox_total_pixels, chunk_size):
+                chunk_end = min(chunk_start + chunk_size, bbox_total_pixels)
+                chunk_coords = pixel_coords_orig_global[chunk_start:chunk_end]
                 simplex_indices_orig[chunk_start:chunk_end] = tri.find_simplex(chunk_coords)
         else:
-            # 작은 이미지는 한 번에 처리
-            y_coords_orig, x_coords_orig = np.mgrid[0:working_height, 0:working_width]
-            pixel_coords_orig = np.column_stack([x_coords_orig.ravel(), y_coords_orig.ravel()])
-            simplex_indices_orig = tri.find_simplex(pixel_coords_orig)
+            # 작은 바운딩 박스는 한 번에 처리
+            simplex_indices_orig = tri.find_simplex(pixel_coords_orig_global)
         
         # 각 삼각형의 정변환 행렬 미리 계산 (캐싱)
         forward_transform_cache = {}
         
+        # 성능 최적화: 바운딩 박스와 겹치는 삼각형만 처리
+        # simplex_indices_orig에서 실제로 사용된 삼각형 인덱스만 추출
+        valid_simplex_indices = np.unique(simplex_indices_orig[simplex_indices_orig >= 0])
+        
         # 각 픽셀에 대해 정변환 적용
-        # 주의: tri.simplices를 사용하여 원본 삼각형을 순회합니다
+        # 주의: 바운딩 박스와 겹치는 삼각형만 순회합니다 (성능 최적화)
         # 원본 이미지의 픽셀 좌표가 속한 원본 삼각형을 찾고,
         # 그 삼각형의 포인트 인덱스를 사용하여 변형된 포인트를 가져옵니다
-        # 참고: 조기 종료 최적화는 제거됨 - 전체 이미지 매핑을 위해 모든 삼각형 처리 필요
         total_pixels_processed = 0
         pixels_out_of_bounds = 0
-        for simplex_idx, simplex in enumerate(tri.simplices):
+        for simplex_idx in valid_simplex_indices:
             simplex = tri.simplices[simplex_idx]
             # 이 삼각형에 속한 픽셀 인덱스 (원본 이미지의 픽셀)
             pixel_mask = (simplex_indices_orig == simplex_idx)
@@ -668,8 +820,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 dst_triangle = src_triangle.copy()
                 M_forward = cv2.getAffineTransform(src_triangle, dst_triangle)
             
-            # 이 삼각형에 속한 원본 픽셀 좌표
-            triangle_pixels_orig = pixel_coords_orig[pixel_mask]
+            # 이 삼각형에 속한 원본 픽셀 좌표 (바운딩 박스 기준)
+            triangle_pixels_orig = pixel_coords_orig_global[pixel_mask]
             
             # 정변환 적용: 원본 좌표 -> 변형된 좌표
             ones = np.ones((len(triangle_pixels_orig), 1), dtype=np.float32)
@@ -677,13 +829,18 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             transformed_coords = (M_forward @ triangle_pixels_orig_homogeneous.T).T
             
             # 벡터화된 픽셀 처리 (성능 최적화)
-            pixel_indices = np.where(pixel_mask)[0]
-            if len(pixel_indices) == 0:
+            pixel_indices_bbox = np.where(pixel_mask)[0]
+            if len(pixel_indices_bbox) == 0:
                 continue
             
-            # 원본 픽셀 좌표 (벡터화)
-            orig_y_coords = pixel_indices // working_width
-            orig_x_coords = pixel_indices % working_width
+            # 바운딩 박스 내부 좌표를 전체 이미지 좌표로 변환
+            # pixel_indices_bbox는 바운딩 박스 내부의 인덱스 (0부터 bbox_width*bbox_height-1)
+            orig_y_coords_bbox = pixel_indices_bbox // bbox_width
+            orig_x_coords_bbox = pixel_indices_bbox % bbox_width
+            
+            # 전체 이미지 좌표로 변환 (오프셋 추가)
+            orig_y_coords = orig_y_coords_bbox + min_y
+            orig_x_coords = orig_x_coords_bbox + min_x
             
             # 변형된 좌표 (벡터화)
             trans_x = transformed_coords[:, 0]
@@ -729,6 +886,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 weighted_values_00 = pixel_values_00 * w00_valid[:, np.newaxis]
                 np.add.at(result, (y0_valid, x0_valid), weighted_values_00)
                 np.add.at(result_count, (y0_valid, x0_valid), w00_valid)
+                # 변형된 픽셀이 매핑된 위치 추적 (blend_ratio = 1.0일 때 원본 제거용)
+                transformed_mask[y0_valid, x0_valid] = True
             
             # valid_01인 경우
             valid_01_indices = np.where(valid_01)[0]
@@ -740,6 +899,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 weighted_values_01 = pixel_values_01 * w01_valid[:, np.newaxis]
                 np.add.at(result, (y1_valid, x0_valid), weighted_values_01)
                 np.add.at(result_count, (y1_valid, x0_valid), w01_valid)
+                # 변형된 픽셀이 매핑된 위치 추적
+                transformed_mask[y1_valid, x0_valid] = True
             
             # valid_10인 경우
             valid_10_indices = np.where(valid_10)[0]
@@ -751,6 +912,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 weighted_values_10 = pixel_values_10 * w10_valid[:, np.newaxis]
                 np.add.at(result, (y0_valid, x1_valid), weighted_values_10)
                 np.add.at(result_count, (y0_valid, x1_valid), w10_valid)
+                # 변형된 픽셀이 매핑된 위치 추적
+                transformed_mask[y0_valid, x1_valid] = True
             
             # valid_11인 경우
             valid_11_indices = np.where(valid_11)[0]
@@ -762,6 +925,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 weighted_values_11 = pixel_values_11 * w11_valid[:, np.newaxis]
                 np.add.at(result, (y1_valid, x1_valid), weighted_values_11)
                 np.add.at(result_count, (y1_valid, x1_valid), w11_valid)
+                # 변형된 픽셀이 매핑된 위치 추적
+                transformed_mask[y1_valid, x1_valid] = True
             
             # 범위를 벗어난 경우 처리 (벡터화)
             out_of_bounds_mask = (trans_x < 0) | (trans_x >= working_width) | (trans_y < 0) | (trans_y >= working_height)
@@ -776,14 +941,36 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 np.add.at(result_count, (trans_y_clipped, trans_x_clipped), out_of_bounds_weight)
                 pixels_out_of_bounds += len(out_of_bounds_indices)
             
-            total_pixels_processed += len(pixel_indices)
+            total_pixels_processed += len(pixel_indices_bbox)
         
         # 로그 제거 (성능 최적화)
         
+        # 블렌딩 비율 범위 제한 (정규화 전에 적용)
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 가중 평균으로 정규화 (여러 원본 픽셀이 같은 변형된 위치로 매핑된 경우)
         result_count_safe = np.maximum(result_count, 1e-6)  # 0으로 나누기 방지
-        result = result / result_count_safe[:, :, np.newaxis]
-        result = result.astype(np.uint8)
+        result_normalized = result / result_count_safe[:, :, np.newaxis]
+        
+        # blend_ratio = 1.0일 때 변형된 픽셀 영역에서 원본 제거 (완전 덮어쓰기)
+        # 변형된 픽셀이 매핑된 위치에서는 원본을 제거하고 변형된 픽셀만 사용
+        if blend_ratio == 1.0:
+            # 변형된 픽셀이 매핑된 위치 추적 (result_count > 1.0이면 변형된 픽셀이 매핑된 위치)
+            transformed_pixel_mask = (result_count > 1.0 + 1e-6)
+            if np.any(transformed_pixel_mask):
+                # 변형된 픽셀이 매핑된 위치에서 원본 제거하고 변형된 픽셀만 사용
+                # result_normalized = (원본 * 1.0 + 변형된 픽셀 * w) / (1.0 + w)
+                # 변형된 픽셀만 추출: transformed_only = (result_normalized * (1.0 + w) - 원본 * 1.0) / w
+                mask_3d = transformed_pixel_mask[:, :, np.newaxis]
+                working_img_float = working_img.astype(np.float32)
+                result_count_float = result_count[:, :, np.newaxis]
+                # 변형된 픽셀만 추출: (result_normalized * result_count - 원본 * 1.0) / (result_count - 1.0)
+                result_count_minus_one = np.maximum(result_count_float - 1.0, 1e-6)  # 0으로 나누기 방지
+                transformed_only = (result_normalized * result_count_float - working_img_float) / result_count_minus_one
+                # 변형된 픽셀이 매핑된 위치에서는 변형된 픽셀만 사용, 그 외는 원본 유지
+                result_normalized = np.where(mask_3d, transformed_only, working_img_float)
+        
+        result = result_normalized.astype(np.uint8)
         
         # 빈 공간 채우기: 변형된 이미지에 빈 공간이 생긴 경우 처리
         empty_mask = (result_count < 1e-6)
@@ -804,20 +991,75 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 result[empty_mask] = working_img[empty_mask]
         
         # 원본 크기로 복원 (다운샘플링했던 경우)
+        # 성능 최적화: 바운딩 박스 영역만 업샘플링, 나머지는 원본 이미지 사용
+        # 디버깅: 업샘플링 조건 확인
         if scale_factor < 1.0:
-            result = cv2.resize(result, (img_width, img_height), interpolation=cv2.INTER_LANCZOS4)
+            print(f"[얼굴모핑] 업샘플링 필요: scale_factor={scale_factor:.4f}, min_x_orig_bbox={min_x_orig_bbox}")
+        if scale_factor < 1.0 and min_x_orig_bbox is not None:
+            # 바운딩 박스 영역만 업샘플링 (전체 이미지 업샘플링 대신)
+            # 원본 이미지로 시작
+            result_full = img_array.copy().astype(np.float32)
+            
+            # 다운샘플링된 이미지에서 바운딩 박스 영역 추출
+            # min_x, min_y, max_x, max_y는 다운샘플링된 이미지 기준이므로 그대로 사용
+            bbox_result = result[min_y:max_y, min_x:max_x].copy()
+            
+            # bbox_result의 실제 크기 (다운샘플링된 크기)
+            bbox_result_height, bbox_result_width = bbox_result.shape[:2]
+            
+            # 원본 이미지에서의 바운딩 박스 크기 계산
+            # 이미지 경계 내로 제한
+            min_x_orig = max(0, min_x_orig_bbox)
+            min_y_orig = max(0, min_y_orig_bbox)
+            max_x_orig = min(img_width, max_x_orig_bbox)
+            max_y_orig = min(img_height, max_y_orig_bbox)
+            bbox_width_orig = max_x_orig - min_x_orig
+            bbox_height_orig = max_y_orig - min_y_orig
+            
+            if bbox_width_orig > 0 and bbox_height_orig > 0:
+                # 바운딩 박스 영역만 업샘플링 (원본 크기로 복원)
+                # bbox_result는 다운샘플링된 크기이므로 원본 크기로 업샘플링
+                bbox_result_upscaled = cv2.resize(
+                    bbox_result, 
+                    (bbox_width_orig, bbox_height_orig), 
+                    interpolation=cv2.INTER_LINEAR
+                )
+                # 원본 이미지에 업샘플링된 바운딩 박스 영역만 복사
+                result_full[min_y_orig:max_y_orig, min_x_orig:max_x_orig] = bbox_result_upscaled.astype(np.float32)
+            
+            result = result_full
         
-        # 경계 영역을 원본 이미지로 복원하여 검은색 테두리 방지
-        # 경계 5픽셀 영역은 원본 이미지로 유지
-        border_size = 5
-        if border_size > 0 and result.shape[:2] == img_array.shape[:2]:
-            # 경계 영역 복원 (크기가 일치하는 경우에만)
-            result[0:border_size, :] = img_array[0:border_size, :]  # 상단
-            result[-border_size:, :] = img_array[-border_size:, :]  # 하단
-            result[:, 0:border_size] = img_array[:, 0:border_size]  # 왼쪽
-            result[:, -border_size:] = img_array[:, -border_size:]  # 오른쪽
+        # 블렌딩 비율 적용 (adjust_region_size와 동일한 의미로 통일)
+        # blend_ratio = 0.0: 원본만 (변형 결과 적용 안 함)
+        # blend_ratio = 1.0: 변형 결과만 (완전 덮어쓰기)
+        # blend_ratio가 클수록 변형 결과(result)의 비율이 높아짐
+        # (blend_ratio는 이미 위에서 범위 제한됨)
+        if blend_ratio == 0.0:
+            # 원본만 사용: 변형 결과를 적용하지 않음
+            result = img_array.copy()
+        elif blend_ratio == 1.0:
+            # 변형 결과만 사용: 완전 덮어쓰기 (이미 정규화 단계에서 원본 제거됨)
+            # result는 이미 변형된 픽셀만 포함하므로 그대로 사용
+            if result.shape[:2] != img_array.shape[:2]:
+                # 크기가 다르면 원본 이미지 크기로 업샘플링
+                result = cv2.resize(result, (img_width, img_height), interpolation=cv2.INTER_LINEAR)
+        else:
+            # 원본 이미지와 변형 결과 블렌딩 (0.0 < blend_ratio < 1.0)
+            if result.shape[:2] == img_array.shape[:2]:
+                # float32로 변환하여 블렌딩 계산
+                result_float = result.astype(np.float32)
+                img_array_float = img_array.astype(np.float32)
+                # 블렌딩: adjust_region_size와 동일한 방식
+                # blend_ratio가 클수록 변형 결과(result)의 비율이 높아짐
+                result = (img_array_float * (1.0 - blend_ratio) + result_float * blend_ratio).astype(np.uint8)
+            else:
+                # 크기가 다르면 원본 이미지로 업샘플링 후 블렌딩
+                result_resized = cv2.resize(result, (img_width, img_height), interpolation=cv2.INTER_LINEAR)
+                result_float = result_resized.astype(np.float32)
+                img_array_float = img_array.astype(np.float32)
+                result = (img_array_float * (1.0 - blend_ratio) + result_float * blend_ratio).astype(np.uint8)
         
-        print(f"[얼굴모핑] 랜드마크 변형 완료: 이미지 크기 {img_width}x{img_height}")
+        print(f"[얼굴모핑] 랜드마크 변형 완료: 이미지 크기 {img_width}x{img_height}, blend_ratio={blend_ratio:.2f}")
         return Image.fromarray(result)
         
     except Exception as e:

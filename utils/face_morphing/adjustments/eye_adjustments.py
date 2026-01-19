@@ -26,7 +26,7 @@ def adjust_eye_size(image, eye_size_ratio=1.0, landmarks=None, left_eye_size_rat
                     eye_region_padding=None, eye_region_offset_x=None, eye_region_offset_y=None,
                     left_eye_region_padding=None, right_eye_region_padding=None,
                     left_eye_region_offset_x=None, left_eye_region_offset_y=None,
-                    right_eye_region_offset_x=None, right_eye_region_offset_y=None):
+                    right_eye_region_offset_x=None, right_eye_region_offset_y=None, blend_ratio=1.0):
     """
     눈 크기를 조정합니다 (개선된 버전: 정확한 랜드마크 기반 영역 계산 및 자연스러운 블렌딩).
     
@@ -45,6 +45,7 @@ def adjust_eye_size(image, eye_size_ratio=1.0, landmarks=None, left_eye_size_rat
         left_eye_region_offset_y: 왼쪽 눈 영역 수직 오프셋
         right_eye_region_offset_x: 오른쪽 눈 영역 수평 오프셋
         right_eye_region_offset_y: 오른쪽 눈 영역 수직 오프셋
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -166,12 +167,18 @@ def adjust_eye_size(image, eye_size_ratio=1.0, landmarks=None, left_eye_size_rat
             else:
                 eye_final = eye_resized
             
+            # 블렌딩 비율 범위 제한
+            blend_ratio = max(0.0, min(1.0, blend_ratio))
+            
             # 마스크 생성 (부드러운 블렌딩을 위해, 개선된 버전: 시그모이드 함수 기반)
             mask = _create_blend_mask(actual_width, actual_height, mask_type='ellipse')
             
-            # 원본 이미지에 블렌딩
+            # 블렌딩 비율 적용
+            mask_adjusted = mask * blend_ratio
+            
+            # 새 영역을 블렌딩 비율에 따라 덮어쓰기
             roi = result[new_y1:new_y2, new_x1:new_x2].copy()
-            mask_3channel = np.stack([mask] * 3, axis=-1)  # RGB 채널로 확장
+            mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)  # RGB 채널로 확장
             
             # 시그모이드 함수 기반 부드러운 블렌딩
             blended = (roi * (1 - mask_3channel) + eye_final * mask_3channel).astype(np.uint8)

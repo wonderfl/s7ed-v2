@@ -82,6 +82,7 @@ class FaceEditPanel(
         self.jaw_size = tk.DoubleVar(value=0.0)  # 턱선 조정 (-50 ~ +50, 기본값: 0.0)
         self.face_width = tk.DoubleVar(value=1.0)  # 얼굴 너비 (0.5 ~ 2.0, 기본값: 1.0)
         self.face_height = tk.DoubleVar(value=1.0)  # 얼굴 높이 (0.5 ~ 2.0, 기본값: 1.0)
+        self.blend_ratio = tk.DoubleVar(value=1.0)  # 블렌딩 비율 (0.0 ~ 1.0, 기본값: 1.0)
         
         # 눈 편집 고급 설정
         self.left_eye_size = tk.DoubleVar(value=1.0)  # 왼쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
@@ -177,6 +178,9 @@ class FaceEditPanel(
         # 입술 영역 표시용 캔버스 아이템
         self.lip_region_rects_original = []  # 원본 이미지의 입술 영역 사각형
         self.lip_region_rects_edited = []  # 편집된 이미지의 입술 영역 사각형
+        
+        # 바운딩 박스 표시용 캔버스 아이템
+        self.bbox_rect_original = None  # 원본 이미지의 바운딩 박스 사각형
         
         # 랜드마크 표시용 캔버스 아이템
         self.landmarks_items_original = []  # 원본 이미지의 랜드마크 아이템
@@ -469,6 +473,9 @@ class FaceEditPanelV2(FaceEditPanel):
         label_width = 16
         
         # 슬라이더 생성 헬퍼 함수 (눈 크기 전용 - 동기화 처리를 위해)
+        # 동기화 중 플래그 (무한 루프 방지)
+        _syncing_eye_size = False
+        
         def create_eye_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6, is_left=True):
             frame = tk.Frame(parent)
             frame.pack(fill=tk.X, pady=(0, 5))
@@ -477,6 +484,9 @@ class FaceEditPanelV2(FaceEditPanel):
             
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            value_label = tk.Label(frame, text=default_label, width=width)
+            value_label.pack(side=tk.LEFT)
             
             def reset_slider(event):
                 variable.set(default_value)
@@ -491,12 +501,35 @@ class FaceEditPanelV2(FaceEditPanel):
             title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_slider_change(value):
+                nonlocal _syncing_eye_size
+                
+                # 동기화 중이면 라벨만 업데이트하고 리턴 (무한 루프 방지)
+                if _syncing_eye_size:
+                    value_label.config(text=f"{int(float(value) * 100)}%")
+                    return
+                
+                # 드래그 중에는 라벨만 직접 업데이트 (성능 최적화)
+                value_label.config(text=f"{int(float(value) * 100)}%")
+                
                 # 개별 조정 모드가 아니면 동기화
                 if not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_size.set(float(value))
-                    else:
-                        self.left_eye_size.set(float(value))
+                    _syncing_eye_size = True
+                    try:
+                        if is_left:
+                            # 오른쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'right_eye_size_label') and self.right_eye_size_label is not None:
+                                self.right_eye_size_label.config(text=f"{int(float(value) * 100)}%")
+                            self.right_eye_size.set(float(value))
+                        else:
+                            # 왼쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'left_eye_size_label') and self.left_eye_size_label is not None:
+                                self.left_eye_size_label.config(text=f"{int(float(value) * 100)}%")
+                            self.left_eye_size.set(float(value))
+                    finally:
+                        _syncing_eye_size = False
+            
+            def on_eye_slider_release(event):
+                # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
             
             scale = tk.Scale(
@@ -506,17 +539,22 @@ class FaceEditPanelV2(FaceEditPanel):
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=on_eye_slider_change,
+                command=on_eye_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
                 showvalue=False
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_eye_slider_release)  # 드래그 종료 시 적용
             
-            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 눈 위치 조정 슬라이더 생성 헬퍼 함수 (눈 수평 전용)
+        # 동기화 중 플래그 (무한 루프 방지)
+        _syncing_eye_position_x = False
+        
         def create_eye_position_x_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6, is_left=True):
             frame = tk.Frame(parent)
             frame.pack(fill=tk.X, pady=(0, 5))
@@ -525,6 +563,9 @@ class FaceEditPanelV2(FaceEditPanel):
             
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def reset_slider(event):
                 variable.set(default_value)
@@ -543,16 +584,46 @@ class FaceEditPanelV2(FaceEditPanel):
             title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_position_x_slider_change(value):
-                if self.eye_spacing.get():
-                    if is_left:
-                        self.right_eye_position_x.set(-float(value))
-                    else:
-                        self.left_eye_position_x.set(-float(value))
-                elif not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_position_x.set(float(value))
-                    else:
-                        self.left_eye_position_x.set(float(value))
+                nonlocal _syncing_eye_position_x
+                
+                # 동기화 중이면 라벨만 업데이트하고 리턴 (무한 루프 방지)
+                if _syncing_eye_position_x:
+                    value_label.config(text=f"{int(float(value))}")
+                    return
+                
+                # 드래그 중에는 라벨만 직접 업데이트 (성능 최적화)
+                value_label.config(text=f"{int(float(value))}")
+                
+                # 동기화 처리
+                _syncing_eye_position_x = True
+                try:
+                    if self.eye_spacing.get():
+                        if is_left:
+                            # 오른쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'right_eye_position_x_label') and self.right_eye_position_x_label is not None:
+                                self.right_eye_position_x_label.config(text=f"{int(-float(value))}")
+                            self.right_eye_position_x.set(-float(value))
+                        else:
+                            # 왼쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'left_eye_position_x_label') and self.left_eye_position_x_label is not None:
+                                self.left_eye_position_x_label.config(text=f"{int(-float(value))}")
+                            self.left_eye_position_x.set(-float(value))
+                    elif not self.use_individual_eye_region.get():
+                        if is_left:
+                            # 오른쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'right_eye_position_x_label') and self.right_eye_position_x_label is not None:
+                                self.right_eye_position_x_label.config(text=f"{int(float(value))}")
+                            self.right_eye_position_x.set(float(value))
+                        else:
+                            # 왼쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'left_eye_position_x_label') and self.left_eye_position_x_label is not None:
+                                self.left_eye_position_x_label.config(text=f"{int(float(value))}")
+                            self.left_eye_position_x.set(float(value))
+                finally:
+                    _syncing_eye_position_x = False
+            
+            def on_eye_position_x_slider_release(event):
+                # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
             
             scale = tk.Scale(
@@ -562,17 +633,22 @@ class FaceEditPanelV2(FaceEditPanel):
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=on_eye_position_x_slider_change,
+                command=on_eye_position_x_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
                 showvalue=False
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_eye_position_x_slider_release)  # 드래그 종료 시 적용
             
-            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # 눈 위치 조정 슬라이더 생성 헬퍼 함수 (눈 수직 전용)
+        # 동기화 중 플래그 (무한 루프 방지)
+        _syncing_eye_position_y = False
+        
         def create_eye_position_y_slider(parent, label_text, variable, from_val, to_val, resolution, default_label="", width=6, is_left=True):
             frame = tk.Frame(parent)
             frame.pack(fill=tk.X, pady=(0, 5))
@@ -581,6 +657,9 @@ class FaceEditPanelV2(FaceEditPanel):
             
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
             
             def reset_slider(event):
                 variable.set(default_value)
@@ -594,11 +673,35 @@ class FaceEditPanelV2(FaceEditPanel):
             title_label.bind("<Button-1>", reset_slider)
             
             def on_eye_position_y_slider_change(value):
-                if not self.use_individual_eye_region.get():
-                    if is_left:
-                        self.right_eye_position_y.set(float(value))
-                    else:
-                        self.left_eye_position_y.set(float(value))
+                nonlocal _syncing_eye_position_y
+                
+                # 동기화 중이면 라벨만 업데이트하고 리턴 (무한 루프 방지)
+                if _syncing_eye_position_y:
+                    value_label.config(text=f"{int(float(value))}")
+                    return
+                
+                # 드래그 중에는 라벨만 직접 업데이트 (성능 최적화)
+                value_label.config(text=f"{int(float(value))}")
+                
+                # 개별 조정 모드가 아니면 동기화
+                _syncing_eye_position_y = True
+                try:
+                    if not self.use_individual_eye_region.get():
+                        if is_left:
+                            # 오른쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'right_eye_position_y_label') and self.right_eye_position_y_label is not None:
+                                self.right_eye_position_y_label.config(text=f"{int(float(value))}")
+                            self.right_eye_position_y.set(float(value))
+                        else:
+                            # 왼쪽 눈 슬라이더의 라벨 직접 업데이트
+                            if hasattr(self, 'left_eye_position_y_label') and self.left_eye_position_y_label is not None:
+                                self.left_eye_position_y_label.config(text=f"{int(float(value))}")
+                            self.left_eye_position_y.set(float(value))
+                finally:
+                    _syncing_eye_position_y = False
+            
+            def on_eye_position_y_slider_release(event):
+                # 드래그 종료 시 실제 편집 적용
                 self.on_morphing_change()
             
             scale = tk.Scale(
@@ -608,14 +711,16 @@ class FaceEditPanelV2(FaceEditPanel):
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=on_eye_position_y_slider_change,
+                command=on_eye_position_y_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
                 showvalue=False
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_eye_position_y_slider_release)  # 드래그 종료 시 적용
             
-            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # V2: 영역 설정 프레임 제거, 눈 모양/이동 조정만 표시
@@ -652,6 +757,24 @@ class FaceEditPanelV2(FaceEditPanel):
             title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
             title_label.pack(side=tk.LEFT, padx=(0, 5))
             
+            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label은 나중에 슬라이더 오른쪽에 배치됨
+            
+            def on_slider_change(value):
+                # 드래그 중에는 라벨만 업데이트 (성능 최적화)
+                if hasattr(self, 'update_labels_only'):
+                    self.update_labels_only()
+                else:
+                    # update_labels_only가 없으면 라벨만 직접 업데이트
+                    if '%' in default_label:
+                        value_label.config(text=f"{int(float(value) * 100)}%")
+                    else:
+                        value_label.config(text=f"{int(float(value))}")
+            
+            def on_slider_release(event):
+                # 드래그 종료 시 실제 편집 적용
+                self.on_morphing_change()
+            
             def reset_slider(event):
                 variable.set(default_value)
                 self.on_morphing_change()
@@ -665,14 +788,16 @@ class FaceEditPanelV2(FaceEditPanel):
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=self.on_morphing_change,
+                command=on_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
                 showvalue=False
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_slider_release)  # 드래그 종료 시 적용
             
-            value_label = tk.Label(frame, text=default_label, width=width)
+            # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
+            
             return value_label
         
         # V2: 영역 설정 프레임 제거, 입술 모양/이동 조정만 표시
@@ -714,10 +839,12 @@ class FaceEditPanelV2(FaceEditPanel):
             
             # V2: 눈 크기 값 유효성 검사 및 기본값 보정
             if left_eye_size is None or not (0.1 <= left_eye_size <= 5.0):
-                print(f"[얼굴편집V2] 경고: 왼쪽 눈 크기 값이 유효하지 않음: {left_eye_size}, 기본값 1.0으로 설정")
+                from utils.logger import print_warning
+                print_warning("얼굴편집V2", f"왼쪽 눈 크기 값이 유효하지 않음: {left_eye_size}, 기본값 1.0으로 설정")
                 left_eye_size = 1.0
             if right_eye_size is None or not (0.1 <= right_eye_size <= 5.0):
-                print(f"[얼굴편집V2] 경고: 오른쪽 눈 크기 값이 유효하지 않음: {right_eye_size}, 기본값 1.0으로 설정")
+                from utils.logger import print_warning
+                print_warning("얼굴편집V2", f"오른쪽 눈 크기 값이 유효하지 않음: {right_eye_size}, 기본값 1.0으로 설정")
                 right_eye_size = 1.0
             
             # 변형된 랜드마크 계산 (랜드마크 표시용)
@@ -732,7 +859,9 @@ class FaceEditPanelV2(FaceEditPanel):
                     detected, _ = face_landmarks.detect_face_landmarks(base_image)
                     if detected is not None:
                         self.landmark_manager.set_face_landmarks(detected)
-                        self.landmark_manager.set_original_landmarks(detected)
+                        # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
+                        img_width, img_height = base_image.size
+                        self.landmark_manager.set_original_landmarks(detected, img_width, img_height)
                         self.face_landmarks = self.landmark_manager.get_face_landmarks()
                         self.original_landmarks = self.landmark_manager.get_original_landmarks()
                 base_landmarks = self.landmark_manager.get_face_landmarks()

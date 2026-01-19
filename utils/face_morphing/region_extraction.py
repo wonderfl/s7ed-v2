@@ -544,3 +544,189 @@ def _get_region_center(region_name, landmarks, center_offset_x=0.0, center_offse
     except Exception as e:
         print(f"[얼굴편집] 부위 중심점 계산 실패 ({region_name}): {e}")
         return None
+
+
+def _get_region_bbox(region_name, landmarks, img_width, img_height, padding_ratio=0.1, center_offset_x=0.0, center_offset_y=0.0):
+    """
+    부위별 바운딩 박스 계산 (오프셋 포함)
+    
+    Args:
+        region_name: 부위 이름 ('face_oval', 'left_eye', 'right_eye', 'left_eyebrow', 'right_eyebrow',
+                    'nose', 'upper_lips', 'lower_lips', 'left_iris', 'right_iris', 'contours', 'tesselation')
+        landmarks: 랜드마크 포인트 리스트 (468개 또는 478개)
+        img_width: 이미지 너비
+        img_height: 이미지 높이
+        padding_ratio: 패딩 비율 (기본값: 0.1 = 10%)
+        center_offset_x: 중심점 오프셋 X (픽셀, 기본값: 0.0)
+        center_offset_y: 중심점 오프셋 Y (픽셀, 기본값: 0.0)
+    
+    Returns:
+        (x1, y1, x2, y2): 바운딩 박스 좌표 또는 None
+    """
+    if not _landmarks_available or landmarks is None or len(landmarks) < 468:
+        return None
+    
+    try:
+        import mediapipe as mp
+        mp_face_mesh = mp.solutions.face_mesh
+        
+        indices = []
+        
+        if region_name == 'face_oval':
+            FACE_OVAL = list(mp_face_mesh.FACEMESH_FACE_OVAL)
+            for conn in FACE_OVAL:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'left_eye':
+            LEFT_EYE = list(mp_face_mesh.FACEMESH_LEFT_EYE)
+            for conn in LEFT_EYE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'right_eye':
+            RIGHT_EYE = list(mp_face_mesh.FACEMESH_RIGHT_EYE)
+            for conn in RIGHT_EYE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'left_eyebrow':
+            LEFT_EYEBROW = list(mp_face_mesh.FACEMESH_LEFT_EYEBROW)
+            for conn in LEFT_EYEBROW:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'right_eyebrow':
+            RIGHT_EYEBROW = list(mp_face_mesh.FACEMESH_RIGHT_EYEBROW)
+            for conn in RIGHT_EYEBROW:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'nose':
+            NOSE = list(mp_face_mesh.FACEMESH_NOSE)
+            for conn in NOSE:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'lips':
+            LIPS = list(mp_face_mesh.FACEMESH_LIPS)
+            for conn in LIPS:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'upper_lips':
+            UPPER_LIP_INDICES = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84]
+            indices = UPPER_LIP_INDICES
+        elif region_name == 'lower_lips':
+            LOWER_LIP_INDICES = [181, 91, 146, 78, 95, 88, 178, 87, 14, 317, 402, 318, 324]
+            indices = LOWER_LIP_INDICES
+        elif region_name == 'left_iris':
+            try:
+                LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                for conn in LEFT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                try:
+                    left_iris_indices, _ = get_iris_indices()
+                    indices = left_iris_indices
+                except (ImportError, AttributeError):
+                    indices = [474, 475, 476, 477]
+        elif region_name == 'right_iris':
+            try:
+                RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                for conn in RIGHT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                try:
+                    _, right_iris_indices = get_iris_indices()
+                    indices = right_iris_indices
+                except (ImportError, AttributeError):
+                    indices = [469, 470, 471, 472]
+        elif region_name == 'contours':
+            CONTOURS = list(mp_face_mesh.FACEMESH_CONTOURS)
+            for conn in CONTOURS:
+                indices.append(conn[0])
+                indices.append(conn[1])
+        elif region_name == 'tesselation':
+            TESSELATION = list(mp_face_mesh.FACEMESH_TESSELATION)
+            for conn in TESSELATION:
+                indices.append(conn[0])
+                indices.append(conn[1])
+            # Tesselation 선택 시 눈동자도 포함
+            try:
+                LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+                for conn in LEFT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                try:
+                    left_iris_indices, _ = get_iris_indices()
+                    indices.extend(left_iris_indices)
+                except (ImportError, AttributeError):
+                    indices.extend([474, 475, 476, 477])
+            try:
+                RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                for conn in RIGHT_IRIS:
+                    indices.append(conn[0])
+                    indices.append(conn[1])
+            except AttributeError:
+                try:
+                    _, right_iris_indices = get_iris_indices()
+                    indices.extend(right_iris_indices)
+                except (ImportError, AttributeError):
+                    indices.extend([469, 470, 471, 472])
+        else:
+            return None
+        
+        # 중복 제거
+        indices = list(set(indices))
+        
+        # 유효한 인덱스만 필터링
+        valid_indices = [i for i in indices if i < len(landmarks)]
+        
+        if not valid_indices:
+            return None
+        
+        # 랜드마크 좌표 추출
+        x_coords = []
+        y_coords = []
+        for idx in valid_indices:
+            point = landmarks[idx]
+            x_coords.append(point[0])
+            y_coords.append(point[1])
+        
+        if not x_coords or not y_coords:
+            return None
+        
+        # 바운딩 박스 계산
+        min_x = min(x_coords)
+        max_x = max(x_coords)
+        min_y = min(y_coords)
+        max_y = max(y_coords)
+        
+        # 중심점 계산
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        
+        # 오프셋 적용
+        center_x += center_offset_x
+        center_y += center_offset_y
+        
+        # 패딩 계산
+        width = max_x - min_x
+        height = max_y - min_y
+        padding_x = int(width * padding_ratio)
+        padding_y = int(height * padding_ratio)
+        
+        # 바운딩 박스 계산 (오프셋 적용된 중심점 기준)
+        half_width = (width / 2) + padding_x
+        half_height = (height / 2) + padding_y
+        
+        x1 = max(0, int(center_x - half_width))
+        y1 = max(0, int(center_y - half_height))
+        x2 = min(img_width, int(center_x + half_width))
+        y2 = min(img_height, int(center_y + half_height))
+        
+        if x2 <= x1 or y2 <= y1:
+            return None
+        
+        return (x1, y1, x2, y2)
+        
+    except Exception as e:
+        print(f"[얼굴편집] 부위 바운딩 박스 계산 실패 ({region_name}): {e}")
+        return None

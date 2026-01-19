@@ -14,6 +14,7 @@ except ImportError:
 
 from .all_tab_drawer import AllTabDrawerMixin
 from .tab_drawers import TabDrawersMixin
+from utils.logger import print_warning
 
 
 class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
@@ -66,7 +67,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
             # original_landmarks 보장 (중앙 포인트 계산 전에 필수) - LandmarkManager 사용
             if not self.landmark_manager.has_original_landmarks():
                 if landmarks is not None:
-                    self.landmark_manager.set_original_landmarks(landmarks)
+                    # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
+                    self.landmark_manager.set_original_landmarks(landmarks, img_width, img_height)
                     self.original_landmarks = self.landmark_manager.get_original_landmarks()
                     print(f"[폴리곤렌더러] original_landmarks 설정 - 길이: {len(self.original_landmarks)}")
             else:
@@ -136,9 +138,9 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                                 self._right_iris_center_coord = right_center
                                 print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화 (iris_landmarks에서 계산): 왼쪽={left_center}, 오른쪽={right_center}")
                             else:
-                                print(f"[폴리곤렌더러] 경고: original_iris_landmarks에서 중앙 포인트 계산 실패")
+                                print_warning("폴리곤렌더러", "original_iris_landmarks에서 중앙 포인트 계산 실패")
                         else:
-                            print(f"[폴리곤렌더러] 경고: original_iris_landmarks가 없거나 길이가 10이 아님: {len(original_iris_landmarks) if original_iris_landmarks is not None else None}, base_landmarks 길이: {len(base_landmarks) if base_landmarks is not None else None}")
+                            print_warning("폴리곤렌더러", f"original_iris_landmarks가 없거나 길이가 10이 아님: {len(original_iris_landmarks) if original_iris_landmarks is not None else None}, base_landmarks 길이: {len(base_landmarks) if base_landmarks is not None else None}")
                     
                     # custom_landmarks 생성: 눈동자 포인트 제거 + 중앙 포인트 추가
                     try:
@@ -193,7 +195,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                             custom_landmarks_no_iris.append(right_center)  # 사용자 오른쪽 = MediaPipe RIGHT_IRIS (len-1)
                             print(f"[폴리곤렌더러] 중앙 포인트 추가 완료: 왼쪽={left_center}, 오른쪽={right_center}")
                         else:
-                            print(f"[폴리곤렌더러] 경고: 중앙 포인트 계산 실패, custom_landmarks에 추가하지 않음")
+                            print_warning("폴리곤렌더러", "중앙 포인트 계산 실패, custom_landmarks에 추가하지 않음")
                         
                         self.landmark_manager.set_custom_landmarks(custom_landmarks_no_iris, reason="polygon_renderer_init_with_iris_centers")
                         # property가 자동으로 처리하므로 동기화 코드 불필요
@@ -229,7 +231,6 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 custom = self.landmark_manager.get_custom_landmarks()
                 if custom is not None and len(custom) == len(landmarks):
                     landmarks = custom
-                    # print(f"[폴리곤렌더러] custom_landmarks 사용 - 길이: {len(landmarks)}, 탭: {current_tab}")
             
             # 중앙 포인트 좌표 초기화 (iris_centers가 없을 때만)
             if iris_centers is None and hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):

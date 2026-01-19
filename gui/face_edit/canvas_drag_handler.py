@@ -158,6 +158,40 @@ class CanvasDragHandlerMixin:
                 self.canvas_edited.coords(self.image_created_edited, new_x, new_y)
                 self.canvas_edited_pos_x = new_x
                 self.canvas_edited_pos_y = new_y
+            
+            # 바운딩 박스도 함께 이동 (폴리곤이 체크되어 있을 때만)
+            if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
+                hasattr(self, 'bbox_rect_original') and self.bbox_rect_original is not None):
+                # 바운딩 박스의 상대 위치를 유지하면서 이동
+                if (hasattr(self, 'current_image') and self.current_image is not None and
+                    hasattr(self, 'landmark_manager') and self.landmark_manager is not None):
+                    try:
+                        img_width, img_height = self.current_image.size
+                        bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
+                        if bbox is not None:
+                            min_x, min_y, max_x, max_y = bbox
+                            display_size = getattr(self.canvas_original, 'display_size', None)
+                            if display_size is not None:
+                                display_width, display_height = display_size
+                                scale_x = display_width / img_width
+                                scale_y = display_height / img_height
+                                
+                                # 바운딩 박스 좌표를 캔버스 좌표로 변환
+                                rel_x1 = (min_x - img_width / 2) * scale_x
+                                rel_y1 = (min_y - img_height / 2) * scale_y
+                                rel_x2 = (max_x - img_width / 2) * scale_x
+                                rel_y2 = (max_y - img_height / 2) * scale_y
+                                
+                                canvas_x1 = new_x + rel_x1
+                                canvas_y1 = new_y + rel_y1
+                                canvas_x2 = new_x + rel_x2
+                                canvas_y2 = new_y + rel_y2
+                                
+                                # 바운딩 박스 위치 업데이트
+                                self.canvas_original.coords(self.bbox_rect_original, canvas_x1, canvas_y1, canvas_x2, canvas_y2)
+                    except Exception as e:
+                        # 바운딩 박스 업데이트 실패는 무시 (드래그 중이므로)
+                        pass
         except Exception as e:
             print(f"[얼굴편집] 원본 이미지 위치 업데이트 실패: {e}")
             import traceback
@@ -205,6 +239,10 @@ class CanvasDragHandlerMixin:
                         # 새로운 위치에 다시 그리기
                         if hasattr(self, 'update_face_features_display'):
                             self.update_face_features_display()
+                        # 바운딩 박스도 업데이트 (폴리곤이 체크되어 있을 때만)
+                        if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
+                            hasattr(self, 'update_bbox_display')):
+                            self.update_bbox_display()
                     
                     # 눈 영역 표시 업데이트
                     if hasattr(self, 'show_eye_region') and self.show_eye_region.get():
@@ -373,6 +411,40 @@ class CanvasDragHandlerMixin:
                 self.canvas_original.coords(self.image_created_original, new_x, new_y)
                 self.canvas_original_pos_x = new_x
                 self.canvas_original_pos_y = new_y
+            
+            # 바운딩 박스도 함께 이동 (폴리곤이 체크되어 있을 때만)
+            if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
+                hasattr(self, 'bbox_rect_original') and self.bbox_rect_original is not None):
+                # 바운딩 박스의 상대 위치를 유지하면서 이동
+                if (hasattr(self, 'current_image') and self.current_image is not None and
+                    hasattr(self, 'landmark_manager') and self.landmark_manager is not None):
+                    try:
+                        img_width, img_height = self.current_image.size
+                        bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
+                        if bbox is not None:
+                            min_x, min_y, max_x, max_y = bbox
+                            display_size = getattr(self.canvas_original, 'display_size', None)
+                            if display_size is not None:
+                                display_width, display_height = display_size
+                                scale_x = display_width / img_width
+                                scale_y = display_height / img_height
+                                
+                                # 바운딩 박스 좌표를 캔버스 좌표로 변환
+                                rel_x1 = (min_x - img_width / 2) * scale_x
+                                rel_y1 = (min_y - img_height / 2) * scale_y
+                                rel_x2 = (max_x - img_width / 2) * scale_x
+                                rel_y2 = (max_y - img_height / 2) * scale_y
+                                
+                                canvas_x1 = new_x + rel_x1
+                                canvas_y1 = new_y + rel_y1
+                                canvas_x2 = new_x + rel_x2
+                                canvas_y2 = new_y + rel_y2
+                                
+                                # 바운딩 박스 위치 업데이트
+                                self.canvas_original.coords(self.bbox_rect_original, canvas_x1, canvas_y1, canvas_x2, canvas_y2)
+                    except Exception as e:
+                        # 바운딩 박스 업데이트 실패는 무시 (드래그 중이므로)
+                        pass
         except Exception as e:
             print(f"[얼굴편집] 편집된 이미지 위치 업데이트 실패: {e}")
             import traceback
@@ -420,6 +492,10 @@ class CanvasDragHandlerMixin:
                         # 새로운 위치에 다시 그리기
                         if hasattr(self, 'update_face_features_display'):
                             self.update_face_features_display()
+                        # 바운딩 박스도 업데이트 (폴리곤이 체크되어 있을 때만)
+                        if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
+                            hasattr(self, 'update_bbox_display')):
+                            self.update_bbox_display()
                     
                     # 눈 영역 표시 업데이트
                     if hasattr(self, 'show_eye_region') and self.show_eye_region.get():

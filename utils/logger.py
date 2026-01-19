@@ -253,10 +253,10 @@ def _get_color_for_level(level: str) -> str:
     level_upper = level.upper()
     color_map = {
         'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
+        'INFO': Fore.GREEN + Style.BRIGHT,
         'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
+        'ERROR': Fore.RED + Style.BRIGHT,
+        'CRITICAL': Fore.MAGENTA + Style.BRIGHT,
     }
     return color_map.get(level_upper, '')
 
@@ -290,7 +290,7 @@ def print_colored(module_name: str, message: str, level: str = 'INFO', use_color
 
 
 def print_error(module_name: str, message: str, exception: Optional[Exception] = None):
-    """에러 출력 (빨간색)
+    """에러 출력 (밝은 빨간색)
     
     Args:
         module_name: 모듈 이름
@@ -307,7 +307,7 @@ def print_error(module_name: str, message: str, exception: Optional[Exception] =
 
 
 def print_warning(module_name: str, message: str):
-    """경고 출력 (노란색)
+    """경고 출력 (일반 노란색)
     
     Args:
         module_name: 모듈 이름
@@ -318,7 +318,7 @@ def print_warning(module_name: str, message: str):
 
 
 def print_info(module_name: str, message: str):
-    """정보 출력 (초록색)
+    """정보 출력 (밝은 녹색)
     
     Args:
         module_name: 모듈 이름

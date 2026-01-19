@@ -22,24 +22,6 @@ class UIMixin:
         alignment_frame = tk.LabelFrame(parent, text="얼굴 정렬", padx=5, pady=5)
         alignment_frame.pack(fill=tk.X, pady=(0, 5))
         
-        # 자동 정렬 체크박스 (숨김)
-        # auto_align_frame = tk.Frame(alignment_frame)
-        # auto_align_frame.pack(fill=tk.X)
-        # 
-        # auto_align_check = tk.Checkbutton(
-        #     auto_align_frame,
-        #     text="자동 정렬 (랜드마크 기반)",
-        #     variable=self.auto_align,
-        #     command=self.on_alignment_change
-        # )
-        # auto_align_check.pack(side=tk.LEFT)
-        # 
-        # # MediaPipe 사용 가능 여부 표시
-        # if face_landmarks.is_available():
-        #     tk.Label(auto_align_frame, text="(사용 가능)", fg="green").pack(side=tk.LEFT, padx=(10, 0))
-        # else:
-        #     tk.Label(auto_align_frame, text="(MediaPipe 필요)", fg="orange").pack(side=tk.LEFT, padx=(10, 0))
-        
         # 체크박스 2x2 그리드로 배치 (줄 맞춤)
         # 첫 번째 줄
         checkbox_row1 = tk.Frame(alignment_frame)

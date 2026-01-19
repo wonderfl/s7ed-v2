@@ -155,6 +155,13 @@ class HandlersMixin:
             show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
             show_polygons = self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False
             
+            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+            if hasattr(self, 'update_bbox_display'):
+                if show_polygons:
+                    self.update_bbox_display()
+                else:
+                    self.clear_bbox_display()
+            
             if show_landmarks or show_lines or show_polygons:
                 # 랜드마크, 연결선, 또는 폴리곤이 표시되어야 하면 업데이트
                 print(f"[얼굴편집] 랜드마크 표시 업데이트 호출")
@@ -183,7 +190,6 @@ class HandlersMixin:
                         # 이미지 업데이트 후 랜드마크 표시도 업데이트
                         if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                             self.update_face_features_display()
-                        # return 제거: 공통 슬라이더도 적용하기 위해 계속 진행
         
         # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
         if self.current_image is not None:
@@ -269,7 +275,8 @@ class HandlersMixin:
                         self.edited_image = result
                         self.show_edited_preview()
                     else:
-                        print(f"[얼굴편집] 경고: 공통 슬라이더 적용 후 edited_image가 None입니다")
+                        from utils.logger import print_warning
+                        print_warning("얼굴편집", "공통 슬라이더 적용 후 edited_image가 None입니다")
             
             # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
             show_polygons = hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()

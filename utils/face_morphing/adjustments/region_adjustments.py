@@ -7,7 +7,7 @@ from PIL import Image
 
 from ..constants import _cv2_available, _landmarks_available
 from ..utils import _create_blend_mask
-from ..region_extraction import _get_eye_region, _get_mouth_region, _get_nose_region, _get_region_center
+from ..region_extraction import _get_eye_region, _get_mouth_region, _get_nose_region, _get_region_center, _get_region_bbox
 
 # 외부 모듈 import
 try:
@@ -22,7 +22,7 @@ except ImportError:
     get_key_landmarks = None
 
 
-def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset_x=0.0, center_offset_y=0.0, landmarks=None):
+def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset_x=0.0, center_offset_y=0.0, landmarks=None, blend_ratio=1.0):
     """
     부위별 크기 조절 (중심점 오프셋 포함 기준)
     
@@ -35,6 +35,7 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         center_offset_x: 중심점 오프셋 X (픽셀, 기본값: 0.0)
         center_offset_y: 중심점 오프셋 Y (픽셀, 기본값: 0.0)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -59,14 +60,6 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         if landmarks is None or len(landmarks) < 468:
             return image
         
-        # 부위 중심점 계산 (오프셋 포함)
-        from .region_extraction import _get_region_center
-        center = _get_region_center(region_name, landmarks, center_offset_x, center_offset_y)
-        if center is None:
-            return image
-        
-        center_x, center_y = center
-        
         # PIL Image를 numpy 배열로 변환
         if image.mode != 'RGB':
             img_rgb = image.convert('RGB')
@@ -75,118 +68,33 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         img_array = np.array(img_rgb)
         img_height, img_width = img_array.shape[:2]
         
-        # 중심점을 기준으로 영역 크기 추정 (부위별 기본 크기)
-        region_size = min(img_width, img_height) * 0.1  # 기본 크기 (이미지 크기의 10%)
-        
-        # 부위별 크기 조정
+        # 부위별 바운딩 박스 계산
         if region_name in ['left_eye', 'right_eye']:
-            # 눈 영역은 기존 함수 활용
+            # 눈 영역은 기존 함수 활용 (더 정확한 계산)
             key_landmarks = get_key_landmarks(landmarks)
             if key_landmarks is None:
                 return image
             eye_name = 'left' if region_name == 'left_eye' else 'right'
-            eye_region, _ = _get_eye_region(key_landmarks, img_width, img_height, eye_name, landmarks, 0.3, center_offset_x, center_offset_y)
+            eye_region, eye_center = _get_eye_region(key_landmarks, img_width, img_height, eye_name, landmarks, 0.3, center_offset_x, center_offset_y)
             x1, y1, x2, y2 = eye_region
-            region_size = max(x2 - x1, y2 - y1) / 2
+            center_x, center_y = eye_center
         elif region_name == 'nose':
-            # 코 영역은 기존 함수 활용
+            # 코 영역은 기존 함수 활용 (더 정확한 계산)
             key_landmarks = get_key_landmarks(landmarks)
             if key_landmarks is None:
                 return image
-            nose_region, _ = _get_nose_region(key_landmarks, img_width, img_height, landmarks, 0.3, center_offset_x, center_offset_y)
+            nose_region, nose_center = _get_nose_region(key_landmarks, img_width, img_height, landmarks, 0.3, center_offset_x, center_offset_y)
             x1, y1, x2, y2 = nose_region
-            region_size = max(x2 - x1, y2 - y1) / 2
+            center_x, center_y = nose_center
         else:
-            # 다른 부위는 중심점 기준으로 영역 계산
-            # 랜드마크 포인트들의 분산을 기반으로 크기 추정
-            import mediapipe as mp
-            mp_face_mesh = mp.solutions.face_mesh
-            
-            indices = []
-            if region_name == 'face_oval':
-                FACE_OVAL = list(mp_face_mesh.FACEMESH_FACE_OVAL)
-                for conn in FACE_OVAL:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            elif region_name == 'left_eyebrow':
-                LEFT_EYEBROW = list(mp_face_mesh.FACEMESH_LEFT_EYEBROW)
-                for conn in LEFT_EYEBROW:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            elif region_name == 'right_eyebrow':
-                RIGHT_EYEBROW = list(mp_face_mesh.FACEMESH_RIGHT_EYEBROW)
-                for conn in RIGHT_EYEBROW:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            elif region_name == 'lips':
-                # Lips 전체 인덱스 (FACEMESH_LIPS 사용)
-                LIPS = list(mp_face_mesh.FACEMESH_LIPS)
-                for conn in LIPS:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            elif region_name == 'upper_lips':
-                # 하위 호환성 유지
-                UPPER_LIP_INDICES = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84]
-                indices = UPPER_LIP_INDICES
-            elif region_name == 'lower_lips':
-                # 하위 호환성 유지
-                LOWER_LIP_INDICES = [181, 91, 146, 78, 95, 88, 178, 87, 14, 317, 402, 318, 324]
-                indices = LOWER_LIP_INDICES
-            elif region_name == 'left_iris':
-                try:
-                    LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
-                    for conn in LEFT_IRIS:
-                        indices.append(conn[0])
-                        indices.append(conn[1])
-                except AttributeError:
-                    # MediaPipe 정의 사용
-                    try:
-                        from utils.face_morphing.region_extraction import get_iris_indices
-                        left_iris_indices, _ = get_iris_indices()
-                        indices = left_iris_indices
-                    except ImportError:
-                        # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477])
-                        indices = [474, 475, 476, 477]
-            elif region_name == 'right_iris':
-                try:
-                    RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
-                    for conn in RIGHT_IRIS:
-                        indices.append(conn[0])
-                        indices.append(conn[1])
-                except AttributeError:
-                    # MediaPipe 정의 사용
-                    try:
-                        from utils.face_morphing.region_extraction import get_iris_indices
-                        _, right_iris_indices = get_iris_indices()
-                        indices = right_iris_indices
-                    except ImportError:
-                        # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: RIGHT_IRIS=[469,470,471,472])
-                        indices = [469, 470, 471, 472]
-            elif region_name == 'contours':
-                CONTOURS = list(mp_face_mesh.FACEMESH_CONTOURS)
-                for conn in CONTOURS:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            elif region_name == 'tesselation':
-                TESSELATION = list(mp_face_mesh.FACEMESH_TESSELATION)
-                for conn in TESSELATION:
-                    indices.append(conn[0])
-                    indices.append(conn[1])
-            
-            # 유효한 인덱스만 필터링
-            valid_indices = [i for i in set(indices) if i < len(landmarks)]
-            if valid_indices:
-                x_coords = [landmarks[i][0] for i in valid_indices]
-                y_coords = [landmarks[i][1] for i in valid_indices]
-                if x_coords and y_coords:
-                    region_size = max(max(x_coords) - min(x_coords), max(y_coords) - min(y_coords)) / 2
-        
-        # 영역 추출 (중심점 기준)
-        half_size = int(region_size)
-        x1 = max(0, int(center_x - half_size))
-        y1 = max(0, int(center_y - half_size))
-        x2 = min(img_width, int(center_x + half_size))
-        y2 = min(img_height, int(center_y + half_size))
+            # 다른 부위는 _get_region_bbox 함수 사용
+            bbox = _get_region_bbox(region_name, landmarks, img_width, img_height, padding_ratio=0.1, center_offset_x=center_offset_x, center_offset_y=center_offset_y)
+            if bbox is None:
+                return image
+            x1, y1, x2, y2 = bbox
+            # 바운딩 박스의 중심점 계산 (오프셋이 이미 적용된 바운딩 박스이므로 중심점만 계산)
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
         
         if x2 <= x1 or y2 <= y1:
             return image
@@ -195,6 +103,14 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         region_img = img_array[y1:y2, x1:x2].copy()
         if region_img.size == 0:
             return image
+        
+        # 채널 수 확인 (img_array는 PIL에서 변환된 RGB 형식)
+        if len(region_img.shape) == 2:
+            # Grayscale인 경우 RGB로 변환 (numpy로 직접 처리)
+            region_img = np.stack([region_img] * 3, axis=-1)
+        elif len(region_img.shape) == 3 and region_img.shape[2] == 4:
+            # RGBA인 경우 RGB로 변환 (알파 채널 제거)
+            region_img = region_img[:, :, :3]
         
         # 크기 조절
         new_width = int((x2 - x1) * size_x)
@@ -220,56 +136,55 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
             return image
         
         # 리사이즈된 영역을 실제 크기에 맞춤
+        # cv2.resize는 RGB/BGR 순서를 유지하므로 그대로 사용
         region_final = cv2.resize(region_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
-        # 마스크 생성 (부드러운 블렌딩)
-        mask = _create_blend_mask(actual_width, actual_height, mask_type='ellipse')
+        # 채널 수 확인 및 정규화 (반드시 3채널 RGB)
+        if len(region_final.shape) == 2:
+            # Grayscale인 경우 RGB로 변환 (numpy로 직접 처리)
+            region_final = np.stack([region_final] * 3, axis=-1)
+        elif len(region_final.shape) == 3 and region_final.shape[2] != 3:
+            if region_final.shape[2] == 4:
+                # RGBA인 경우 RGB로 변환 (알파 채널 제거)
+                region_final = region_final[:, :, :3]
+            else:
+                # 예상치 못한 채널 수
+                print(f"[얼굴모핑] 경고: 예상치 못한 채널 수 {region_final.shape[2]}, RGB로 변환 시도")
+                region_final = region_final[:, :, :3]
         
-        # 원본 이미지에 블렌딩
+        # 데이터 타입 확인 및 변환 (uint8로 확실히 변환)
+        if region_final.dtype != np.uint8:
+            region_final = np.clip(region_final, 0, 255).astype(np.uint8)
+        
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
+        # 원본 이미지 복사
         result = img_array.copy()
         
-        # 원본 영역과 새 영역이 겹치는지 확인
-        overlap = not (x2 <= new_x1 or new_x2 <= x1 or y2 <= new_y1 or new_y2 <= y1)
-        
-        if overlap:
-            # 겹치는 경우: 원본 영역을 먼저 지우고 새 영역 배치
-            # 원본 영역 주변의 픽셀들을 수집하여 평균값 계산
-            border_pixels = []
-            # 위쪽 경계
-            if y1 > 0:
-                border_pixels.extend(img_array[y1-1, x1:x2].tolist())
-            # 아래쪽 경계
-            if y2 < img_height:
-                border_pixels.extend(img_array[y2, x1:x2].tolist())
-            # 왼쪽 경계
-            if x1 > 0:
-                border_pixels.extend(img_array[y1:y2, x1-1].tolist())
-            # 오른쪽 경계
-            if x2 < img_width:
-                border_pixels.extend(img_array[y1:y2, x2].tolist())
-            
-            # 주변 픽셀의 평균값 계산
-            if border_pixels:
-                border_array = np.array(border_pixels)
-                if len(border_array.shape) == 2 and border_array.shape[1] == 3:
-                    avg_color = np.mean(border_array, axis=0).astype(np.uint8)
-                else:
-                    # 단일 값인 경우
-                    avg_color = np.array([np.mean(border_array)] * 3, dtype=np.uint8)
-            else:
-                # 주변 픽셀이 없으면 원본 이미지의 평균값 사용
-                avg_color = np.mean(img_array, axis=(0, 1)).astype(np.uint8)
-            
-            # 원본 영역을 평균 색상으로 채움
-            result[y1:y2, x1:x2] = avg_color
-        
-        # 새로운 위치에 블렌딩
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         region_area = result[new_y1:new_y2, new_x1:new_x2]
         
-        if region_area.shape[:2] == region_final.shape[:2]:
-            for c in range(3):
-                region_area[:, :, c] = (region_area[:, :, c] * (1 - mask) + 
-                                       region_final[:, :, c] * mask).astype(np.uint8)
+        # shape 확인
+        if region_area.shape[:2] != region_final.shape[:2]:
+            print(f"[얼굴모핑] 경고: 영역 크기 불일치 - region_area: {region_area.shape}, region_final: {region_final.shape}")
+            return image
+        
+        if blend_ratio == 0.0:
+            # 완전 오버라이트: 새 영역으로 완전히 덮어쓰기
+            region_area[:, :] = region_final[:, :]
+        else:
+            # 블렌딩: 마스크를 사용하여 블렌딩
+            mask = _create_blend_mask(actual_width, actual_height, mask_type='ellipse')
+            mask_adjusted = mask * blend_ratio
+            # 마스크를 3채널로 확장
+            mask_3d = np.stack([mask_adjusted] * 3, axis=-1)
+            # float32로 변환하여 블렌딩 계산
+            region_area_float = region_area.astype(np.float32)
+            region_final_float = region_final.astype(np.float32)
+            # 블렌딩 계산
+            blended = (region_area_float * (1 - mask_3d) + region_final_float * mask_3d)
+            region_area[:, :] = np.clip(blended, 0, 255).astype(np.uint8)
         
         return Image.fromarray(result)
         

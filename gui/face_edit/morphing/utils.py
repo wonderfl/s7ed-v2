@@ -204,7 +204,9 @@ class UtilsMixin:
                 if self.landmark_manager.get_face_landmarks() is None:
                     detected, _ = face_landmarks.detect_face_landmarks(base_image)
                     if detected is not None:
-                        self.landmark_manager.set_original_landmarks(detected)
+                        # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
+                        img_width, img_height = base_image.size
+                        self.landmark_manager.set_original_landmarks(detected, img_width, img_height)
                         self.landmark_manager.set_face_landmarks(detected)
                         self.original_landmarks = self.landmark_manager.get_original_landmarks()
                         self.face_landmarks = self.landmark_manager.get_face_landmarks()

@@ -22,7 +22,7 @@ except ImportError:
     get_key_landmarks = None
 
 
-def adjust_nose_size(image, nose_size_ratio=1.0, landmarks=None):
+def adjust_nose_size(image, nose_size_ratio=1.0, landmarks=None, blend_ratio=1.0):
     """
     코 크기를 조정합니다.
     
@@ -30,6 +30,7 @@ def adjust_nose_size(image, nose_size_ratio=1.0, landmarks=None):
         image: PIL.Image 객체
         nose_size_ratio: 코 크기 비율 (1.0 = 원본, 2.0 = 2배, 0.5 = 절반)
         landmarks: 랜드마크 포인트 리스트 (None이면 자동 감지)
+        blend_ratio: 블렌딩 비율 (0.0 = 완전 오버라이트, 1.0 = 완전 블렌딩, 기본값: 1.0)
     
     Returns:
         PIL.Image: 조정된 이미지
@@ -98,13 +99,21 @@ def adjust_nose_size(image, nose_size_ratio=1.0, landmarks=None):
         # 리사이즈된 코 영역을 실제 크기에 맞춤
         nose_final = cv2.resize(nose_resized, (actual_width, actual_height), interpolation=cv2.INTER_LANCZOS4)
         
+        # 블렌딩 비율 범위 제한
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        
         # 마스크 생성 (부드러운 블렌딩을 위해, 개선된 버전: 시그모이드 함수 기반)
         mask = _create_blend_mask(actual_width, actual_height, mask_type='ellipse')
         
-        # 원본 이미지에 블렌딩
+        # 블렌딩 비율 적용
+        mask_adjusted = mask * blend_ratio
+        
+        # 원본 이미지 복사
         result = img_array.copy()
+        
+        # 새 영역을 블렌딩 비율에 따라 덮어쓰기
         roi = result[new_y1:new_y2, new_x1:new_x2]
-        mask_3channel = np.stack([mask] * 3, axis=-1)  # RGB 채널로 확장
+        mask_3channel = np.stack([mask_adjusted] * 3, axis=-1)  # RGB 채널로 확장
         
         # 시그모이드 함수 기반 부드러운 블렌딩
         blended = (roi * (1 - mask_3channel) + nose_final * mask_3channel).astype(np.uint8)

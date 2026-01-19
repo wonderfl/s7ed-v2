@@ -55,6 +55,7 @@ class EditingStepsMixin:
 
         # 입 편집 파라미터 전달 (3가지: 윗입술 모양, 아랫입술 모양, 입 벌림 정도)
         # 폴리곤 기반 변형이 이미 적용되지 않은 경우에만 apply_all_adjustments 사용
+        blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
         result = face_morphing.apply_all_adjustments(
             base_image,
             eye_size=None,  # 항상 left_eye_size, right_eye_size 사용
@@ -93,7 +94,8 @@ class EditingStepsMixin:
             use_landmark_warping=self.use_landmark_warping.get(),
             jaw_adjustment=self.jaw_size.get(),
             face_width=self.face_width.get(),
-            face_height=self.face_height.get()
+            face_height=self.face_height.get(),
+            blend_ratio=blend_ratio
         )
         
         return result
@@ -308,13 +310,20 @@ class EditingStepsMixin:
                 # 중앙 포인트 좌표 가져오기
                 left_center = self.landmark_manager.get_left_iris_center_coord()
                 right_center = self.landmark_manager.get_right_iris_center_coord()
+                # 캐시된 원본 바운딩 박스 가져오기
+                img_width, img_height = base_image.size
+                cached_bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
+                # 블렌딩 비율 가져오기
+                blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
                 result = face_morphing.morph_face_by_polygons(
                     base_image,  # 원본 이미지
                     original,  # 원본 랜드마크
                     transformed,  # 변형된 랜드마크 (폴리곤으로 수정된 랜드마크)
                     selected_point_indices=None,  # 모든 포인트 처리
                     left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                    right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
+                    right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
+                    cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
+                    blend_ratio=blend_ratio  # 블렌딩 비율
                 )
             else:
                 result = None
