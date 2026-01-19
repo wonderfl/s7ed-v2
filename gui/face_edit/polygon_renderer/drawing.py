@@ -72,47 +72,118 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
             else:
                 self.original_landmarks = self.landmark_manager.get_original_landmarks()
             
-            # custom_landmarks가 없으면 생성하고 중앙 포인트 설정 - LandmarkManager 사용
-            if self.landmark_manager.get_custom_landmarks() is None:
-                # 원본 랜드마크를 복사하여 custom_landmarks 생성
-                if landmarks is not None:
-                    # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
+            # custom_landmarks가 없거나 468개인 경우 중앙 포인트 추가 - LandmarkManager 사용
+            custom = self.landmark_manager.get_custom_landmarks()
+            if custom is None or len(custom) == 468:
+                # custom_landmarks가 없으면 landmarks 사용, 있으면 custom 사용
+                base_landmarks = custom if custom is not None else landmarks
+                if base_landmarks is not None:
+                    # 중앙 포인트 좌표 초기화 (original_iris_landmarks에서 계산)
                     left_center = None
                     right_center = None
-                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                        original = self.landmark_manager.get_original_landmarks()
-                        if original is not None:
-                            left_iris_indices, right_iris_indices = self._get_iris_indices()
-                            # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
+                    
+                    # landmark_manager에서 저장된 중앙 포인트 먼저 확인
+                    left_center = self.landmark_manager.get_left_iris_center_coord()
+                    right_center = self.landmark_manager.get_right_iris_center_coord()
+                    
+                    # 없으면 original_iris_landmarks에서 계산
+                    if left_center is None or right_center is None:
+                        original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                        
+                        # original_iris_landmarks가 없으면 landmarks에서 추출 시도
+                        if original_iris_landmarks is None and landmarks is not None and len(landmarks) == 478:
+                            # landmarks가 478개라면 눈동자 포인트가 포함되어 있음
+                            try:
+                                from utils.face_morphing.region_extraction import get_iris_indices
+                                left_iris_indices, right_iris_indices = get_iris_indices()
+                                iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                                iris_center_indices = {468, 473}
+                                iris_indices = sorted(iris_contour_indices | iris_center_indices)
+                                
+                                # 눈동자 포인트 추출
+                                iris_points = [landmarks[idx] for idx in iris_indices if idx < len(landmarks)]
+                                if len(iris_points) == 10:
+                                    original_iris_landmarks = iris_points
+                                    print(f"[폴리곤렌더러] landmarks(478개)에서 눈동자 포인트 추출 성공")
+                            except Exception as e:
+                                print(f"[폴리곤렌더러] landmarks에서 눈동자 포인트 추출 실패: {e}")
+                        
+                        if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
+                            # 눈동자 랜드마크: 왼쪽 5개 (0-4), 오른쪽 5개 (5-9)
+                            left_iris_points = original_iris_landmarks[:5]  # 왼쪽 눈동자 (MediaPipe RIGHT_IRIS)
+                            right_iris_points = original_iris_landmarks[5:]  # 오른쪽 눈동자 (MediaPipe LEFT_IRIS)
+                            
+                            # 중앙 포인트 계산
+                            if left_iris_points:
+                                left_center = (
+                                    sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                                    sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                                )
+                            if right_iris_points:
+                                right_center = (
+                                    sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                                    sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                                )
+                            
+                            # MediaPipe 관점: LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
                             # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
-                            # 계산된 좌표를 사용자 관점으로 변환
-                            mp_left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                            mp_right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
                             # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
-                            left_center = mp_right_center  # 사용자 왼쪽 = MediaPipe RIGHT_IRIS
-                            right_center = mp_left_center  # 사용자 오른쪽 = MediaPipe LEFT_IRIS
-                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
-                            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-                            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
-                            print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화: 왼쪽={left_center}, 오른쪽={right_center}")
+                            # 따라서: left_iris_points는 사용자 왼쪽, right_iris_points는 사용자 오른쪽
+                            # landmark_manager에 저장할 때는 사용자 관점으로 저장
+                            if left_center is not None and right_center is not None:
+                                self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                                self._left_iris_center_coord = left_center
+                                self._right_iris_center_coord = right_center
+                                print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화 (iris_landmarks에서 계산): 왼쪽={left_center}, 오른쪽={right_center}")
+                            else:
+                                print(f"[폴리곤렌더러] 경고: original_iris_landmarks에서 중앙 포인트 계산 실패")
+                        else:
+                            print(f"[폴리곤렌더러] 경고: original_iris_landmarks가 없거나 길이가 10이 아님: {len(original_iris_landmarks) if original_iris_landmarks is not None else None}, base_landmarks 길이: {len(base_landmarks) if base_landmarks is not None else None}")
                     
                     # custom_landmarks 생성: 눈동자 포인트 제거 + 중앙 포인트 추가
                     try:
                         from utils.face_morphing.region_extraction import get_iris_indices
                         
-                        # 눈동자 인덱스 가져오기
+                        # 눈동자 인덱스 가져오기 (나중에 _calculate_iris_center에서 사용하기 위해 항상 정의)
                         left_iris_indices, right_iris_indices = get_iris_indices()
-                        iris_contour_indices = set(left_iris_indices + right_iris_indices)
-                        iris_center_indices = {468, 473}
-                        iris_indices = iris_contour_indices | iris_center_indices
                         
-                        # 눈동자 포인트 제거
-                        custom_landmarks_no_iris = [pt for i, pt in enumerate(landmarks) if i not in iris_indices]
+                        # base_landmarks가 468개인 경우 이미 눈동자 포인트가 제거된 상태
+                        if len(base_landmarks) == 468:
+                            # 눈동자 포인트 제거 불필요, 중앙 포인트만 추가
+                            custom_landmarks_no_iris = list(base_landmarks)
+                        else:
+                            # 눈동자 포인트 제거
+                            iris_contour_indices = set(left_iris_indices + right_iris_indices)
+                            iris_center_indices = {468, 473}
+                            iris_indices = iris_contour_indices | iris_center_indices
+                            custom_landmarks_no_iris = [pt for i, pt in enumerate(base_landmarks) if i not in iris_indices]
                         
                         # 중앙 포인트 추가 (저장된 좌표 사용 또는 계산)
                         # morph_face_by_polygons와 동일한 순서로 추가해야 함
                         # morph_face_by_polygons: left_iris_center_orig 먼저 (len-2), right_iris_center_orig 나중 (len-1)
                         # MediaPipe 관점: LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽), RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                        
+                        # landmark_manager에서 저장된 중앙 포인트 가져오기
+                        if left_center is None:
+                            left_center = self.landmark_manager.get_left_iris_center_coord()
+                        if right_center is None:
+                            right_center = self.landmark_manager.get_right_iris_center_coord()
+                        
+                        # 여전히 None이면 계산 시도
+                        if (left_center is None or right_center is None) and hasattr(self, '_calculate_iris_center'):
+                            original = self.landmark_manager.get_original_landmarks()
+                            if original is not None:
+                                # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
+                                if left_center is None:
+                                    left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                if right_center is None:
+                                    right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                
+                                # 계산 성공 시 landmark_manager에 저장
+                                if left_center is not None and right_center is not None:
+                                    self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                        
+                        # 중앙 포인트 추가
                         if left_center is not None and right_center is not None:
                             # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
                             # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
@@ -120,23 +191,9 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                             # 따라서: 사용자 왼쪽 먼저 추가 (len-2), 사용자 오른쪽 나중 추가 (len-1)
                             custom_landmarks_no_iris.append(left_center)   # 사용자 왼쪽 = MediaPipe LEFT_IRIS (len-2)
                             custom_landmarks_no_iris.append(right_center)  # 사용자 오른쪽 = MediaPipe RIGHT_IRIS (len-1)
+                            print(f"[폴리곤렌더러] 중앙 포인트 추가 완료: 왼쪽={left_center}, 오른쪽={right_center}")
                         else:
-                            # 좌표가 없으면 계산
-                            # _calculate_iris_center 메서드 사용 (polygon_drag_handler에 있음)
-                            if hasattr(self, '_calculate_iris_center') and original is not None:
-                                # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
-                                if left_center is None:
-                                    left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
-                                if right_center is None:
-                                    right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                                
-                                if left_center is not None and right_center is not None:
-                                    # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
-                                    # left_center = 사용자 왼쪽 = MediaPipe RIGHT_IRIS
-                                    # right_center = 사용자 오른쪽 = MediaPipe LEFT_IRIS
-                                    # 따라서: right_center 먼저 추가 (MediaPipe LEFT_IRIS, len-2), left_center 나중 추가 (MediaPipe RIGHT_IRIS, len-1)
-                                    custom_landmarks_no_iris.append(right_center)  # MediaPipe LEFT_IRIS (len-2)
-                                    custom_landmarks_no_iris.append(left_center)   # MediaPipe RIGHT_IRIS (len-1)
+                            print(f"[폴리곤렌더러] 경고: 중앙 포인트 계산 실패, custom_landmarks에 추가하지 않음")
                         
                         self.landmark_manager.set_custom_landmarks(custom_landmarks_no_iris, reason="polygon_renderer_init_with_iris_centers")
                         # property가 자동으로 처리하므로 동기화 코드 불필요
@@ -146,7 +203,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         import traceback
                         traceback.print_exc()
                         # 폴백: 원본 그대로 사용
-                        self.landmark_manager.set_custom_landmarks(landmarks, reason="polygon_renderer_init_fallback")
+                        self.landmark_manager.set_custom_landmarks(base_landmarks, reason="polygon_renderer_init_fallback")
                         # property가 자동으로 처리하므로 동기화 코드 불필요
                         print(f"[폴리곤렌더러] custom_landmarks 생성 (폴백) - 길이: {len(self.custom_landmarks)}")
                     # custom_landmarks 사용
@@ -172,7 +229,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 custom = self.landmark_manager.get_custom_landmarks()
                 if custom is not None and len(custom) == len(landmarks):
                     landmarks = custom
-                    print(f"[폴리곤렌더러] custom_landmarks 사용 - 길이: {len(landmarks)}, 탭: {current_tab}")
+                    # print(f"[폴리곤렌더러] custom_landmarks 사용 - 길이: {len(landmarks)}, 탭: {current_tab}")
             
             # 중앙 포인트 좌표 초기화 (iris_centers가 없을 때만)
             if iris_centers is None and hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):

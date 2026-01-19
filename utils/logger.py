@@ -2,11 +2,47 @@
 통합 로깅 시스템
 모든 모듈에서 사용할 수 있는 통합 로거 제공
 기존 print(f"[모듈] ...") 형식과 호환되는 래퍼 함수 제공
+색상 출력 지원 (colorama 사용, Windows 호환)
 """
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
+
+# colorama 색상 지원 (선택적)
+try:
+    from colorama import init, Fore, Back, Style
+    init(autoreset=True)  # Windows에서 자동 초기화
+    COLORAMA_AVAILABLE = True
+except ImportError:
+    # colorama가 없으면 색상 코드를 빈 문자열로 대체
+    COLORAMA_AVAILABLE = False
+    class Fore:
+        BLACK = ''
+        RED = ''
+        GREEN = ''
+        YELLOW = ''
+        BLUE = ''
+        MAGENTA = ''
+        CYAN = ''
+        WHITE = ''
+        RESET = ''
+    class Back:
+        BLACK = ''
+        RED = ''
+        GREEN = ''
+        YELLOW = ''
+        BLUE = ''
+        MAGENTA = ''
+        CYAN = ''
+        WHITE = ''
+        RESET = ''
+    class Style:
+        DIM = ''
+        NORMAL = ''
+        BRIGHT = ''
+        RESET_ALL = ''
 
 # 로그 레벨 매핑
 LOG_LEVELS = {
@@ -198,3 +234,106 @@ def print_log(module_name: str, message: str, level: str = 'INFO'):
     logger = get_logger(module_name)
     log_level = LOG_LEVELS.get(level.upper(), logging.INFO)
     logger.log(log_level, message)
+
+
+# ========== 색상 출력 함수 ==========
+
+def _get_color_for_level(level: str) -> str:
+    """로그 레벨에 따른 색상 코드 반환
+    
+    Args:
+        level: 로그 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        
+    Returns:
+        색상 코드 문자열
+    """
+    if not COLORAMA_AVAILABLE:
+        return ''
+    
+    level_upper = level.upper()
+    color_map = {
+        'DEBUG': Fore.CYAN,
+        'INFO': Fore.GREEN,
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'CRITICAL': Fore.RED + Style.BRIGHT,
+    }
+    return color_map.get(level_upper, '')
+
+
+def print_colored(module_name: str, message: str, level: str = 'INFO', use_color: bool = True):
+    """색상이 적용된 print 함수 (기존 print(f"[모듈] ...") 형식과 호환)
+    
+    Args:
+        module_name: 모듈 이름
+        message: 메시지
+        level: 로그 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        use_color: 색상 사용 여부 (기본: True)
+        
+    Examples:
+        print_colored("얼굴편집", "드래그 시작: 랜드마크 인덱스 285", "INFO")
+        print_colored("얼굴모핑", "에러 발생", "ERROR")
+    """
+    color = _get_color_for_level(level) if use_color and COLORAMA_AVAILABLE else ''
+    reset = Fore.RESET if use_color and COLORAMA_AVAILABLE else ''
+    
+    # 기존 형식: [모듈] 메시지
+    formatted_message = f"{color}[{module_name}] {message}{reset}"
+    
+    # 로거에도 기록 (색상 없이)
+    logger = get_logger(module_name)
+    log_level = LOG_LEVELS.get(level.upper(), logging.INFO)
+    logger.log(log_level, message)
+    
+    # 콘솔에 색상 출력
+    print(formatted_message, file=sys.stdout if level.upper() != 'ERROR' else sys.stderr)
+
+
+def print_error(module_name: str, message: str, exception: Optional[Exception] = None):
+    """에러 출력 (빨간색)
+    
+    Args:
+        module_name: 모듈 이름
+        message: 메시지
+        exception: 예외 객체 (선택)
+    """
+    if exception:
+        full_message = f"{message}: {exception}"
+        print_colored(module_name, full_message, 'ERROR')
+        log_error(module_name, message, exception)
+    else:
+        print_colored(module_name, message, 'ERROR')
+        log_error(module_name, message)
+
+
+def print_warning(module_name: str, message: str):
+    """경고 출력 (노란색)
+    
+    Args:
+        module_name: 모듈 이름
+        message: 메시지
+    """
+    print_colored(module_name, message, 'WARNING')
+    log_warning(module_name, message)
+
+
+def print_info(module_name: str, message: str):
+    """정보 출력 (초록색)
+    
+    Args:
+        module_name: 모듈 이름
+        message: 메시지
+    """
+    print_colored(module_name, message, 'INFO')
+    log_info(module_name, message)
+
+
+def print_debug(module_name: str, message: str):
+    """디버그 출력 (청록색)
+    
+    Args:
+        module_name: 모듈 이름
+        message: 메시지
+    """
+    print_colored(module_name, message, 'DEBUG')
+    log_debug(module_name, message)

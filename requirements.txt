@@ -10,3 +10,6 @@ mediapipe>=0.10.0
 
 # 선택적 패키지 (Delaunay Triangulation 기반 변형 기능 사용 시 필요)
 scipy>=1.10.0
+
+# 선택적 패키지 (로그 색상 출력 기능 사용 시 필요, Windows 호환)
+colorama>=0.4.6

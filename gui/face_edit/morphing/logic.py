@@ -13,6 +13,7 @@ import utils.style_transfer as style_transfer
 import utils.face_transform as face_transform
 
 from .editing_steps import EditingStepsMixin
+from utils.logger import print_info, print_debug, print_error, print_warning
 
 
 
@@ -353,7 +354,7 @@ class LogicMixin(EditingStepsMixin):
                     print(f"[얼굴편집] 크기 조절 적용: {region_name}, size_x={size_x:.2f}, size_y={size_y:.2f}")
                     result = adjust_region_size(result, region_name, size_x, size_y, center_offset_x, center_offset_y, landmarks)
                     if result is None:
-                        print(f"[얼굴편집] 경고: {region_name} 크기 조절 결과가 None입니다")
+                        print_warning("얼굴편집", f"{region_name} 크기 조절 결과가 None입니다")
                         result = image
                     else:
                         # 랜드마크 업데이트 (크기 조절 후)
@@ -365,7 +366,7 @@ class LogicMixin(EditingStepsMixin):
                     result = adjust_region_position(result, region_name, position_x, position_y, 
                                                   center_offset_x, center_offset_y, landmarks)
                     if result is None:
-                        print(f"[얼굴편집] 경고: {region_name} 위치 이동 결과가 None입니다")
+                        print_warning("얼굴편집", f"{region_name} 위치 이동 결과가 None입니다")
                         result = image
                     else:
                         # 랜드마크 업데이트 (위치 이동 후)
@@ -441,22 +442,27 @@ class LogicMixin(EditingStepsMixin):
             # 드래그된 포인트는 custom_landmarks에서 가져와서 보존 (사이즈 변환 포함된 상태)
             custom = self.landmark_manager.get_custom_landmarks()
             
-            if custom is not None and len(custom) == 468 and dragged_indices:
+            # custom_landmarks가 470개인 경우 마지막 2개(중앙 포인트)를 제외한 468개만 사용
+            custom_for_drag = custom
+            if custom is not None and len(custom) == 470:
+                custom_for_drag = custom[:468]  # 마지막 2개 제외
+            
+            if custom_for_drag is not None and len(custom_for_drag) == 468 and dragged_indices:
                 # 드래그된 포인트만 custom_landmarks에서 가져와서 보존
                 for idx in dragged_indices:
-                    if 0 <= idx < len(custom) and idx < len(updated_landmarks):
-                        if isinstance(custom[idx], tuple):
-                            updated_landmarks[idx] = custom[idx]
+                    if 0 <= idx < len(custom_for_drag) and idx < len(updated_landmarks):
+                        if isinstance(custom_for_drag[idx], tuple):
+                            updated_landmarks[idx] = custom_for_drag[idx]
                         else:
                             updated_landmarks[idx] = (
-                                custom[idx].x * img_width,
-                                custom[idx].y * img_height
+                                custom_for_drag[idx].x * img_width,
+                                custom_for_drag[idx].y * img_height
                             )
-                print(f"[얼굴편집] 드래그된 포인트 {len(dragged_indices)}개를 custom_landmarks에서 보존 (사이즈 변환 포함)")
+                print_info("얼굴편집", f"드래그된 포인트 {len(dragged_indices)}개를 custom_landmarks에서 보존 (사이즈 변환 포함, custom 길이={len(custom) if custom is not None else 0})")
             
             # 확장 레벨 가져오기
             expansion_level = getattr(self, 'polygon_expansion_level', tk.IntVar(value=1)).get() if hasattr(self, 'polygon_expansion_level') else 1
-            print(f"[얼굴편집] 확장 레벨: {expansion_level}, 선택된 부위: {selected_regions}")
+            print_debug("얼굴편집", f"확장 레벨: {expansion_level}, 선택된 부위: {selected_regions}")
             
             # TESSELATION 그래프 구성 (확장된 포인트 찾기용)
             tesselation_graph = {}
@@ -577,9 +583,9 @@ class LogicMixin(EditingStepsMixin):
                         
                         # 확장 결과 로그 (눈썹 포함)
                         if 'eyebrow' in region_name.lower():
-                            print(f"[얼굴편집] {region_name} 확장 (레벨 {expansion_level}): {len(region_indices)}개 포인트 (원본 {original_region_count}개에서 확장)")
+                            print_debug("얼굴편집", f"{region_name} 확장 (레벨 {expansion_level}): {len(region_indices)}개 포인트 (원본 {original_region_count}개에서 확장)")
                     elif 'eyebrow' in region_name.lower():
-                        print(f"[얼굴편집] {region_name} 확장 실패: expansion_level={expansion_level}, tesselation_graph 크기={len(tesselation_graph)}")
+                        print_warning("얼굴편집", f"{region_name} 확장 실패: expansion_level={expansion_level}, tesselation_graph 크기={len(tesselation_graph)}")
                     
                     # 미리 계산한 중심점 사용
                     if region_name not in region_centers:
@@ -812,6 +818,21 @@ class LogicMixin(EditingStepsMixin):
                 final_landmarks_for_custom = final_landmarks  # 468개
                 original_landmarks_for_morph = original_face_landmarks_tuple  # 468개
             
+            # custom_landmarks가 이미 470개인 경우 (눈동자 중심점 드래그로 생성된 경우)
+            # 중앙 포인트 변환 후 마지막 2개 포인트 업데이트
+            existing_custom = self.landmark_manager.get_custom_landmarks()
+            if existing_custom is not None and len(existing_custom) == 470:
+                # 중앙 포인트 좌표 가져오기 (변환된 좌표)
+                left_center = self.landmark_manager.get_left_iris_center_coord()
+                right_center = self.landmark_manager.get_right_iris_center_coord()
+                
+                if left_center is not None and right_center is not None:
+                    # final_landmarks에 중앙 포인트 추가 (470개 구조로 변환)
+                    final_landmarks_for_custom = list(final_landmarks)
+                    final_landmarks_for_custom.append(left_center)   # MediaPipe LEFT_IRIS (사용자 왼쪽, len-2)
+                    final_landmarks_for_custom.append(right_center)  # MediaPipe RIGHT_IRIS (사용자 오른쪽, len-1)
+                    print_info("얼굴편집", f"기존 custom_landmarks(470개)에 중앙 포인트 업데이트: 왼쪽={left_center}, 오른쪽={right_center}")
+            
             # custom_landmarks 업데이트 (LandmarkManager 사용)
             self.landmark_manager.set_custom_landmarks(final_landmarks_for_custom, reason="_apply_common_sliders_to_landmarks")
             
@@ -844,7 +865,7 @@ class LogicMixin(EditingStepsMixin):
             )
             
             if result is None:
-                print("[얼굴편집] 경고: 랜드마크 변형 결과가 None입니다")
+                print_warning("얼굴편집", "랜드마크 변형 결과가 None입니다")
                 return image
             
             # 편집된 이미지 업데이트

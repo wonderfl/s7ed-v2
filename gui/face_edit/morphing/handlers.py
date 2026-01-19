@@ -306,15 +306,31 @@ class HandlersMixin:
                         custom = self.landmark_manager.get_custom_landmarks()
                         
                         if custom is not None:
+                            # Tesselation 모드 확인
+                            is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
+                            
+                            # Tesselation 모드일 때 iris_centers 전달
+                            iris_centers_for_drawing = None
+                            face_landmarks_for_drawing = custom
+                            
+                            if is_tesselation_selected:
+                                # Tesselation 모드: iris_centers 사용
+                                iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
+                                if iris_centers_for_drawing is None and len(custom) == 470:
+                                    # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
+                                    iris_centers_for_drawing = custom[-2:]
+                                    face_landmarks_for_drawing = custom[:-2]  # 468개
+                            
                             self._draw_landmark_polygons(
                                 self.canvas_original,
                                 self.current_image,
-                                custom,
+                                face_landmarks_for_drawing,  # 468개 또는 470개
                                 self.canvas_original_pos_x,
                                 self.canvas_original_pos_y,
                                 self.landmark_polygon_items['original'],
                                 "green",
                                 current_tab,
+                                iris_centers=iris_centers_for_drawing,  # Tesselation 모드일 때만 전달
                                 force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
                             )
                 else:

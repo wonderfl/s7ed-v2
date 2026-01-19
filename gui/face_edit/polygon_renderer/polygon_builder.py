@@ -233,7 +233,7 @@ class PolygonBuilderMixin:
                         part_name.append("입")
                     if is_face_oval:
                         part_name.append("얼굴외곽")
-                    print(f"[얼굴편집] {'/'.join(part_name)} 주변 확장 (레벨 {expansion_level}): {len(all_indices_set)}개 포인트 (원본 {original_count}개에서 확장)")
+                    #print(f"[얼굴편집] {'/'.join(part_name)} 주변 확장 (레벨 {expansion_level}): {len(all_indices_set)}개 포인트 (원본 {original_count}개에서 확장)")
                 
                 # TESSELATION에서 확장된 포인트들만 포함하는 연결 필터링
                 filtered_connections = []
@@ -374,7 +374,7 @@ class PolygonBuilderMixin:
                     triangle_points.append(triangle_points[0])
                     all_triangle_points.extend(triangle_points)
             
-            print(f"[얼굴편집] 삼각형 메쉬 구성 완료: {len(triangles)}개 삼각형 (전체 {len(all_indices)}개 포인트 중)")
+            #print(f"[얼굴편집] 삼각형 메쉬 구성 완료: {len(triangles)}개 삼각형 (전체 {len(all_indices)}개 포인트 중)")
             
             return all_triangle_points
             

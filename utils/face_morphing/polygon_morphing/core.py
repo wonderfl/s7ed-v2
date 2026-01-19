@@ -45,7 +45,8 @@ except ImportError:
 from .utils import _get_neighbor_points, _check_triangles_flipped
 
 def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, selected_point_indices=None,
-                           left_iris_center_coord=None, right_iris_center_coord=None):
+                           left_iris_center_coord=None, right_iris_center_coord=None,
+                           left_iris_center_orig=None, right_iris_center_orig=None):
     """
     Delaunay Triangulation을 사용하여 폴리곤(랜드마크 포인트) 기반 얼굴 변형을 수행합니다.
     뒤집힌 삼각형이 발생하면 변형을 점진적으로 줄여서 재시도합니다.
@@ -55,8 +56,10 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         original_landmarks: 원본 랜드마크 포인트 리스트 [(x, y), ...] (폴리곤의 꼭짓점)
         transformed_landmarks: 변형된 랜드마크 포인트 리스트 [(x, y), ...] (변형된 폴리곤의 꼭짓점)
         selected_point_indices: 선택한 포인트 인덱스 리스트 (인덱스 기반 직접 매핑을 위해, None이면 전체 사용)
-        left_iris_center_coord: 왼쪽 눈동자 중앙 포인트 좌표 (선택적, 사용자 관점)
-        right_iris_center_coord: 오른쪽 눈동자 중앙 포인트 좌표 (선택적, 사용자 관점)
+        left_iris_center_coord: 왼쪽 눈동자 중앙 포인트 좌표 (변형된, 선택적, 사용자 관점)
+        right_iris_center_coord: 오른쪽 눈동자 중앙 포인트 좌표 (변형된, 선택적, 사용자 관점)
+        left_iris_center_orig: 왼쪽 눈동자 중앙 포인트 좌표 (원본, 선택적, 사용자 관점)
+        right_iris_center_orig: 오른쪽 눈동자 중앙 포인트 좌표 (원본, 선택적, 사용자 관점)
     
     Returns:
         PIL.Image: 변형된 이미지
@@ -110,77 +113,180 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         
         # 3. 중앙 포인트 계산 또는 전달된 좌표 사용
         # 전달된 좌표는 사용자 관점이므로 MediaPipe 관점으로 변환 필요
+        # 원본 랜드마크를 tuple 형태로 변환 (원본 중앙 포인트 계산용)
+        original_landmarks_tuple = []
+        for i, pt in enumerate(original_landmarks):
+            if isinstance(pt, tuple):
+                original_landmarks_tuple.append(pt)
+            elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                original_landmarks_tuple.append((pt.x * img_width, pt.y * img_height))
+            else:
+                original_landmarks_tuple.append(pt)
+        
+        transformed_landmarks_tuple = []
+        for i, pt in enumerate(transformed_landmarks):
+            if isinstance(pt, tuple):
+                transformed_landmarks_tuple.append(pt)
+            elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                transformed_landmarks_tuple.append((pt.x * img_width, pt.y * img_height))
+            else:
+                transformed_landmarks_tuple.append(pt)
+        
+        # 중앙 포인트 계산 함수 정의
+        def _calculate_iris_centers_from_contour(landmarks_tuple, left_iris_indices, right_iris_indices, img_w, img_h):
+            """contour 포인트의 평균으로 중앙 포인트 계산"""
+            # 왼쪽 눈동자 중앙 포인트 계산
+            left_iris_points = []
+            for idx in left_iris_indices:
+                if idx < len(landmarks_tuple):
+                    pt = landmarks_tuple[idx]
+                    if isinstance(pt, tuple):
+                        left_iris_points.append(pt)
+                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                        left_iris_points.append((pt.x * img_w, pt.y * img_h))
+            
+            # 오른쪽 눈동자 중앙 포인트 계산
+            right_iris_points = []
+            for idx in right_iris_indices:
+                if idx < len(landmarks_tuple):
+                    pt = landmarks_tuple[idx]
+                    if isinstance(pt, tuple):
+                        right_iris_points.append(pt)
+                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                        right_iris_points.append((pt.x * img_w, pt.y * img_h))
+            
+            # 중앙 포인트 계산 (평균)
+            if left_iris_points:
+                left_center_x = sum(p[0] for p in left_iris_points) / len(left_iris_points)
+                left_center_y = sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                left_iris_center = (left_center_x, left_center_y)
+            else:
+                left_iris_center = None
+            
+            if right_iris_points:
+                right_center_x = sum(p[0] for p in right_iris_points) / len(right_iris_points)
+                right_center_y = sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                right_iris_center = (right_center_x, right_center_y)
+            else:
+                right_iris_center = None
+            
+            return left_iris_center, right_iris_center
+        
         if left_iris_center_coord is not None and right_iris_center_coord is not None:
-            # 전달된 좌표 사용 (사용자 관점)
+            # 전달된 좌표는 변형된 중앙 포인트 (드래그로 변경된 좌표)
             # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
             # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
             # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
             # 따라서: 사용자 왼쪽 = MediaPipe LEFT_IRIS, 사용자 오른쪽 = MediaPipe RIGHT_IRIS
-            left_iris_center_orig = left_iris_center_coord  # 사용자 왼쪽 = MediaPipe LEFT_IRIS
-            right_iris_center_orig = right_iris_center_coord  # 사용자 오른쪽 = MediaPipe RIGHT_IRIS
-            left_iris_center_trans = left_iris_center_coord
-            right_iris_center_trans = right_iris_center_coord
+            left_iris_center_trans = left_iris_center_coord  # 변형된 중앙 포인트 (사용자 왼쪽 = MediaPipe LEFT_IRIS)
+            right_iris_center_trans = right_iris_center_coord  # 변형된 중앙 포인트 (사용자 오른쪽 = MediaPipe RIGHT_IRIS)
+            
+            # 원본 중앙 포인트: 파라미터로 전달된 값이 있으면 사용, 없으면 계산 시도
+            if left_iris_center_orig is None or right_iris_center_orig is None:
+                # original_landmarks에서 계산 시도 (468개 구조에서는 실패할 수 있음)
+                calculated_left_orig, calculated_right_orig = _calculate_iris_centers_from_contour(
+                    original_landmarks_tuple, left_iris_indices, right_iris_indices, img_width, img_height)
+                if left_iris_center_orig is None:
+                    left_iris_center_orig = calculated_left_orig
+                if right_iris_center_orig is None:
+                    right_iris_center_orig = calculated_right_orig
+                
+                # 계산 실패 시 변형된 중앙 포인트를 원본으로 사용 (폴백)
+                if left_iris_center_orig is None:
+                    left_iris_center_orig = left_iris_center_trans
+                    print(f"[얼굴모핑] 경고: 원본 왼쪽 중앙 포인트 계산 실패, 변형된 값을 원본으로 사용")
+                if right_iris_center_orig is None:
+                    right_iris_center_orig = right_iris_center_trans
+                    print(f"[얼굴모핑] 경고: 원본 오른쪽 중앙 포인트 계산 실패, 변형된 값을 원본으로 사용")
+            
+            # 원본 중앙 포인트 좌표가 현재 이미지 크기를 벗어나면 스케일링 및 오프셋 조정 필요
+            # 원본 랜드마크의 좌표 범위를 확인하여 원본 이미지 크기 및 오프셋 추정
+            if left_iris_center_orig is not None and right_iris_center_orig is not None:
+                if original_landmarks_tuple:
+                    # 원본 랜드마크의 최소/최대 좌표로 원본 이미지 크기 및 오프셋 추정
+                    min_x_orig = min(pt[0] for pt in original_landmarks_tuple)
+                    min_y_orig = min(pt[1] for pt in original_landmarks_tuple)
+                    max_x_orig = max(pt[0] for pt in original_landmarks_tuple)
+                    max_y_orig = max(pt[1] for pt in original_landmarks_tuple)
+                    
+                    # 원본 이미지 크기 추정 (랜드마크 범위 + 여유)
+                    margin = 10
+                    orig_img_width = max(max_x_orig - min_x_orig + margin * 2, img_width)
+                    orig_img_height = max(max_y_orig - min_y_orig + margin * 2, img_height)
+                    
+                    # 오프셋 계산 (원본 랜드마크의 최소 좌표가 0이 아닌 경우)
+                    offset_x = min_x_orig - margin if min_x_orig > margin else 0
+                    offset_y = min_y_orig - margin if min_y_orig > margin else 0
+                    
+                    # 원본 중심점이 현재 이미지 크기를 벗어나는지 확인
+                    needs_adjustment = (left_iris_center_orig[0] > img_width or left_iris_center_orig[1] > img_height or
+                                       right_iris_center_orig[0] > img_width or right_iris_center_orig[1] > img_height or
+                                       abs(orig_img_width - img_width) > 1.0 or abs(orig_img_height - img_height) > 1.0 or
+                                       abs(offset_x) > 1.0 or abs(offset_y) > 1.0)
+                    
+                    if needs_adjustment and orig_img_width > 0 and orig_img_height > 0:
+                        # 스케일 비율 계산
+                        scale_x = img_width / orig_img_width
+                        scale_y = img_height / orig_img_height
+                        
+                        # 원본 중심점: 오프셋 적용 후 스케일링 (원본 이미지 좌표계 -> 현재 이미지 좌표계)
+                        left_iris_center_orig_offset = (left_iris_center_orig[0] - offset_x, left_iris_center_orig[1] - offset_y)
+                        right_iris_center_orig_offset = (right_iris_center_orig[0] - offset_x, right_iris_center_orig[1] - offset_y)
+                        left_iris_center_orig_scaled = (left_iris_center_orig_offset[0] * scale_x, left_iris_center_orig_offset[1] * scale_y)
+                        right_iris_center_orig_scaled = (right_iris_center_orig_offset[0] * scale_x, right_iris_center_orig_offset[1] * scale_y)
+                        
+                        # 변형된 중심점도 동일한 좌표계로 맞춤 (원본과 같은 변환 적용)
+                        # 중요: 원본과 변형된 중심점이 같은 좌표계를 사용해야 Delaunay Triangulation이 정상 작동
+                        left_iris_center_trans_offset = (left_iris_center_trans[0] - offset_x, left_iris_center_trans[1] - offset_y)
+                        right_iris_center_trans_offset = (right_iris_center_trans[0] - offset_x, right_iris_center_trans[1] - offset_y)
+                        left_iris_center_trans_scaled = (left_iris_center_trans_offset[0] * scale_x, left_iris_center_trans_offset[1] * scale_y)
+                        right_iris_center_trans_scaled = (right_iris_center_trans_offset[0] * scale_x, right_iris_center_trans_offset[1] * scale_y)
+                        
+                        # print(f"[얼굴모핑] 중심점 좌표 조정: 원본 이미지 크기 추정={orig_img_width:.1f}x{orig_img_height:.1f}, "
+                        #       f"현재 이미지 크기={img_width}x{img_height}, 오프셋=({offset_x:.1f}, {offset_y:.1f}), "
+                        #       f"스케일 비율={scale_x:.3f}x{scale_y:.3f}")
+                        # print(f"[얼굴모핑] 원본 중심점 조정 전: 왼쪽={left_iris_center_orig}, 오른쪽={right_iris_center_orig}")
+                        # print(f"[얼굴모핑] 원본 중심점 오프셋 적용 후: 왼쪽={left_iris_center_orig_offset}, 오른쪽={right_iris_center_orig_offset}")
+                        # print(f"[얼굴모핑] 원본 중심점 최종 조정 후: 왼쪽={left_iris_center_orig_scaled}, 오른쪽={right_iris_center_orig_scaled}")
+                        # print(f"[얼굴모핑] 변형 중심점 조정 전: 왼쪽={left_iris_center_trans}, 오른쪽={right_iris_center_trans}")
+                        # print(f"[얼굴모핑] 변형 중심점 오프셋 적용 후: 왼쪽={left_iris_center_trans_offset}, 오른쪽={right_iris_center_trans_offset}")
+                        # print(f"[얼굴모핑] 변형 중심점 최종 조정 후: 왼쪽={left_iris_center_trans_scaled}, 오른쪽={right_iris_center_trans_scaled}")
+                        
+                        left_iris_center_orig = left_iris_center_orig_scaled
+                        right_iris_center_orig = right_iris_center_orig_scaled
+                        left_iris_center_trans = left_iris_center_trans_scaled
+                        right_iris_center_trans = right_iris_center_trans_scaled
+                else:
+                    # original_landmarks_tuple이 없으면 스케일링만 수행 (오프셋 없음)
+                    # 원본 중심점이 현재 이미지 크기를 벗어나는지 확인
+                    needs_scaling = (left_iris_center_orig[0] > img_width or left_iris_center_orig[1] > img_height or
+                                    right_iris_center_orig[0] > img_width or right_iris_center_orig[1] > img_height)
+                    
+                    if needs_scaling:
+                        # 원본 이미지 크기를 중심점 좌표로 추정
+                        max_x_orig = max(left_iris_center_orig[0], right_iris_center_orig[0])
+                        max_y_orig = max(left_iris_center_orig[1], right_iris_center_orig[1])
+                        orig_img_width = max(max_x_orig * 1.1, img_width)
+                        orig_img_height = max(max_y_orig * 1.1, img_height)
+                        
+                        if orig_img_width > 0 and orig_img_height > 0:
+                            # 스케일 비율 계산
+                            scale_x = img_width / orig_img_width
+                            scale_y = img_height / orig_img_height
+                            
+                            # 원본 중심점 좌표를 현재 이미지 크기에 맞게 스케일링
+                            left_iris_center_orig_scaled = (left_iris_center_orig[0] * scale_x, left_iris_center_orig[1] * scale_y)
+                            right_iris_center_orig_scaled = (right_iris_center_orig[0] * scale_x, right_iris_center_orig[1] * scale_y)
+                            
+                            print(f"[얼굴모핑] 원본 중심점 좌표 스케일링 (랜드마크 없음): 원본 이미지 크기 추정={orig_img_width:.1f}x{orig_img_height:.1f}, "
+                                  f"현재 이미지 크기={img_width}x{img_height}, 스케일 비율={scale_x:.3f}x{scale_y:.3f}")
+                            print(f"[얼굴모핑] 원본 중심점 스케일링 전: 왼쪽={left_iris_center_orig}, 오른쪽={right_iris_center_orig}")
+                            print(f"[얼굴모핑] 원본 중심점 스케일링 후: 왼쪽={left_iris_center_orig_scaled}, 오른쪽={right_iris_center_orig_scaled}")
+                            
+                            left_iris_center_orig = left_iris_center_orig_scaled
+                            right_iris_center_orig = right_iris_center_orig_scaled
         else:
-            # 계산으로 중앙 포인트 구하기
-            # 원본 랜드마크를 tuple 형태로 변환
-            original_landmarks_tuple = []
-            for i, pt in enumerate(original_landmarks):
-                if isinstance(pt, tuple):
-                    original_landmarks_tuple.append(pt)
-                elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                    original_landmarks_tuple.append((pt.x * img_width, pt.y * img_height))
-                else:
-                    original_landmarks_tuple.append(pt)
-            
-            transformed_landmarks_tuple = []
-            for i, pt in enumerate(transformed_landmarks):
-                if isinstance(pt, tuple):
-                    transformed_landmarks_tuple.append(pt)
-                elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                    transformed_landmarks_tuple.append((pt.x * img_width, pt.y * img_height))
-                else:
-                    transformed_landmarks_tuple.append(pt)
-            
-            # 중앙 포인트 계산 (contour 포인트의 평균)
-            def _calculate_iris_centers_from_contour(landmarks_tuple, left_iris_indices, right_iris_indices, img_w, img_h):
-                """contour 포인트의 평균으로 중앙 포인트 계산"""
-                # 왼쪽 눈동자 중앙 포인트 계산
-                left_iris_points = []
-                for idx in left_iris_indices:
-                    if idx < len(landmarks_tuple):
-                        pt = landmarks_tuple[idx]
-                        if isinstance(pt, tuple):
-                            left_iris_points.append(pt)
-                        elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                            left_iris_points.append((pt.x * img_w, pt.y * img_h))
-                
-                # 오른쪽 눈동자 중앙 포인트 계산
-                right_iris_points = []
-                for idx in right_iris_indices:
-                    if idx < len(landmarks_tuple):
-                        pt = landmarks_tuple[idx]
-                        if isinstance(pt, tuple):
-                            right_iris_points.append(pt)
-                        elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                            right_iris_points.append((pt.x * img_w, pt.y * img_h))
-                
-                # 중앙 포인트 계산 (평균)
-                if left_iris_points:
-                    left_center_x = sum(p[0] for p in left_iris_points) / len(left_iris_points)
-                    left_center_y = sum(p[1] for p in left_iris_points) / len(left_iris_points)
-                    left_iris_center = (left_center_x, left_center_y)
-                else:
-                    left_iris_center = None
-                
-                if right_iris_points:
-                    right_center_x = sum(p[0] for p in right_iris_points) / len(right_iris_points)
-                    right_center_y = sum(p[1] for p in right_iris_points) / len(right_iris_points)
-                    right_iris_center = (right_center_x, right_center_y)
-                else:
-                    right_iris_center = None
-                
-                return left_iris_center, right_iris_center
-            
+            # 파라미터로 전달되지 않은 경우: 계산으로 중앙 포인트 구하기
             left_iris_center_orig, right_iris_center_orig = _calculate_iris_centers_from_contour(
                 original_landmarks_tuple, left_iris_indices, right_iris_indices, img_width, img_height)
             left_iris_center_trans, right_iris_center_trans = _calculate_iris_centers_from_contour(
@@ -194,10 +300,20 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             transformed_landmarks_no_iris.append(left_iris_center_trans)
             transformed_landmarks_no_iris.append(right_iris_center_trans)
             
-            print(f"[얼굴모핑] Delaunay 포인트 구성: 원본 {len(original_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(original_landmarks_no_iris)}개")
-            print(f"[얼굴모핑] Delaunay 포인트 구성: 변환 {len(transformed_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(transformed_landmarks_no_iris)}개")
-            print(f"[얼굴모핑] 중앙 포인트 인덱스: 왼쪽={len(original_landmarks_no_iris) - 2}, 오른쪽={len(original_landmarks_no_iris) - 1} (Delaunay 배열 내 인덱스)")
-            print(f"[얼굴모핑] 중앙 포인트: 왼쪽={left_iris_center_trans}, 오른쪽={right_iris_center_trans}")
+            # 중앙 포인트 이동 거리 계산 (중앙 포인트가 실제로 변경되었을 때만 로그 출력)
+            left_displacement = np.sqrt((left_iris_center_trans[0] - left_iris_center_orig[0])**2 + 
+                                       (left_iris_center_trans[1] - left_iris_center_orig[1])**2)
+            right_displacement = np.sqrt((right_iris_center_trans[0] - right_iris_center_orig[0])**2 + 
+                                        (right_iris_center_trans[1] - right_iris_center_orig[1])**2)
+            
+            # 중앙 포인트가 실제로 변경되었을 때만 상세 로그 출력
+            if left_displacement > 0.1 or right_displacement > 0.1:
+                print(f"[얼굴모핑] Delaunay 포인트 구성: 원본 {len(original_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(original_landmarks_no_iris)}개")
+                print(f"[얼굴모핑] Delaunay 포인트 구성: 변환 {len(transformed_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(transformed_landmarks_no_iris)}개")
+                print(f"[얼굴모핑] 중앙 포인트 인덱스: 왼쪽={len(original_landmarks_no_iris) - 2}, 오른쪽={len(original_landmarks_no_iris) - 1} (Delaunay 배열 내 인덱스)")
+                print(f"[얼굴모핑] 중앙 포인트 원본: 왼쪽={left_iris_center_orig}, 오른쪽={right_iris_center_orig}")
+                print(f"[얼굴모핑] 중앙 포인트 변형: 왼쪽={left_iris_center_trans}, 오른쪽={right_iris_center_trans}")
+                print(f"[얼굴모핑] 중앙 포인트 이동 거리: 왼쪽={left_displacement:.2f}픽셀, 오른쪽={right_displacement:.2f}픽셀 (이미지 크기: {img_width}x{img_height})")
         
         # 이미지 경계 포인트 추가 (Delaunay Triangulation을 위해)
         # 경계 포인트: 4개 모서리
@@ -218,31 +334,58 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         transformed_points_array = np.array(all_transformed_points, dtype=np.float32)
         
         # 포인트 이동 거리 검증: 너무 많이 이동한 포인트가 있는지 확인
+        # 중앙 포인트를 포함한 전체 랜드마크 확인
         max_displacement = 0.0
         max_displacement_idx = -1
-        for i in range(len(original_landmarks)):
-            if i < len(original_landmarks) and i < len(transformed_landmarks):
-                orig_pt = original_landmarks[i]
-                trans_pt = transformed_landmarks[i]
+        landmarks_count_for_check = len(original_landmarks_no_iris)  # 중앙 포인트 포함
+        
+        # 이동 거리 상세 로그 (중앙 포인트 포함)
+        displacement_details = []
+        for i in range(landmarks_count_for_check):
+            if i < len(original_landmarks_no_iris) and i < len(transformed_landmarks_no_iris):
+                orig_pt = original_landmarks_no_iris[i]
+                trans_pt = transformed_landmarks_no_iris[i]
                 displacement = np.sqrt((trans_pt[0] - orig_pt[0])**2 + (trans_pt[1] - orig_pt[1])**2)
                 if displacement > max_displacement:
                     max_displacement = displacement
                     max_displacement_idx = i
+                
+                # 중앙 포인트(인덱스 468, 469) 또는 이동 거리가 큰 포인트만 상세 로그
+                if i >= len(original_landmarks_no_iris) - 2 or displacement > 10.0:
+                    displacement_details.append({
+                        'idx': i,
+                        'orig': orig_pt,
+                        'trans': trans_pt,
+                        'displacement': displacement,
+                        'is_iris_center': i >= len(original_landmarks_no_iris) - 2
+                    })
+        
+        # 이동 거리 상세 로그 출력
+        # if displacement_details:
+        #     print(f"[얼굴모핑] 포인트 이동 거리 상세 (이미지 크기: {img_width}x{img_height}):")
+        #     for detail in sorted(displacement_details, key=lambda x: x['displacement'], reverse=True)[:10]:  # 상위 10개만
+        #         iris_label = " (눈동자 중심점)" if detail['is_iris_center'] else ""
+        #         print(f"  포인트 {detail['idx']}{iris_label}: 원본=({detail['orig'][0]:.2f}, {detail['orig'][1]:.2f}), "
+        #               f"변형=({detail['trans'][0]:.2f}, {detail['trans'][1]:.2f}), "
+        #               f"이동거리={detail['displacement']:.2f}픽셀")
         
         # 이미지 대각선 길이의 30%를 초과하면 경고
         image_diagonal = np.sqrt(img_width**2 + img_height**2)
         max_allowed_displacement = image_diagonal * 0.3
+        # print(f"[얼굴모핑] 이동 거리 검증: 최대 이동={max_displacement:.2f}픽셀, 허용치={max_allowed_displacement:.2f}픽셀 "
+        #       f"(이미지 대각선 {image_diagonal:.2f}픽셀의 30%)")
         
         if max_displacement > max_allowed_displacement:
-            print(f"[얼굴모핑] 경고: 포인트 {max_displacement_idx}가 너무 많이 이동했습니다 ({max_displacement:.1f}픽셀, 허용치: {max_allowed_displacement:.1f}픽셀)")
-            print(f"[얼굴모핑] 경고: 이미지 왜곡이 발생할 수 있습니다. 이동 거리를 줄여주세요.")
+            # print(f"[얼굴모핑] 경고: 포인트 {max_displacement_idx}가 너무 많이 이동했습니다 ({max_displacement:.1f}픽셀, 허용치: {max_allowed_displacement:.1f}픽셀)")
+            # print(f"[얼굴모핑] 경고: 이미지 왜곡이 발생할 수 있습니다. 이동 거리를 줄여주세요.")
             # 과도하게 이동한 포인트를 제한 (허용치의 1.2배까지만 허용)
+            # 중앙 포인트를 포함한 전체 랜드마크에 대해 제한 적용
             if max_displacement > max_allowed_displacement * 1.2:
                 scale_factor_limit = max_allowed_displacement * 1.2 / max_displacement
-                for i in range(len(original_landmarks)):
-                    if i < len(original_landmarks) and i < len(transformed_landmarks):
-                        orig_pt = original_landmarks[i]
-                        trans_pt = transformed_landmarks[i]
+                for i in range(len(original_landmarks_no_iris)):
+                    if i < len(original_landmarks_no_iris) and i < len(transformed_landmarks_no_iris):
+                        orig_pt = original_landmarks_no_iris[i]
+                        trans_pt = transformed_landmarks_no_iris[i]
                         displacement = np.sqrt((trans_pt[0] - orig_pt[0])**2 + (trans_pt[1] - orig_pt[1])**2)
                         if displacement > max_allowed_displacement * 1.2:
                             # 이동 거리를 제한
@@ -250,11 +393,18 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                             dy = trans_pt[1] - orig_pt[1]
                             limited_dx = dx * scale_factor_limit
                             limited_dy = dy * scale_factor_limit
-                            transformed_landmarks[i] = (orig_pt[0] + limited_dx, orig_pt[1] + limited_dy)
-                            print(f"[얼굴모핑] 경고: 포인트 {i}의 이동 거리를 제한했습니다 ({displacement:.1f} -> {max_allowed_displacement * 1.2:.1f}픽셀)")
+                            old_pos = transformed_landmarks_no_iris[i]
+                            transformed_landmarks_no_iris[i] = (orig_pt[0] + limited_dx, orig_pt[1] + limited_dy)
+                            new_displacement = np.sqrt(limited_dx**2 + limited_dy**2)
+                            iris_label = " (눈동자 중심점)" if i >= len(original_landmarks_no_iris) - 2 else ""
+                            # print(f"[얼굴모핑] 경고: 포인트 {i}{iris_label}의 이동 거리를 제한했습니다 "
+                            #       f"({displacement:.2f} -> {new_displacement:.2f}픽셀, "
+                            #       f"원본=({orig_pt[0]:.2f}, {orig_pt[1]:.2f}), "
+                            #       f"제한 전=({old_pos[0]:.2f}, {old_pos[1]:.2f}), "
+                            #       f"제한 후=({transformed_landmarks_no_iris[i][0]:.2f}, {transformed_landmarks_no_iris[i][1]:.2f}))")
                 
-                # 제한된 랜드마크로 배열 재생성
-                all_transformed_points = list(transformed_landmarks) + boundary_points
+                # 제한된 랜드마크로 배열 재생성 (중앙 포인트 포함)
+                all_transformed_points = list(transformed_landmarks_no_iris) + boundary_points
                 transformed_points_array = np.array(all_transformed_points, dtype=np.float32)
         
         # Delaunay Triangulation 캐싱 (성능 최적화)
@@ -349,18 +499,22 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         result_count = np.zeros((working_height, working_width), dtype=np.float32)  # 가중치 합계
         
         # 변형된 랜드마크와 원본 랜드마크의 차이 확인 (벡터화)
-        # 경계 포인트를 제외한 실제 랜드마크만 확인
-        if len(original_landmarks) > 0:
-            orig_pts = original_points_array[:len(original_landmarks)]
-            trans_pts = transformed_points_array[:len(original_landmarks)]
+        # 경계 포인트를 제외한 실제 랜드마크만 확인 (중앙 포인트 포함)
+        # original_landmarks_no_iris는 중앙 포인트를 포함한 470개 구조
+        landmarks_count = len(original_landmarks_no_iris)  # 중앙 포인트 포함
+        if landmarks_count > 0:
+            orig_pts = original_points_array[:landmarks_count]
+            trans_pts = transformed_points_array[:landmarks_count]
             diffs = np.sqrt(np.sum((trans_pts - orig_pts)**2, axis=1))
             max_diff = np.max(diffs)
             changed_count = np.sum(diffs > 0.1)
+            print(f"[얼굴모핑] 랜드마크 변형 확인: 최대 차이={max_diff:.2f}픽셀, 변경된 포인트={changed_count}개 (전체 {landmarks_count}개 중)")
         else:
             max_diff = 0.0
             changed_count = 0
         # 랜드마크가 변형되지 않았으면 원본 이미지 반환
         if max_diff < 0.1:
+            print(f"[얼굴모핑] 랜드마크 변형이 없어 원본 이미지 반환 (max_diff={max_diff:.2f})")
             return image
         
         # 원본 이미지의 각 픽셀에 대해 해당하는 삼각형 찾기 및 정변환 계산

@@ -6,6 +6,7 @@ import math
 
 import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
+from utils.logger import print_info, print_debug, print_error, print_warning
 
 
 class PolygonDragHandlerMixin:
@@ -35,7 +36,7 @@ class PolygonDragHandlerMixin:
         
         # 드래그 시작 로그
         if isinstance(landmark_index, int):
-            print(f"[얼굴편집] 드래그 시작: 랜드마크 인덱스 {landmark_index}")
+            print_info("얼굴편집", f"드래그 시작: 랜드마크 인덱스 {landmark_index}")
         
         # 현재 랜드마크의 이미지 좌표 계산 - LandmarkManager 사용
         if canvas_obj == self.canvas_original:
@@ -95,21 +96,21 @@ class PolygonDragHandlerMixin:
                 # custom_landmarks에 직접 참조로 저장하면 같은 리스트를 공유하게 되어 수정 시 transformed_landmarks도 변경됨
                 # 따라서 복사본이 필요함 (custom_landmarks는 수정 가능해야 함)
                 self.landmark_manager.set_custom_landmarks(list(transformed), reason="on_polygon_drag_start")
-                print(f"[얼굴편집] 드래그 시작: transformed_landmarks를 custom_landmarks로 설정 (사이즈 변환 포함, 복사본 생성)")
+                print_info("얼굴편집", "드래그 시작: transformed_landmarks를 custom_landmarks로 설정 (사이즈 변환 포함, 복사본 생성)")
             else:
                 # transformed_landmarks가 없으면 원본 얼굴 랜드마크 사용
                 original_face = self.landmark_manager.get_original_face_landmarks()
                 if original_face is not None:
                     # 원본을 복사본으로 설정 (변환 적용을 위해)
                     self.landmark_manager.set_custom_landmarks(list(original_face), reason="on_polygon_drag_start")
-                    print(f"[얼굴편집] 드래그 시작: 원본 얼굴 랜드마크를 custom_landmarks로 설정")
+                    print_info("얼굴편집", "드래그 시작: 원본 얼굴 랜드마크를 custom_landmarks로 설정")
                 elif landmarks is not None:
                     # 원본이 없으면 현재 landmarks 사용
                     self.landmark_manager.set_custom_landmarks(list(landmarks) if landmarks is not None else None, reason="on_polygon_drag_start")
                     print(f"[얼굴편집] 드래그 시작: 현재 landmarks를 custom_landmarks로 설정")
         else:
             # custom_landmarks가 이미 있으면 그대로 사용 (사이즈 변환 포함된 상태 보존)
-            print(f"[얼굴편집] 드래그 시작: 기존 custom_landmarks 유지 (길이={len(custom)})")
+            print_info("얼굴편집", f"드래그 시작: 기존 custom_landmarks 유지 (길이={len(custom)})")
         
         # 선택된 포인트 표시 (큰 원으로 강조)
         self._draw_selected_landmark_indicator(canvas_obj, landmark_index, event.x, event.y)
@@ -184,8 +185,8 @@ class PolygonDragHandlerMixin:
                 self.landmark_manager.mark_as_dragged(landmark_index)
             
             # 디버깅: 인덱스와 위치 변경 확인
-            if old_pos is not None and (abs(old_pos[0] - img_x) > 0.1 or abs(old_pos[1] - img_y) > 0.1):
-                print(f"[얼굴편집] 랜드마크 인덱스 {landmark_index} 위치 변경: ({old_pos[0]:.1f}, {old_pos[1]:.1f}) -> ({img_x:.1f}, {img_y:.1f})")
+            #if old_pos is not None and (abs(old_pos[0] - img_x) > 0.1 or abs(old_pos[1] - img_y) > 0.1):
+            #    print(f"[얼굴편집] 랜드마크 인덱스 {landmark_index} 위치 변경: ({old_pos[0]:.1f}, {old_pos[1]:.1f}) -> ({img_x:.1f}, {img_y:.1f})")
             
             # 선택된 포인트 표시 업데이트
             self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)
@@ -446,7 +447,7 @@ class PolygonDragHandlerMixin:
             # custom_landmarks는 슬라이더 변형 + 드래그 변형이 모두 적용된 상태
             # 이미지 변형 시에는 원본 랜드마크를 기준으로 custom_landmarks를 사용
             
-            print(f"[얼굴편집] 랜드마크 변형 적용: 원본 {len(original_landmarks)}개, 변형 {len(self.custom_landmarks)}개")
+            print_info("얼굴편집", f"랜드마크 변형 적용: 원본 {len(original_landmarks)}개, 변형 {len(self.custom_landmarks)}개")
             
             # 디버깅: 변형된 랜드마크 확인
             changed_indices = []
@@ -473,10 +474,23 @@ class PolygonDragHandlerMixin:
                         orig_pos = original_landmarks[last_idx]
                         custom_pos = custom[last_idx]
                         diff = ((custom_pos[0] - orig_pos[0])**2 + (custom_pos[1] - orig_pos[1])**2)**0.5
-                        print(f"[얼굴편집] 마지막 선택 포인트 인덱스 {last_idx}: 원본=({orig_pos[0]:.1f}, {orig_pos[1]:.1f}), 변형=({custom_pos[0]:.1f}, {custom_pos[1]:.1f}), 거리={diff:.1f}픽셀")
+                        print_info("얼굴편집", f"마지막 선택 포인트 인덱스 {last_idx}: 원본=({orig_pos[0]:.1f}, {orig_pos[1]:.1f}), 변형=({custom_pos[0]:.1f}, {custom_pos[1]:.1f}), 거리={diff:.1f}픽셀")
                 elif isinstance(last_idx, str):
                     # 중앙 포인트 드래그의 경우 ('left' 또는 'right')
-                    print(f"[얼굴편집] 마지막 선택 포인트: 중앙 포인트 ({last_idx})")
+                    print_info("얼굴편집", f"마지막 선택 포인트: 중앙 포인트 ({last_idx})")
+            
+            # 드래그된 포인트 백업 (슬라이더 적용 전에 저장)
+            dragged_indices = self.landmark_manager.get_dragged_indices()
+            dragged_points_backup = {}
+            if dragged_indices:
+                custom_before_sliders = self.landmark_manager.get_custom_landmarks()
+                if custom_before_sliders is not None:
+                    # custom_landmarks가 470개인 경우 마지막 2개 제외
+                    custom_for_backup = custom_before_sliders[:468] if len(custom_before_sliders) == 470 else custom_before_sliders
+                    for idx in dragged_indices:
+                        if 0 <= idx < len(custom_for_backup):
+                            dragged_points_backup[idx] = custom_for_backup[idx]
+                    print_debug("얼굴편집", f"드래그된 포인트 {len(dragged_points_backup)}개 백업 완료")
             
             # 공통 슬라이더 적용 (morph_face_by_polygons 호출 전에 custom_landmarks 변환)
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
@@ -485,6 +499,28 @@ class PolygonDragHandlerMixin:
                 # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
                 base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
                 temp_result = self._apply_common_sliders(self.current_image, base_image=base_image)
+                
+                # 드래그된 포인트 복원 (슬라이더 적용 후에도 드래그 변경 보존)
+                if dragged_points_backup:
+                    custom_after_sliders = self.landmark_manager.get_custom_landmarks()
+                    if custom_after_sliders is not None:
+                        # custom_landmarks가 470개인 경우 마지막 2개 제외하고 복원
+                        custom_for_restore = custom_after_sliders[:468] if len(custom_after_sliders) == 470 else custom_after_sliders
+                        restored_count = 0
+                        for idx, backup_pos in dragged_points_backup.items():
+                            if 0 <= idx < len(custom_for_restore):
+                                custom_for_restore[idx] = backup_pos
+                                restored_count += 1
+                        
+                        # 470개 구조인 경우 중앙 포인트 다시 추가
+                        if len(custom_after_sliders) == 470:
+                            final_custom = custom_for_restore + custom_after_sliders[-2:]
+                        else:
+                            final_custom = custom_for_restore
+                        
+                        self.landmark_manager.set_custom_landmarks(final_custom, reason="드래그 포인트 복원")
+                        print_info("얼굴편집", f"드래그된 포인트 {restored_count}개 복원 완료")
+                
                 if temp_result is not None:
                     # custom_landmarks가 변환되었으므로 다시 확인
                     changed_indices_after = []
@@ -492,14 +528,16 @@ class PolygonDragHandlerMixin:
                     custom = self.landmark_manager.get_custom_landmarks()
                     
                     if custom is not None:
-                        for i in range(min(len(original_landmarks), len(custom))):
+                        # custom_landmarks가 470개인 경우 마지막 2개 제외
+                        custom_for_check = custom[:468] if len(custom) == 470 else custom
+                        for i in range(min(len(original_landmarks), len(custom_for_check))):
                             orig = original_landmarks[i]
-                            custom_point = custom[i]
+                            custom_point = custom_for_check[i]
                             diff = ((custom_point[0] - orig[0])**2 + (custom_point[1] - orig[1])**2)**0.5
                             if diff > 0.1:
                                 changed_indices_after.append((i, diff))
                     if changed_indices_after:
-                        print(f"[얼굴편집] 공통 슬라이더 적용 후 변형된 랜드마크: {len(changed_indices_after)}개")
+                        print_info("얼굴편집", f"공통 슬라이더 적용 후 변형된 랜드마크: {len(changed_indices_after)}개")
             
             # 슬라이더가 모두 기본값이고 랜드마크가 변형되지 않았는지 확인
             size_x = self.region_size_x.get()
@@ -523,14 +561,31 @@ class PolygonDragHandlerMixin:
             
             # 랜드마크가 변형되었는지 확인
             landmarks_changed = False
-            if custom_for_check is not None and len(original_landmarks) == len(custom_for_check):
-                for i in range(len(original_landmarks)):
-                    orig = original_landmarks[i]
-                    custom_point = custom_for_check[i]
-                    diff = ((custom_point[0] - orig[0])**2 + (custom_point[1] - orig[1])**2)**0.5
-                    if diff > 0.1:
+            if custom_for_check is not None:
+                # custom_landmarks가 470개인 경우 중앙 포인트 2개를 제외한 468개만 비교
+                custom_length = len(custom_for_check)
+                compare_length = min(len(original_landmarks), custom_length)
+                # 470개인 경우 마지막 2개는 중앙 포인트이므로 제외
+                if custom_length == 470:
+                    compare_length = 468
+                
+                if compare_length > 0:
+                    for i in range(compare_length):
+                        if i < len(original_landmarks) and i < len(custom_for_check):
+                            orig = original_landmarks[i]
+                            custom_point = custom_for_check[i]
+                            diff = ((custom_point[0] - orig[0])**2 + (custom_point[1] - orig[1])**2)**0.5
+                            if diff > 0.1:
+                                landmarks_changed = True
+                                break
+                
+                # 중앙 포인트도 확인 (custom_landmarks가 470개인 경우)
+                if custom_length == 470:
+                    left_center = self.landmark_manager.get_left_iris_center_coord()
+                    right_center = self.landmark_manager.get_right_iris_center_coord()
+                    if left_center is not None or right_center is not None:
+                        # 중앙 포인트가 있으면 변형된 것으로 간주
                         landmarks_changed = True
-                        break
             
             # result 초기화
             result = None
@@ -545,12 +600,12 @@ class PolygonDragHandlerMixin:
                     if original_face is not None:
                         self.landmark_manager.set_custom_landmarks(original_face, reason="슬라이더 초기화")
                     
-                    print(f"[얼굴편집] 슬라이더와 랜드마크가 모두 기본값이므로 원본 이미지로 복원")
+                    print_info("얼굴편집", "슬라이더와 랜드마크가 모두 기본값이므로 원본 이미지로 복원")
                     result = base_image
                 else:
                     # 랜드마크는 변형되었지만 슬라이더는 기본값이므로 morph_face_by_polygons 호출
                     # custom_landmarks는 드래그로 변경된 상태를 유지해야 하므로 복원하지 않음
-                    print(f"[얼굴편집] 슬라이더는 기본값이지만 랜드마크가 변형되어 있으므로 morph_face_by_polygons 호출")
+                    print_info("얼굴편집", "슬라이더는 기본값이지만 랜드마크가 변형되어 있으므로 morph_face_by_polygons 호출")
                     result = None  # 아래에서 morph_face_by_polygons 호출
             
             # result가 None이면 morph_face_by_polygons 호출
@@ -559,21 +614,90 @@ class PolygonDragHandlerMixin:
                 # 고급 모드 여부와 관계없이 Delaunay Triangulation 사용
                 # 마지막으로 선택한 포인트 인덱스 전달 (인덱스 기반 직접 매핑을 위해)
                 last_selected_index = getattr(self, 'last_selected_landmark_index', None)
-                # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
+                
+                # _apply_common_sliders 호출 후 custom_landmarks가 업데이트되었을 수 있으므로 다시 가져오기
+                custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
+                
+                # custom_landmarks가 470개인 경우 마지막 2개를 중앙 포인트로 추출하고 468개로 변환
                 left_center = self.landmark_manager.get_left_iris_center_coord()
                 right_center = self.landmark_manager.get_right_iris_center_coord()
                 
+                # 원본 중앙 포인트 가져오기 (landmark_manager에서 저장된 값 사용)
+                left_center_orig = self.landmark_manager.get_original_left_iris_center_coord()
+                right_center_orig = self.landmark_manager.get_original_right_iris_center_coord()
+                
+                # 없으면 original_iris_landmarks에서 계산
+                if left_center_orig is None or right_center_orig is None:
+                    original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                    print(f"[얼굴편집] 원본 중앙 포인트 계산: original_iris_landmarks={original_iris_landmarks is not None}, len={len(original_iris_landmarks) if original_iris_landmarks is not None else 0}")
+                    
+                    if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
+                        # 눈동자 랜드마크: 왼쪽 5개 (0-4), 오른쪽 5개 (5-9)
+                        left_iris_points = original_iris_landmarks[:5]
+                        right_iris_points = original_iris_landmarks[5:]
+                        
+                        if left_iris_points and left_center_orig is None:
+                            left_center_orig = (
+                                sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                                sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                            )
+                            # landmark_manager에 원본으로 저장
+                            self.landmark_manager.set_iris_center_coords(
+                                left_center_orig, 
+                                self.landmark_manager.get_original_right_iris_center_coord(),
+                                is_original=True
+                            )
+                            print(f"[얼굴편집] original_iris_landmarks에서 왼쪽 중앙 포인트 계산: {left_center_orig}")
+                        if right_iris_points and right_center_orig is None:
+                            right_center_orig = (
+                                sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                                sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                            )
+                            # landmark_manager에 원본으로 저장
+                            self.landmark_manager.set_iris_center_coords(
+                                self.landmark_manager.get_original_left_iris_center_coord(),
+                                right_center_orig,
+                                is_original=True
+                            )
+                            print(f"[얼굴편집] original_iris_landmarks에서 오른쪽 중앙 포인트 계산: {right_center_orig}")
+                    else:
+                        print(f"[얼굴편집] original_iris_landmarks가 없거나 길이가 10이 아님: {len(original_iris_landmarks) if original_iris_landmarks is not None else None}")
+                
+                if custom_landmarks_for_morph is not None and len(custom_landmarks_for_morph) == 470:
+                    # 마지막 2개가 중앙 포인트이므로 추출
+                    # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
+                    extracted_left_center = custom_landmarks_for_morph[-2]  # MediaPipe LEFT_IRIS (사용자 왼쪽)
+                    extracted_right_center = custom_landmarks_for_morph[-1]  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
+                    
+                    # 중앙 포인트 파라미터로 사용 (landmark_manager에서 가져온 값이 없으면 추출한 값 사용)
+                    if left_center is None:
+                        left_center = extracted_left_center
+                    if right_center is None:
+                        right_center = extracted_right_center
+                    
+                    # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
+                    custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
+                    print_info("얼굴편집", f"custom_landmarks(470개)에서 중앙 포인트 추출: 왼쪽={left_center}, 오른쪽={right_center}, 변환 후 길이={len(custom_landmarks_for_morph)}")
+                
+                # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
+                original_landmarks_for_morph = original_landmarks
+                
+                # 디버깅: 랜드마크 개수 확인
+                print_debug("얼굴편집", f"morph_face_by_polygons 호출: original={len(original_landmarks_for_morph)}, transformed={len(custom_landmarks_for_morph) if custom_landmarks_for_morph is not None else None}, left_center={left_center}, right_center={right_center}, left_center_orig={left_center_orig}, right_center_orig={right_center_orig}")
+                
                 result = face_morphing.morph_face_by_polygons(
                     self.current_image,  # 원본 이미지
-                    original_landmarks,  # 원본 랜드마크
-                    self.custom_landmarks,  # 변형된 랜드마크 (공통 슬라이더 변환 포함)
+                    original_landmarks_for_morph,  # 원본 랜드마크 (468개)
+                    custom_landmarks_for_morph,  # 변형된 랜드마크 (468개, 중앙 포인트 제거됨)
                     selected_point_indices=[last_selected_index] if last_selected_index is not None else None,  # 선택한 포인트 인덱스
                     left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                    right_iris_center_coord=right_center  # 드래그로 변환된 오른쪽 중앙 포인트
+                    right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
+                    left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
+                    right_iris_center_orig=right_center_orig  # 원본 오른쪽 중앙 포인트
                 )
             
             if result is None:
-                print("[얼굴편집] 랜드마크 변형 결과가 None입니다")
+                print_error("얼굴편집", "랜드마크 변형 결과가 None입니다")
                 return
             
             # 편집된 이미지 업데이트
@@ -595,10 +719,10 @@ class PolygonDragHandlerMixin:
             if self.show_landmark_points.get():
                 self.update_face_features_display()
             
-            print("[얼굴편집] 랜드마크 드래그 최종 적용 완료")
+            print_info("얼굴편집", "랜드마크 드래그 최종 적용 완료")
             
         except Exception as e:
-            print(f"[얼굴편집] 랜드마크 드래그 최종 적용 실패: {e}")
+            print_error("얼굴편집", f"랜드마크 드래그 최종 적용 실패: {e}", e)
             import traceback
             traceback.print_exc()
     

@@ -31,9 +31,13 @@ class LandmarkManager:
         # 사용자 수정 눈동자 중앙 포인트 (2개, Tesselation용)
         self._custom_iris_centers: Optional[List[Tuple[float, float]]] = None
         
-        # 중앙 포인트 좌표 (하위 호환성 유지)
+        # 중앙 포인트 좌표 (하위 호환성 유지, 현재 편집된 값)
         self._left_iris_center_coord: Optional[Tuple[float, float]] = None
         self._right_iris_center_coord: Optional[Tuple[float, float]] = None
+        
+        # 원본 중앙 포인트 좌표 (처음 감지된 값, 드래그 전 원본)
+        self._original_left_iris_center_coord: Optional[Tuple[float, float]] = None
+        self._original_right_iris_center_coord: Optional[Tuple[float, float]] = None
         
         # 드래그로 변경된 포인트 인덱스 추적
         self._dragged_indices: Set[int] = set()
@@ -255,13 +259,42 @@ class LandmarkManager:
     # ========== 중앙 포인트 좌표 ==========
     
     def set_iris_center_coords(self, left: Optional[Tuple[float, float]], 
-                              right: Optional[Tuple[float, float]]):
-        """눈동자 중앙 포인트 좌표 설정"""
+                              right: Optional[Tuple[float, float]], 
+                              is_original: bool = False):
+        """눈동자 중앙 포인트 좌표 설정
+        
+        Args:
+            left: 왼쪽 눈동자 중앙 포인트 좌표
+            right: 오른쪽 눈동자 중앙 포인트 좌표
+            is_original: True이면 원본 중앙 포인트로 저장 (처음 감지 시)
+        """
         self._left_iris_center_coord = left
         self._right_iris_center_coord = right
+        
+        # 원본 중앙 포인트는 is_original=True일 때만 저장 (드래그 시 덮어쓰기 방지)
+        if is_original:
+            if left is not None:
+                self._original_left_iris_center_coord = left
+            if right is not None:
+                self._original_right_iris_center_coord = right
+        elif self._original_left_iris_center_coord is None and left is not None:
+            # 원본이 없을 때만 자동으로 원본으로 저장 (초기화 시)
+            self._original_left_iris_center_coord = left
+        elif self._original_right_iris_center_coord is None and right is not None:
+            # 원본이 없을 때만 자동으로 원본으로 저장 (초기화 시)
+            self._original_right_iris_center_coord = right
+            
         if left is not None or right is not None:
             self._log_change("set_iris_centers", 
-                           f"left={left is not None}, right={right is not None}")
+                           f"left={left is not None}, right={right is not None}, is_original={is_original}")
+    
+    def get_original_left_iris_center_coord(self) -> Optional[Tuple[float, float]]:
+        """원본 왼쪽 눈동자 중앙 포인트 좌표 반환"""
+        return self._original_left_iris_center_coord
+    
+    def get_original_right_iris_center_coord(self) -> Optional[Tuple[float, float]]:
+        """원본 오른쪽 눈동자 중앙 포인트 좌표 반환"""
+        return self._original_right_iris_center_coord
     
     def get_left_iris_center_coord(self) -> Optional[Tuple[float, float]]:
         """왼쪽 눈동자 중앙 포인트 좌표 반환"""
