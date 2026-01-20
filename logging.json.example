@@ -1,0 +1,26 @@
+{
+  "_comment": "로그 설정 파일 예시 - 이 파일을 logging.json으로 복사하여 사용하세요. log_level이 설정되어 있으면 파일 로그가 활성화됩니다. 파일 로그를 비활성화하려면 log_level을 제거하거나 null로 설정하세요.",
+  
+  "level": "INFO",
+  "output_level": "INFO",
+  "log_level": "WARNING",
+  "file_path": "logs/s7ed.log",
+  
+  "log_format": "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+  "date_format": "%Y-%m-%d %H:%M:%S",
+  
+  "colors": {
+    "DEBUG": "CYAN",
+    "INFO": "GREEN+BRIGHT",
+    "WARNING": "YELLOW",
+    "ERROR": "RED+BRIGHT",
+    "CRITICAL": "MAGENTA+BRIGHT"
+  },
+  
+  "rotation_type": "date",
+  "rotation_when": "midnight",
+  "rotation_interval": 1,
+  "backup_count": 30,
+  "filename_date": "%Y-%m-%d",
+  "filename_prefix": "app_"
+}

@@ -1008,14 +1008,14 @@ class PreviewManagerMixin:
                     if bbox is not None:
                         # 계산된 바운딩 박스를 캐시에 저장
                         self.landmark_manager.set_original_bbox(bbox, img_width, img_height)
-                        print(f"[얼굴편집] 바운딩 박스 계산 완료: ({bbox[0]}, {bbox[1]}) ~ ({bbox[2]}, {bbox[3]})")
+                        #print(f"[얼굴편집] 바운딩 박스 계산 완료: ({bbox[0]}, {bbox[1]}) ~ ({bbox[2]}, {bbox[3]})")
             
             if bbox is None:
                 print(f"[얼굴편집] 바운딩 박스 표시 실패: 바운딩 박스가 None (이미지 크기: {img_width}x{img_height})")
                 return
             
             min_x, min_y, max_x, max_y = bbox
-            print(f"[얼굴편집] 바운딩 박스 표시: ({min_x}, {min_y}) ~ ({max_x}, {max_y}), 크기: {max_x-min_x}x{max_y-min_y}")
+            #print(f"[얼굴편집] 바운딩 박스 표시: ({min_x}, {min_y}) ~ ({max_x}, {max_y}), 크기: {max_x-min_x}x{max_y-min_y}")
             
             # 원본 이미지에 바운딩 박스 표시
             if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:

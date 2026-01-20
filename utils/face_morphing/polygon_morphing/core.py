@@ -226,8 +226,19 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             
             return left_iris_center, right_iris_center
         
+        # 디버깅: 전달된 중앙 포인트 좌표 확인
+        try:
+            from utils.logger import print_info
+        except ImportError:
+            def print_info(module, msg):
+                print(f"[{module}] {msg}")
+        
+        print_info("얼굴모핑", f"morph_face_by_polygons 호출: left_iris_center_coord={left_iris_center_coord}, right_iris_center_coord={right_iris_center_coord}")
+        print_info("얼굴모핑", f"원본 중앙 포인트: left_orig={left_iris_center_orig}, right_orig={right_iris_center_orig}")
+        
         if left_iris_center_coord is not None and right_iris_center_coord is not None:
             # 전달된 좌표는 변형된 중앙 포인트 (드래그로 변경된 좌표)
+            print_info("얼굴모핑", "중앙 포인트 사용: 변형 좌표가 전달됨")
             # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
             # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
             # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
@@ -341,10 +352,19 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                             right_iris_center_orig = right_iris_center_orig_scaled
         else:
             # 파라미터로 전달되지 않은 경우: 계산으로 중앙 포인트 구하기
+            try:
+                from utils.logger import print_info
+            except ImportError:
+                def print_info(module, msg):
+                    print(f"[{module}] {msg}")
+            
+            print_info("얼굴모핑", "중앙 포인트 계산: 파라미터로 전달되지 않아 계산으로 구함")
             left_iris_center_orig, right_iris_center_orig = _calculate_iris_centers_from_contour(
                 original_landmarks_tuple, left_iris_indices, right_iris_indices, img_width, img_height)
             left_iris_center_trans, right_iris_center_trans = _calculate_iris_centers_from_contour(
                 transformed_landmarks_tuple, left_iris_indices, right_iris_indices, img_width, img_height)
+            print_info("얼굴모핑", f"계산된 중앙 포인트: 원본 left={left_iris_center_orig}, right={right_iris_center_orig}")
+            print_info("얼굴모핑", f"계산된 중앙 포인트: 변형 left={left_iris_center_trans}, right={right_iris_center_trans}")
         
         # 4. 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
         if left_iris_center_orig is not None and right_iris_center_orig is not None:

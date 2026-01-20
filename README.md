@@ -125,10 +125,25 @@ GPU 가속을 사용하려면 OpenCV CUDA 지원 빌드가 필요합니다. 일�
 - `png_dir`: PNG 이미지 저장 디렉토리
 - `save_file_dir`: 게임 저장 파일 디렉토리
 - `face_extract_dir`: 얼굴 추출 원본 이미지 디렉토리
-- `logging`: 로깅 설정
-  - `level`: 로그 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-  - `file_enabled`: 파일 로그 저장 여부
-  - `file_path`: 로그 파일 경로
+
+#### 로깅 설정
+
+로깅 설정은 별도의 `logging.json` 파일에서 관리됩니다 (권장). 자세한 내용은 `docs/logging_config_guide.md`를 참조하세요.
+
+**중요**: 파일 로그 활성화 여부는 `log_level` 설정으로 제어됩니다.
+- `log_level`이 유효한 레벨 값(`"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`)이면 → 파일 로그 활성화
+- `log_level`이 없거나 `null`, 빈 문자열(`""`), 공백만 있거나, `"None"` (대소문자 구분 없음)이면 → 파일 로그 비활성화
+
+파일 로그를 저장하지 않으려면 `log_level`을 제거하거나 `null`, `""`, `"None"` 등으로 설정하세요.
+
+주요 로깅 설정:
+- `output_level`: 콘솔 출력 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `log_level`: 파일 로그 레벨 (설정하면 파일 로그 활성화, 없거나 null이면 비활성화)
+- `file_path`: 로그 파일 경로
+- `filename_date`: 날짜별 파일명 패턴 (예: `"%Y-%m-%d"`)
+- `filename_prefix`: 파일명 접두사 (예: `"app_"`)
+
+하위 호환성을 위해 `config.json`의 `logging` 섹션도 지원하지만, `logging.json` 사용을 권장합니다.
 
 ### 저장 파일 형식
 
@@ -199,16 +214,28 @@ pip install opencv-python>=4.8.0
 ### 로그 파일 확인
 에러가 발생한 경우 `logs/s7ed.log` 파일을 확인하세요 (로그 파일 저장이 활성화된 경우).
 
-로그 파일 저장을 활성화하려면 `config.json`에 다음을 추가:
+로그 파일 저장을 활성화하려면 `logging.json` 파일을 생성하고 다음을 추가:
 ```json
 {
-  "logging": {
-    "level": "INFO",
-    "file_enabled": true,
-    "file_path": "logs/s7ed.log"
-  }
+  "output_level": "INFO",
+  "log_level": "WARNING",
+  "file_path": "logs/s7ed.log",
+  "rotation_type": "date",
+  "rotation_when": "midnight",
+  "rotation_interval": 1,
+  "backup_count": 30,
+  "filename_date": "%Y-%m-%d",
+  "filename_prefix": "app_"
 }
 ```
+
+**참고**: `log_level`이 유효한 레벨 값으로 설정되어 있으면 파일 로그가 활성화됩니다. 파일 로그를 비활성화하려면 `log_level`을 제거하거나 `null`, `""`로 설정하세요.
+
+또는 `logging.json.example` 파일을 `logging.json`으로 복사하여 사용할 수 있습니다.
+
+자세한 로깅 설정은 `docs/logging_config_guide.md`를 참조하세요.
+
+**참고**: 하위 호환성을 위해 `config.json`의 `logging` 섹션도 지원하지만, `logging.json` 사용을 권장합니다.
 
 ### 설정 파일 문제
 설정 파일이 손상된 경우 `config.json` 파일을 삭제하면 기본값으로 재생성됩니다.

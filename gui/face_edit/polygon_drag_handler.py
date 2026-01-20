@@ -249,8 +249,10 @@ class PolygonDragHandlerMixin:
         # 중앙 포인트 좌표 가져오기
         if iris_side == 'left' and hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
             self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = self._left_iris_center_coord
+            start_center = self._left_iris_center_coord
         elif iris_side == 'right' and hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
             self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = self._right_iris_center_coord
+            start_center = self._right_iris_center_coord
         else:
             # 좌표가 없으면 original_landmarks에서 계산
             original = self.landmark_manager.get_original_landmarks_full()
@@ -264,10 +266,14 @@ class PolygonDragHandlerMixin:
                     center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
                 if center is not None:
                     self.polygon_drag_start_img_x, self.polygon_drag_start_img_y = center
+                    start_center = center
                 else:
                     return
             else:
                 return
+        
+        # 드래그 시작 로그
+        print_info("얼굴편집", f"중심점 드래그 시작 ({iris_side}): 시작 좌표=({self.polygon_drag_start_img_x:.1f}, {self.polygon_drag_start_img_y:.1f})")
         
         # 선택된 포인트 표시
         self._draw_selected_landmark_indicator(canvas_obj, None, event.x, event.y)
@@ -330,16 +336,18 @@ class PolygonDragHandlerMixin:
                 left_idx = len(custom) - 2  # MediaPipe LEFT_IRIS = 사용자 왼쪽
                 # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
                 self.landmark_manager.update_custom_landmark(left_idx, (new_center_x, new_center_y))
+                right_center_current = self.landmark_manager.get_right_iris_center_coord()
                 self.landmark_manager.set_iris_center_coords(
                     (new_center_x, new_center_y),
-                    self.landmark_manager.get_right_iris_center_coord()
+                    right_center_current
                 )
             elif iris_side == 'right':
                 right_idx = len(custom) - 1  # MediaPipe RIGHT_IRIS = 사용자 오른쪽
                 # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
                 self.landmark_manager.update_custom_landmark(right_idx, (new_center_x, new_center_y))
+                left_center_current = self.landmark_manager.get_left_iris_center_coord()
                 self.landmark_manager.set_iris_center_coords(
-                    self.landmark_manager.get_left_iris_center_coord(),
+                    left_center_current,
                     (new_center_x, new_center_y)
                 )
         else:
@@ -371,6 +379,11 @@ class PolygonDragHandlerMixin:
         """눈동자 중앙 포인트 드래그 종료"""
         if not self.dragging_polygon or self.dragged_polygon_index != iris_side:
             return
+        
+        # 드래그 종료 시 최종 좌표 확인
+        final_left = self.landmark_manager.get_left_iris_center_coord()
+        final_right = self.landmark_manager.get_right_iris_center_coord()
+        print_info("얼굴편집", f"중심점 드래그 종료 ({iris_side}): 최종 좌표 - left={final_left}, right={final_right}")
         
         # 드래그 종료 시 항상 변형 적용
         # custom_landmarks 확인 (LandmarkManager 사용)
@@ -587,9 +600,15 @@ class PolygonDragHandlerMixin:
                 left_center = self.landmark_manager.get_left_iris_center_coord()
                 right_center = self.landmark_manager.get_right_iris_center_coord()
                 
+                # 디버깅: landmark_manager에서 가져온 중앙 포인트 확인
+                print_info("얼굴편집", f"apply_polygon_drag_final: landmark_manager에서 가져온 중앙 포인트 - left={left_center}, right={right_center}")
+                
                 # 원본 중앙 포인트 가져오기 (landmark_manager에서 저장된 값 사용)
                 left_center_orig = self.landmark_manager.get_original_left_iris_center_coord()
                 right_center_orig = self.landmark_manager.get_original_right_iris_center_coord()
+                
+                # 디버깅: 원본 중앙 포인트 확인
+                print_info("얼굴편집", f"apply_polygon_drag_final: 원본 중앙 포인트 - left_orig={left_center_orig}, right_orig={right_center_orig}")
                 
                 # 없으면 original_iris_landmarks에서 계산
                 if left_center_orig is None or right_center_orig is None:
@@ -629,17 +648,21 @@ class PolygonDragHandlerMixin:
                     extracted_left_center = custom_landmarks_for_morph[-2]  # MediaPipe LEFT_IRIS (사용자 왼쪽)
                     extracted_right_center = custom_landmarks_for_morph[-1]  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
                     
-                    # 중앙 포인트 파라미터로 사용 (landmark_manager에서 가져온 값이 없으면 추출한 값 사용)
-                    if left_center is None:
-                        left_center = extracted_left_center
-                    if right_center is None:
-                        right_center = extracted_right_center
+                # 중앙 포인트 파라미터로 사용 (landmark_manager에서 가져온 값이 없으면 추출한 값 사용)
+                if left_center is None:
+                    left_center = extracted_left_center
+                if right_center is None:
+                    right_center = extracted_right_center
                     
-                    # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
-                    custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
+                # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
+                custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
                 
                 # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
                 original_landmarks_for_morph = original_landmarks
+                
+                # 디버깅: 중앙 포인트 좌표 확인
+                print_info("얼굴편집", f"중심점 드래그 적용: left_center={left_center}, right_center={right_center}")
+                print_info("얼굴편집", f"원본 중심점: left_orig={left_center_orig}, right_orig={right_center_orig}")
                 
                 # 캐시된 원본 바운딩 박스 가져오기
                 img_width, img_height = self.current_image.size

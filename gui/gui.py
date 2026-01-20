@@ -332,6 +332,16 @@ def app():
     # 로깅 설정 로드 및 적용
     config.load_logging_config()
     
+    # 로그 색상 샘플 출력 (시작 시 한 번만)
+    from utils.logger import print_debug, print_info, print_warning, print_error
+    print_info("시스템", "=" * 60)
+    print_info("시스템", "로그 레벨별 색상 확인:")
+    print_debug("시스템", "DEBUG 로그 색상 (청록색)")
+    print_info("시스템", "INFO 로그 색상 (밝은 녹색)")
+    print_warning("시스템", "WARNING 로그 색상 (노란색)")
+    print_error("시스템", "ERROR 로그 색상 (밝은 빨간색)")
+    print_info("시스템", "=" * 60)
+    
     # 파일 변경 감지 시작 (1초마다 체크)
     _root.after(1000, check_and_reload_file)
     

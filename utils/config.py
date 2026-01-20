@@ -17,6 +17,7 @@ def _get_logger():
 
 # 설정 파일 경로
 CONFIG_FILE = 'config.json'
+LOGGING_CONFIG_FILE = 'logging.json'
 
 
 def _get_parameters_dir(image_path):
@@ -245,65 +246,236 @@ def save_face_extract_params(image_path, params):
 
 
 def load_logging_config():
-    """로깅 설정을 불러와서 로거에 적용합니다."""
-    if not os.path.exists(CONFIG_FILE):
+    """로깅 설정을 불러와서 로거에 적용합니다.
+    logging.json 파일이 있고 log_level이 설정되어 있으면 파일 로그를 활성화합니다.
+    log_level이 없거나 null이면 파일 로그를 비활성화합니다.
+    config.json의 logging 섹션은 하위 호환성을 위해 지원합니다.
+    """
+    logging_config = None
+    
+    # 1. 별도 로그 설정 파일 확인
+    if os.path.exists(LOGGING_CONFIG_FILE):
+        try:
+            with open(LOGGING_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                logging_config = json.load(f)
+        except Exception as e:
+            # 로거 초기화 전이므로 print 사용
+            print(f"[설정] 로그 설정 파일 로드 실패 ({LOGGING_CONFIG_FILE}): {e}")
+            # JSON 파싱 실패 시 기본값 사용 (파일 로그 비활성화)
+            logging_config = None
+    
+    # 2. config.json의 logging 섹션 확인 (하위 호환성)
+    if logging_config is None and os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            if 'logging' in config:
+                logging_config = config['logging']
+        except Exception as e:
+            # 로거 초기화 전이므로 print 사용
+            print(f"[설정] 설정 파일 로드 실패 ({CONFIG_FILE}): {e}")
+            return
+    
+    # 3. 설정이 없으면 기본값 사용 (파일 로그 비활성화)
+    if logging_config is None:
+        # 기본 설정만 적용 (파일 로그 비활성화)
+        from utils.logger import configure_logging
+        configure_logging(
+            level='INFO',
+            file_enabled=False,
+            file_path='logs/s7ed.log',
+            output_level='INFO'
+        )
         return
     
     try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        # 하위 호환성: level이 있으면 사용, 없으면 output_level 사용
+        level = logging_config.get('level', None)
+        output_level = logging_config.get('output_level', None)
+        if output_level is None:
+            output_level = level if level is not None else 'INFO'
         
-        # 로깅 설정이 있으면 적용
-        if 'logging' in config:
-            logging_config = config['logging']
-            level = logging_config.get('level', 'INFO')
-            file_enabled = logging_config.get('file_enabled', False)
-            file_path = logging_config.get('file_path', 'logs/s7ed.log')
-            
-            from utils.logger import configure_logging
-            configure_logging(level=level, file_enabled=file_enabled, file_path=file_path)
+        file_path = logging_config.get('file_path', 'logs/s7ed.log')
+        # 하위 호환성: file_level이 있으면 사용, 없으면 log_level 사용
+        log_level = logging_config.get('log_level', None)  # 키가 없으면 None 반환
+        if log_level is None:
+            log_level = logging_config.get('file_level', None)  # 하위 호환성
+        
+        # log_level이 정의되지 않았거나(null), null, 빈 문자열, 공백만 있으면 파일 로그 비활성화
+        # log_level이 유효한 값이면 파일 로그 활성화
+        if log_level is None:
+            # 정의되지 않음, null, 또는 키가 없는 경우
+            file_enabled = False
+        elif isinstance(log_level, str):
+            log_level_stripped = log_level.strip().upper()
+            # 빈 문자열, 공백만 있거나, "None" (대소문자 구분 없음)이면 비활성화
+            if log_level_stripped == '' or log_level_stripped == 'NONE':
+                file_enabled = False
+            else:
+                # 유효한 로그 레벨인지 확인 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+                valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+                file_enabled = log_level_stripped in valid_levels
+        else:
+            # 그 외의 경우는 비활성화 (예상치 못한 타입)
+            file_enabled = False
+        log_format = logging_config.get('log_format', None)  # None이면 기본값 사용
+        date_format = logging_config.get('date_format', None)  # None이면 기본값 사용
+        # 빈 문자열, "none" (대소문자 구분 없음)이면 None으로 변환
+        if date_format is not None and isinstance(date_format, str):
+            date_format_stripped = date_format.strip().upper()
+            if date_format_stripped == '' or date_format_stripped == 'NONE':
+                date_format = None
+        colors = logging_config.get('colors', None)  # None이면 기본값 사용
+        rotation_type = logging_config.get('rotation_type', None)  # None이면 기본값 사용
+        max_bytes = logging_config.get('max_bytes', None)  # None이면 기본값 사용
+        backup_count = logging_config.get('backup_count', None)  # None이면 기본값 사용
+        rotation_when = logging_config.get('rotation_when', None)  # None이면 기본값 사용
+        rotation_interval = logging_config.get('rotation_interval', None)  # None이면 기본값 사용
+        filename_date = logging_config.get('filename_date', None)  # None이면 기본값 사용
+        filename_prefix = logging_config.get('filename_prefix', None)  # None이면 기본값 사용
+        
+        from utils.logger import configure_logging
+        configure_logging(
+            level=level if level is not None else output_level,  # 하위 호환성
+            file_enabled=file_enabled,  # logging.json 파일 존재 여부로 결정됨
+            file_path=file_path,
+            log_level=log_level,
+            output_level=output_level,
+            log_format=log_format,
+            date_format=date_format,
+            colors=colors,
+            rotation_type=rotation_type,
+            max_bytes=max_bytes,
+            backup_count=backup_count,
+            rotation_when=rotation_when,
+            rotation_interval=rotation_interval,
+            filename_date=filename_date,
+            filename_prefix=filename_prefix
+        )
     except Exception as e:
-        _get_logger().error(f"로깅 설정 로드 실패: {e}")
+        # 로거 초기화 전이므로 print 사용
+        print(f"[설정] 로깅 설정 적용 실패: {e}")
 
 
-def save_logging_config(level='INFO', file_enabled=False, file_path='logs/s7ed.log'):
-    """로깅 설정을 저장합니다.
+def save_logging_config(level='INFO', file_path='logs/s7ed.log',
+                        log_level=None, output_level=None, log_format=None, date_format=None,
+                        colors=None, rotation_type=None, max_bytes=None, backup_count=None,
+                        rotation_when=None, rotation_interval=None, filename_date=None,
+                        filename_prefix=None):
+    """로깅 설정을 별도 파일(logging.json)에 저장합니다.
+    logging.json 파일이 생성되면 자동으로 파일 로그가 활성화됩니다.
     
     Args:
-        level: 로그 레벨
-        file_enabled: 파일 로그 저장 여부
+        level: 로그 레벨 (하위 호환성용)
         file_path: 로그 파일 경로
+        log_level: 파일 로그 레벨 (None이면 output_level과 동일)
+        output_level: 출력 레벨 (None이면 level 사용)
+        log_format: 로그 포맷 문자열 (None이면 기본값 사용)
+        date_format: 날짜 포맷 문자열 (None이면 기본값 사용)
+        colors: 레벨별 색상 설정 딕셔너리 (None이면 기본값 사용)
+        rotation_type: 로테이션 타입 ('size' 또는 'date', None이면 기본값 사용)
+        max_bytes: 최대 파일 크기 (rotation_type='size'일 때 사용, None이면 기본값 사용)
+        backup_count: 백업 파일 개수 (None이면 기본값 사용)
+        rotation_when: 날짜별 로테이션 시점 (None이면 기본값 사용)
+        rotation_interval: 로테이션 간격 (None이면 기본값 사용)
+        filename_date: 날짜별 파일명 패턴 (예: '%Y-%m-%d', None이면 기본값 사용)
+        filename_prefix: 파일명 접두사 (예: 'app_', None이면 기본값 사용)
     """
-    import globals as gl
-    
     try:
-        # 기존 설정 로드
-        config = {}
+        # 기존 설정 로드 (있는 경우)
+        logging_config = {}
+        if os.path.exists(LOGGING_CONFIG_FILE):
+            try:
+                with open(LOGGING_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    logging_config = json.load(f)
+            except Exception as e:
+                _get_logger().warning(f"기존 로그 설정 파일 로드 실패 (새로 생성): {e}")
+        
+        # output_level이 지정되지 않으면 level 사용
+        if output_level is None:
+            output_level = level
+        
+        # 로깅 설정 업데이트
+        logging_config['level'] = level  # 하위 호환성 유지
+        logging_config['output_level'] = output_level
+        # file_enabled는 제거: logging.json 파일이 존재하면 자동으로 파일 로그 활성화
+        logging_config['file_path'] = file_path
+        
+        # log_level이 지정되면 추가
+        if log_level is not None:
+            logging_config['log_level'] = log_level
+        
+        # log_format이 지정되면 추가
+        if log_format is not None:
+            logging_config['log_format'] = log_format
+        
+        # date_format이 지정되면 추가
+        if date_format is not None:
+            logging_config['date_format'] = date_format
+        
+        # colors가 지정되면 추가
+        if colors is not None:
+            logging_config['colors'] = colors
+        
+        # rotation_type이 지정되면 추가
+        if rotation_type is not None:
+            logging_config['rotation_type'] = rotation_type
+        
+        # max_bytes가 지정되면 추가
+        if max_bytes is not None:
+            logging_config['max_bytes'] = max_bytes
+        
+        # backup_count가 지정되면 추가
+        if backup_count is not None:
+            logging_config['backup_count'] = backup_count
+        
+        # rotation_when이 지정되면 추가
+        if rotation_when is not None:
+            logging_config['rotation_when'] = rotation_when
+        
+        # rotation_interval이 지정되면 추가
+        if rotation_interval is not None:
+            logging_config['rotation_interval'] = rotation_interval
+        
+        # filename_date가 지정되면 추가
+        if filename_date is not None:
+            logging_config['filename_date'] = filename_date
+        
+        # filename_prefix가 지정되면 추가
+        if filename_prefix is not None:
+            logging_config['filename_prefix'] = filename_prefix
+        
+        # 별도 파일에 저장
+        with open(LOGGING_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(logging_config, f, ensure_ascii=False, indent=2)
+        
+        # config.json에서 logging 섹션 제거 (마이그레이션)
         if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-        
-        # 로깅 설정 추가/업데이트
-        config['logging'] = {
-            'level': level,
-            'file_enabled': file_enabled,
-            'file_path': file_path
-        }
-        
-        # 기존 설정도 함께 저장
-        if hasattr(gl, '_loading_file'):
-            config['loading_file'] = gl._loading_file
-        if hasattr(gl, '_face_file'):
-            config['face_file'] = gl._face_file
-        if hasattr(gl, '_png_dir'):
-            config['png_dir'] = gl._png_dir
-        if hasattr(gl, '_save_file_dir'):
-            config['save_file_dir'] = gl._save_file_dir
-        if hasattr(gl, '_face_extract_dir'):
-            config['face_extract_dir'] = gl._face_extract_dir
-        
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+            try:
+                import globals as gl
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                # logging 섹션이 있으면 제거
+                if 'logging' in config:
+                    del config['logging']
+                    
+                    # 기존 설정도 함께 저장
+                    if hasattr(gl, '_loading_file'):
+                        config['loading_file'] = gl._loading_file
+                    if hasattr(gl, '_face_file'):
+                        config['face_file'] = gl._face_file
+                    if hasattr(gl, '_png_dir'):
+                        config['png_dir'] = gl._png_dir
+                    if hasattr(gl, '_save_file_dir'):
+                        config['save_file_dir'] = gl._save_file_dir
+                    if hasattr(gl, '_face_extract_dir'):
+                        config['face_extract_dir'] = gl._face_extract_dir
+                    
+                    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(config, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                _get_logger().warning(f"config.json에서 logging 섹션 제거 실패: {e}")
     except Exception as e:
         _get_logger().error(f"로깅 설정 저장 실패: {e}")
 

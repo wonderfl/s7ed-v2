@@ -20,7 +20,7 @@ class ButtonFrame:
         _w16 = int(_w12*7)
         _h02 = int(height)
         _h16 = int(_h02*14)
-        print("create button: {0}, {1} [ {2}, {3} ]".format( self._height, height, _h02, _h16,))
+        #print("create button: {0}, {1} [ {2}, {3} ]".format( self._height, height, _h02, _h16,))
 
         test1 = tk.LabelFrame(parent, text="", width=_w16, height=_h16, )#borderwidth=0, highlightthickness=0,)
         test1.grid(row=nr, column=nc, rowspan=height, padx=(1,1), pady=(1,1), ipady= 0, sticky='nw')
