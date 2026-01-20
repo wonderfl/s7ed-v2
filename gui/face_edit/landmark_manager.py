@@ -123,11 +123,20 @@ class LandmarkManager:
             elif len(landmarks) == 468:
                 # 468개인 경우 얼굴로만 저장 (직접 참조)
                 self._original_face_landmarks = landmarks
-                self._original_iris_landmarks = None
+                # 기존 original_iris_landmarks가 있으면 유지 (초기화 시 보존)
+                # None으로 덮어쓰지 않고 기존 값을 유지
+                if self._original_iris_landmarks is None:
+                    # 기존이 None이면 그대로 유지 (아무것도 하지 않음)
+                    pass
+                # else: 기존 값이 있으면 그대로 유지 (덮어쓰지 않음)
             else:
                 # 기타: 그대로 저장 (하위 호환성, 직접 참조)
                 self._original_face_landmarks = landmarks
-                self._original_iris_landmarks = None
+                # 기존 original_iris_landmarks가 있으면 유지 (초기화 시 보존)
+                if self._original_iris_landmarks is None:
+                    # 기존이 None이면 그대로 유지 (아무것도 하지 않음)
+                    pass
+                # else: 기존 값이 있으면 그대로 유지 (덮어쓰지 않음)
             
             # 하위 호환성: 기존 필드도 유지 (직접 참조)
             self._original_landmarks = landmarks
