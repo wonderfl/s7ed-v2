@@ -822,6 +822,42 @@ class LogicMixin(EditingStepsMixin):
             left_center = self.landmark_manager.get_left_iris_center_coord()
             right_center = self.landmark_manager.get_right_iris_center_coord()
             
+            # 원본 중앙 포인트 가져오기 (landmark_manager에서 저장된 값 사용)
+            left_center_orig = self.landmark_manager.get_original_left_iris_center_coord()
+            right_center_orig = self.landmark_manager.get_original_right_iris_center_coord()
+            
+            # 없으면 original_iris_landmarks에서 계산
+            if left_center_orig is None or right_center_orig is None:
+                original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                
+                if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
+                    # 눈동자 랜드마크: 왼쪽 5개 (0-4), 오른쪽 5개 (5-9)
+                    left_iris_points = original_iris_landmarks[:5]
+                    right_iris_points = original_iris_landmarks[5:]
+                    
+                    if left_iris_points and left_center_orig is None:
+                        left_center_orig = (
+                            sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                            sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                        )
+                        # landmark_manager에 원본으로 저장
+                        self.landmark_manager.set_iris_center_coords(
+                            left_center_orig, 
+                            self.landmark_manager.get_original_right_iris_center_coord(),
+                            is_original=True
+                        )
+                    if right_iris_points and right_center_orig is None:
+                        right_center_orig = (
+                            sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                            sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                        )
+                        # landmark_manager에 원본으로 저장
+                        self.landmark_manager.set_iris_center_coords(
+                            self.landmark_manager.get_original_left_iris_center_coord(),
+                            right_center_orig,
+                            is_original=True
+                        )
+            
             # morph_face_by_polygons 호출 시: Tesselation 선택 시에는 이미 눈동자 제거 + 중앙 포인트 추가된 구조 전달
             # LandmarkManager의 get_landmarks_for_tesselation() 사용 (원본, 변형 모두 470개 구조)
             if 'tesselation' in selected_regions and len(selected_regions) == 1:
@@ -847,6 +883,8 @@ class LogicMixin(EditingStepsMixin):
                 selected_point_indices=None,  # 모든 포인트 사용 (변형되지 않은 포인트는 원본 위치 유지)
                 left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
                 right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
+                left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
+                right_iris_center_orig=right_center_orig,  # 원본 오른쪽 중앙 포인트
                 cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
                 blend_ratio=blend_ratio  # 블렌딩 비율
             )

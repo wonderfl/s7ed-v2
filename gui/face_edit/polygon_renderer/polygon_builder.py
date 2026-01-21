@@ -27,8 +27,8 @@ class PolygonBuilderMixin:
             # MediaPipe 연결 정보를 사용하는 경우 (인덱스 리스트가 비어있어도 괜찮음)
             if use_mediapipe_connections and connections:
                 from utils.logger import get_logger
-                logger = get_logger('얼굴편집')
-                logger.debug(f"폴리곤 경로 생성 시작: MediaPipe 연결 정보 사용, 연결 개수={len(connections) if connections else 0}, 랜드마크 배열 길이={len(landmarks) if landmarks else 0}, 확장 레벨={expansion_level}")
+                #logger = get_logger('얼굴편집')
+                #logger.debug(f"폴리곤 경로 생성 시작: MediaPipe 연결 정보 사용, 연결 개수={len(connections) if connections else 0}, 랜드마크 배열 길이={len(landmarks) if landmarks else 0}, 확장 레벨={expansion_level}")
                 return self._build_polygon_path_from_connections(connections, landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y, expansion_level)
             
             # 인덱스 리스트가 비어있으면 실패
@@ -38,7 +38,7 @@ class PolygonBuilderMixin:
                 logger.warning("폴리곤 경로 생성 실패: 인덱스 리스트가 비어있음")
                 return []
             
-            print(f"[얼굴편집] 폴리곤 경로 생성 시작: 요청 인덱스 {len(indices)}개, 랜드마크 배열 길이={len(landmarks) if landmarks else 0}, MediaPipe 연결 사용={use_mediapipe_connections}")
+            #print(f"[얼굴편집] 폴리곤 경로 생성 시작: 요청 인덱스 {len(indices)}개, 랜드마크 배열 길이={len(landmarks) if landmarks else 0}, MediaPipe 연결 사용={use_mediapipe_connections}")
             
             # 유효한 인덱스만 필터링
             valid_indices = [idx for idx in indices if idx < len(landmarks)]
