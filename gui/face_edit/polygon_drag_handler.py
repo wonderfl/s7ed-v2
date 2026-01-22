@@ -275,6 +275,17 @@ class PolygonDragHandlerMixin:
         # 드래그 시작 로그
         print_info("얼굴편집", f"중심점 드래그 시작 ({iris_side}): 시작 좌표=({self.polygon_drag_start_img_x:.1f}, {self.polygon_drag_start_img_y:.1f})")
         
+        # 눈동자 중심점 드래그임을 명확히 표시 (apply_polygon_drag_final에서 감지용)
+        self.last_selected_landmark_index = iris_side  # 'left' 또는 'right'
+        
+        # #region agent log
+        import json, time
+        try:
+            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'A','location':'polygon_drag_handler.py:279','message':'iris drag start - last_selected set','data':{'iris_side':iris_side,'last_selected_landmark_index':self.last_selected_landmark_index},'timestamp':int(time.time()*1000)})+'\n')
+        except: pass
+        # #endregion
+        
         # 선택된 포인트 표시
         self._draw_selected_landmark_indicator(canvas_obj, None, event.x, event.y)
         
@@ -354,6 +365,10 @@ class PolygonDragHandlerMixin:
             # custom_landmarks가 없거나 길이가 부족한 경우
             # face_landmarks를 가져와서 중앙 포인트를 추가한 custom_landmarks 생성
             face_landmarks_list = self.landmark_manager.get_face_landmarks()
+            # face_landmarks가 None이면 원본 랜드마크 사용
+            if face_landmarks_list is None:
+                face_landmarks_list = self.landmark_manager.get_original_face_landmarks()
+            
             if face_landmarks_list is not None:
                 # face_landmarks에 중앙 포인트 추가 (470개 구조)
                 custom = list(face_landmarks_list)
@@ -364,11 +379,36 @@ class PolygonDragHandlerMixin:
                     left_center = self.landmark_manager.get_left_iris_center_coord()
                     right_center = (new_center_x, new_center_y)
                 
-                if left_center is not None and right_center is not None:
-                    custom.append(left_center)
-                    custom.append(right_center)
-                    self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag_create")
-                    self.landmark_manager.set_iris_center_coords(left_center, right_center)
+                # 중앙 포인트가 하나라도 있으면 custom_landmarks 생성
+                if left_center is not None or right_center is not None:
+                    # None인 중앙 포인트는 원본에서 계산
+                    if left_center is None:
+                        left_center = self.landmark_manager.get_original_left_iris_center_coord()
+                    if right_center is None:
+                        right_center = self.landmark_manager.get_original_right_iris_center_coord()
+                    
+                    # 원본도 없으면 original_iris_landmarks에서 계산
+                    if left_center is None or right_center is None:
+                        original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                        if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
+                            left_iris_points = original_iris_landmarks[:5]
+                            right_iris_points = original_iris_landmarks[5:]
+                            if left_center is None and left_iris_points:
+                                left_center = (
+                                    sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                                    sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                                )
+                            if right_center is None and right_iris_points:
+                                right_center = (
+                                    sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                                    sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                                )
+                    
+                    if left_center is not None and right_center is not None:
+                        custom.append(left_center)
+                        custom.append(right_center)
+                        self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag_create")
+                        self.landmark_manager.set_iris_center_coords(left_center, right_center)
         
         # 선택된 포인트 표시 업데이트
         self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)
@@ -389,7 +429,9 @@ class PolygonDragHandlerMixin:
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         
-        if custom is not None:
+        # custom_landmarks가 None이어도 중앙 포인트가 설정되어 있으면 적용
+        # (on_iris_center_drag에서 custom_landmarks를 생성했을 수 있음)
+        if custom is not None or final_left is not None or final_right is not None:
             self.apply_polygon_drag_final()
         
         # 선택된 포인트 표시 제거
@@ -413,13 +455,115 @@ class PolygonDragHandlerMixin:
         # 드래그 종료 시에만 최종 편집 적용
         pass
     
+    def _move_iris_only(self, image, left_center_orig, right_center_orig, left_center_new, right_center_new):
+        """눈동자 영역만 이동 (머리 변형 없이)
+        
+        Args:
+            image: PIL.Image - 원본 이미지
+            left_center_orig: tuple - 원본 왼쪽 눈동자 중심 좌표 (x, y)
+            right_center_orig: tuple - 원본 오른쪽 눈동자 중심 좌표 (x, y)
+            left_center_new: tuple - 새로운 왼쪽 눈동자 중심 좌표 (x, y)
+            right_center_new: tuple - 새로운 오른쪽 눈동자 중심 좌표 (x, y)
+        
+        Returns:
+            PIL.Image - 눈동자가 이동된 이미지
+        """
+        import numpy as np
+        from PIL import Image
+        import cv2
+        
+        # PIL 이미지를 numpy 배열로 변환
+        img_array = np.array(image)
+        result = img_array.copy()
+        
+        # 눈동자 반지름 추정 (눈 크기의 약 40%)
+        img_width, img_height = image.size
+        iris_radius = int(min(img_width, img_height) * 0.04)  # 이미지 크기의 4%
+        
+        # 각 눈동자 이동 처리
+        for center_orig, center_new in [(left_center_orig, left_center_new), 
+                                         (right_center_orig, right_center_new)]:
+            if center_orig is None or center_new is None:
+                continue
+            
+            # 이동 거리 계산
+            dx = center_new[0] - center_orig[0]
+            dy = center_new[1] - center_orig[1]
+            
+            # 이동 거리가 너무 작으면 건너뜀
+            if abs(dx) < 0.5 and abs(dy) < 0.5:
+                continue
+            
+            print_info("얼굴편집", f"눈동자 이동: 원본={center_orig}, 새위치={center_new}, 이동=({dx:.1f}, {dy:.1f})")
+            
+            # 원형 마스크 생성 (원본 위치)
+            y_coords, x_coords = np.ogrid[:img_height, :img_width]
+            mask = ((x_coords - center_orig[0])**2 + (y_coords - center_orig[1])**2) <= iris_radius**2
+            
+            # 부드러운 경계를 위한 그라디언트 마스크
+            distance = np.sqrt((x_coords - center_orig[0])**2 + (y_coords - center_orig[1])**2)
+            soft_mask = np.clip(1.0 - (distance - iris_radius * 0.7) / (iris_radius * 0.3), 0, 1)
+            
+            # 원본 눈동자 영역 추출
+            iris_region = img_array[mask].copy()
+            
+            # 새로운 위치에 마스크 생성
+            new_mask = ((x_coords - center_new[0])**2 + (y_coords - center_new[1])**2) <= iris_radius**2
+            new_distance = np.sqrt((x_coords - center_new[0])**2 + (y_coords - center_new[1])**2)
+            new_soft_mask = np.clip(1.0 - (new_distance - iris_radius * 0.7) / (iris_radius * 0.3), 0, 1)
+            
+            # 원본 위치의 눈동자를 주변 색상으로 inpaint (간단한 블러)
+            # 원형 영역을 주변 픽셀로 채움
+            for c in range(3):  # RGB 채널
+                # 원형 영역 주변의 평균 색상으로 채움
+                border_mask = ((distance >= iris_radius * 0.9) & (distance <= iris_radius * 1.2))
+                if border_mask.any():
+                    avg_color = np.mean(img_array[border_mask, c])
+                    result[mask, c] = result[mask, c] * (1 - soft_mask[mask]) + avg_color * soft_mask[mask]
+            
+            # 새로운 위치에 눈동자 그리기
+            if new_mask.any() and len(iris_region) > 0:
+                # 원본과 새 위치의 마스크 크기 확인
+                orig_count = mask.sum()
+                new_count = new_mask.sum()
+                min_count = min(orig_count, new_count)
+                
+                # 크기가 다르면 작은 쪽에 맞춤
+                if orig_count == new_count:
+                    # 크기가 같으면 직접 할당
+                    result[new_mask] = result[new_mask] * (1 - new_soft_mask[new_mask, np.newaxis]) + \
+                                       iris_region * new_soft_mask[new_mask, np.newaxis]
+                else:
+                    # 크기가 다르면 min_count만큼만 처리
+                    new_mask_indices = np.where(new_mask)
+                    for i in range(min_count):
+                        y, x = new_mask_indices[0][i], new_mask_indices[1][i]
+                        alpha = new_soft_mask[y, x]
+                        result[y, x] = result[y, x] * (1 - alpha) + iris_region[i] * alpha
+        
+        # numpy 배열을 PIL 이미지로 변환
+        result_image = Image.fromarray(result.astype(np.uint8))
+        return result_image
+    
     def apply_polygon_drag_final(self):
         """폴리곤 드래그 종료 시 최종 편집 적용"""
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         
-        if custom is None or self.current_image is None:
+        # 중앙 포인트가 설정되어 있으면 custom_landmarks가 None이어도 적용
+        left_center = self.landmark_manager.get_left_iris_center_coord()
+        right_center = self.landmark_manager.get_right_iris_center_coord()
+        has_iris_centers = left_center is not None or right_center is not None
+        
+        if (custom is None and not has_iris_centers) or self.current_image is None:
             return
+        
+        # custom_landmarks가 None이면 원본 랜드마크를 사용 (중앙 포인트만 변경된 경우)
+        if custom is None:
+            original_face = self.landmark_manager.get_original_face_landmarks()
+            if original_face is not None:
+                custom = list(original_face)  # 복사본 생성
+                self.landmark_manager.set_custom_landmarks(custom, reason="apply_polygon_drag_final: 중앙 포인트만 변경")
         
         try:
             # 원본 랜드마크 가져오기 (LandmarkManager 사용)
@@ -464,6 +608,18 @@ class PolygonDragHandlerMixin:
                     # 중앙 포인트 드래그의 경우 ('left' 또는 'right')
                     print_info("얼굴편집", f"마지막 선택 포인트: 중앙 포인트 ({last_idx})")
             
+            # 마지막으로 선택한 포인트 인덱스 확인 (눈동자 중심점만 변경한 경우 확인용)
+            last_selected_index = getattr(self, 'last_selected_landmark_index', None)
+            is_iris_center_only = isinstance(last_selected_index, str) and last_selected_index in ('left', 'right')
+            
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'A','location':'polygon_drag_handler.py:515','message':'apply_polygon_drag_final - flag check','data':{'last_selected_index':last_selected_index,'is_iris_center_only':is_iris_center_only,'last_selected_type':str(type(last_selected_index).__name__)},'timestamp':int(time.time()*1000)})+'\n')
+            except: pass
+            # #endregion
+            
             # 드래그된 포인트 백업 (슬라이더 적용 전에 저장)
             dragged_indices = self.landmark_manager.get_dragged_indices()
             dragged_points_backup = {}
@@ -477,8 +633,18 @@ class PolygonDragHandlerMixin:
                             dragged_points_backup[idx] = custom_before_sliders[idx]  # 튜플 복사 (좌표값만)
             
             # 공통 슬라이더 적용 (morph_face_by_polygons 호출 전에 custom_landmarks 변환)
+            # 눈동자 중심점만 변경한 경우에는 슬라이더를 적용하지 않음 (다른 랜드마크 변형 방지)
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
-            if hasattr(self, '_apply_common_sliders'):
+            
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'D','location':'polygon_drag_handler.py:532','message':'before _apply_common_sliders check','data':{'has_method':hasattr(self, '_apply_common_sliders'),'is_iris_center_only':is_iris_center_only,'will_call_sliders':hasattr(self, '_apply_common_sliders') and not is_iris_center_only},'timestamp':int(time.time()*1000)})+'\n')
+            except: pass
+            # #endregion
+            
+            if hasattr(self, '_apply_common_sliders') and not is_iris_center_only:
                 # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
                 # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
                 base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
@@ -591,10 +757,46 @@ class PolygonDragHandlerMixin:
                 # 랜드마크 변형 적용 (원본 이미지와 원본 랜드마크를 기준으로)
                 # 고급 모드 여부와 관계없이 Delaunay Triangulation 사용
                 # 마지막으로 선택한 포인트 인덱스 전달 (인덱스 기반 직접 매핑을 위해)
-                last_selected_index = getattr(self, 'last_selected_landmark_index', None)
                 
-                # _apply_common_sliders 호출 후 custom_landmarks가 업데이트되었을 수 있으므로 다시 가져오기
-                custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
+                # 눈동자 중심점만 변경한 경우 (last_selected_index가 'left' 또는 'right')
+                # custom_landmarks_for_morph를 원본으로 설정 (얼굴 랜드마크 468개는 고정)
+                # 중앙 포인트만 파라미터로 전달하여 눈동자만 움직이게 함
+                if is_iris_center_only:
+                    # 원본 얼굴 랜드마크 사용 (468개, 중앙 포인트 제외)
+                    original_face = self.landmark_manager.get_original_face_landmarks()
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'B,C','location':'polygon_drag_handler.py:651','message':'iris_center_only path - original_face check','data':{'original_face_is_none':original_face is None,'original_face_len':len(original_face) if original_face else 0},'timestamp':int(time.time()*1000)})+'\n')
+                    except: pass
+                    # #endregion
+                    
+                    if original_face is not None:
+                        custom_landmarks_for_morph = list(original_face)  # 복사본 생성
+                        
+                        # #region agent log
+                        import json, time
+                        try:
+                            custom_lm = self.landmark_manager.get_custom_landmarks()
+                            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'C','location':'polygon_drag_handler.py:653','message':'custom_landmarks_for_morph set to original','data':{'morph_landmarks_len':len(custom_landmarks_for_morph),'morph_first_3':custom_landmarks_for_morph[:3] if len(custom_landmarks_for_morph)>=3 else [],'custom_landmarks_len':len(custom_lm) if custom_lm else 0,'custom_first_3':custom_lm[:3] if custom_lm and len(custom_lm)>=3 else []},'timestamp':int(time.time()*1000)})+'\n')
+                        except: pass
+                        # #endregion
+                    else:
+                        custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
+                        
+                        # #region agent log
+                        import json, time
+                        try:
+                            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'B','location':'polygon_drag_handler.py:655','message':'original_face is None - using custom','data':{'custom_landmarks_len':len(custom_landmarks_for_morph) if custom_landmarks_for_morph else 0},'timestamp':int(time.time()*1000)})+'\n')
+                        except: pass
+                        # #endregion
+                else:
+                    # _apply_common_sliders 호출 후 custom_landmarks가 업데이트되었을 수 있으므로 다시 가져오기
+                    custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
                 
                 # custom_landmarks가 470개인 경우 마지막 2개를 중앙 포인트로 추출하고 468개로 변환
                 left_center = self.landmark_manager.get_left_iris_center_coord()
@@ -642,44 +844,104 @@ class PolygonDragHandlerMixin:
                                 is_original=True
                             )
                 
+                # custom_landmarks에서 중앙 포인트 추출 (470개인 경우)
+                extracted_left_center = None
+                extracted_right_center = None
                 if custom_landmarks_for_morph is not None and len(custom_landmarks_for_morph) == 470:
                     # 마지막 2개가 중앙 포인트이므로 추출
                     # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
                     extracted_left_center = custom_landmarks_for_morph[-2]  # MediaPipe LEFT_IRIS (사용자 왼쪽)
                     extracted_right_center = custom_landmarks_for_morph[-1]  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
+                    # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
+                    custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
                     
                 # 중앙 포인트 파라미터로 사용 (landmark_manager에서 가져온 값이 없으면 추출한 값 사용)
-                if left_center is None:
+                if left_center is None and extracted_left_center is not None:
                     left_center = extracted_left_center
-                if right_center is None:
+                if right_center is None and extracted_right_center is not None:
                     right_center = extracted_right_center
-                    
-                # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
-                custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
                 
                 # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
-                original_landmarks_for_morph = original_landmarks
+                # 눈동자 중심점만 변경한 경우, custom_landmarks_for_morph와 동일하게 원본 사용
+                if is_iris_center_only:
+                    # custom_landmarks_for_morph와 동일한 출처에서 가져오기 (원본 얼굴 랜드마크)
+                    original_face_for_morph = self.landmark_manager.get_original_face_landmarks()
+                    if original_face_for_morph is not None:
+                        original_landmarks_for_morph = original_face_for_morph
+                    else:
+                        original_landmarks_for_morph = original_landmarks
+                else:
+                    # 일반적인 경우 원본 랜드마크 사용
+                    original_landmarks_for_morph = original_landmarks
+                
+                # 디버깅: custom_landmarks_for_morph와 original_landmarks_for_morph 비교
+                if custom_landmarks_for_morph is not None and original_landmarks_for_morph is not None:
+                    if len(custom_landmarks_for_morph) == len(original_landmarks_for_morph):
+                        diff_count = 0
+                        max_diff = 0.0
+                        for i in range(len(custom_landmarks_for_morph)):
+                            if isinstance(custom_landmarks_for_morph[i], tuple) and isinstance(original_landmarks_for_morph[i], tuple):
+                                diff = ((custom_landmarks_for_morph[i][0] - original_landmarks_for_morph[i][0])**2 + 
+                                       (custom_landmarks_for_morph[i][1] - original_landmarks_for_morph[i][1])**2)**0.5
+                                if diff > 0.1:
+                                    diff_count += 1
+                                    max_diff = max(max_diff, diff)
+                        print_info("얼굴편집", f"랜드마크 비교: 다른 포인트 {diff_count}개, 최대 차이 {max_diff:.2f}픽셀")
+                    else:
+                        print_info("얼굴편집", f"랜드마크 길이 불일치: custom={len(custom_landmarks_for_morph)}, original={len(original_landmarks_for_morph)}")
                 
                 # 디버깅: 중앙 포인트 좌표 확인
                 print_info("얼굴편집", f"중심점 드래그 적용: left_center={left_center}, right_center={right_center}")
                 print_info("얼굴편집", f"원본 중심점: left_orig={left_center_orig}, right_orig={right_center_orig}")
+                print_info("얼굴편집", f"눈동자 중심점만 변경: {is_iris_center_only}, last_selected_index={last_selected_index}")
                 
                 # 캐시된 원본 바운딩 박스 가져오기
                 img_width, img_height = self.current_image.size
                 cached_bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
                 # 블렌딩 비율 가져오기
                 blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
+                # 눈동자 이동 범위 제한 파라미터 가져오기
+                clamping_enabled = getattr(self, 'iris_clamping_enabled', None)
+                margin_ratio = getattr(self, 'iris_clamping_margin_ratio', None)
+                clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
+                margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
+                
+                # 디버깅: morph_face_by_polygons 호출 전 파라미터 확인
+                print_info("얼굴편집", f"morph_face_by_polygons 호출: original={len(original_landmarks_for_morph)}개, transformed={len(custom_landmarks_for_morph)}개")
+                print_info("얼굴편집", f"중앙 포인트: left={left_center}, right={right_center}, left_orig={left_center_orig}, right_orig={right_center_orig}")
+                print_info("얼굴편집", f"클램핑: enabled={clamping_enabled_val}, margin_ratio={margin_ratio_val}")
+                
+                # #region agent log
+                import json, time
+                try:
+                    # 랜드마크 차이 확인
+                    diff_count = 0
+                    if len(custom_landmarks_for_morph) == len(original_landmarks_for_morph):
+                        for i in range(len(custom_landmarks_for_morph)):
+                            diff = ((custom_landmarks_for_morph[i][0] - original_landmarks_for_morph[i][0])**2 + (custom_landmarks_for_morph[i][1] - original_landmarks_for_morph[i][1])**2)**0.5
+                            if diff > 0.1: diff_count += 1
+                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'E','location':'polygon_drag_handler.py:824','message':'before morph_face_by_polygons call','data':{'is_iris_center_only':is_iris_center_only,'original_len':len(original_landmarks_for_morph),'custom_len':len(custom_landmarks_for_morph),'diff_count':diff_count,'left_center':left_center,'right_center':right_center,'left_center_orig':left_center_orig,'right_center_orig':right_center_orig,'last_selected_index':str(last_selected_index)},'timestamp':int(time.time()*1000)})+'\n')
+                except: pass
+                # #endregion
+                
+                # morph_face_by_polygons 호출 (폴리곤 모드)
+                # 눈동자 중심점만 드래그한 경우에도 Delaunay Triangulation 사용
+                # 단, is_iris_center_only 플래그를 전달하여 선택적 변형
                 result = face_morphing.morph_face_by_polygons(
                     self.current_image,  # 원본 이미지
                     original_landmarks_for_morph,  # 원본 랜드마크 (468개)
                     custom_landmarks_for_morph,  # 변형된 랜드마크 (468개, 중앙 포인트 제거됨)
-                    selected_point_indices=[last_selected_index] if last_selected_index is not None else None,  # 선택한 포인트 인덱스
+                    selected_point_indices=[last_selected_index] if isinstance(last_selected_index, int) and last_selected_index is not None else None,  # 선택한 포인트 인덱스 (중앙 포인트는 문자열이므로 제외)
                     left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
                     right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
                     left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
                     right_iris_center_orig=right_center_orig,  # 원본 오른쪽 중앙 포인트
                     cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
-                    blend_ratio=blend_ratio  # 블렌딩 비율
+                    blend_ratio=blend_ratio,  # 블렌딩 비율
+                    clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
+                    margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
+                    iris_center_only=is_iris_center_only  # 눈동자 중심점만 드래그 플래그 (머리 변형 방지)
                 )
             
             if result is None:

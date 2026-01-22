@@ -8,12 +8,14 @@ import math
 class AllTabDrawerMixin:
     """전체탭 폴리곤 그리기 기능 Mixin"""
     
-    def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None):
+    def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
         
         Args:
             iris_landmarks: 눈동자 랜드마크 (10개 또는 None)
             iris_centers: 눈동자 중앙 포인트 (2개 또는 None, Tesselation용)
+            clamping_enabled: 눈동자 이동 범위 제한 활성화 여부
+            margin_ratio: 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0)
         """
         # 현재 탭에 따라 해당 부위의 모든 랜드마크 인덱스 수집
         target_indices = []
@@ -466,7 +468,26 @@ class AllTabDrawerMixin:
                 iris_centers = self.landmark_manager.get_custom_iris_centers()
                 if iris_centers is None and len(landmarks) == 470:
                     # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
-                    iris_centers = landmarks[-2:]
+                    # 주의: MediaPipe는 사용자 관점이므로, x 좌표로 왼쪽/오른쪽 판단
+                    pt468 = landmarks[468]
+                    pt469 = landmarks[469]
+                    if isinstance(pt468, tuple):
+                        coord468 = pt468
+                    else:
+                        coord468 = (pt468.x * img_width, pt468.y * img_height)
+                    if isinstance(pt469, tuple):
+                        coord469 = pt469
+                    else:
+                        coord469 = (pt469.x * img_width, pt469.y * img_height)
+                    
+                    # x 좌표가 작은 것이 화면상 왼쪽이지만, 실제 얼굴에서는 오른쪽 눈일 수 있음
+                    # 사용자 피드백: x=352(작은값)가 오른쪽 눈, x=437(큰값)이 왼쪽 눈
+                    if coord468[0] < coord469[0]:
+                        # 468의 x가 작음 → 468이 오른쪽 눈, 469가 왼쪽 눈
+                        iris_centers = [landmarks[469], landmarks[468]]  # [left, right]
+                    else:
+                        # 469의 x가 작음 → 469가 오른쪽 눈, 468이 왼쪽 눈
+                        iris_centers = [landmarks[468], landmarks[469]]  # [left, right]
             
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
             # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음

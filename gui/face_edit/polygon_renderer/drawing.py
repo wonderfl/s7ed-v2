@@ -353,10 +353,17 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
             target_indices = []
             
             if current_tab == '전체':
+                # 눈동자 이동 범위 제한 파라미터 가져오기
+                clamping_enabled = getattr(self, 'iris_clamping_enabled', None)
+                margin_ratio = getattr(self, 'iris_clamping_margin_ratio', None)
+                clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
+                margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
+                
                 self._draw_all_tab_polygons(
                     canvas, image, landmarks, pos_x, pos_y, items_list, color,
                     scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
-                    bind_polygon_click_events, force_use_custom, iris_landmarks, iris_centers
+                    bind_polygon_click_events, force_use_custom, iris_landmarks, iris_centers,
+                    clamping_enabled=clamping_enabled_val, margin_ratio=margin_ratio_val
                 )
             elif current_tab == '눈':
                 self._draw_eye_tab_polygons(
@@ -365,10 +372,17 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                     bind_polygon_click_events, force_use_custom
                 )
             elif current_tab == '눈동자':
+                # 눈동자 이동 범위 제한 파라미터 가져오기
+                clamping_enabled = getattr(self, 'iris_clamping_enabled', None)
+                margin_ratio = getattr(self, 'iris_clamping_margin_ratio', None)
+                clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
+                margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
+                
                 self._draw_iris_tab_polygons(
                     canvas, image, landmarks, pos_x, pos_y, items_list, color,
                     scale_x, scale_y, img_width, img_height, expansion_level, show_indices,
-                    bind_polygon_click_events, force_use_custom, iris_centers
+                    bind_polygon_click_events, force_use_custom, iris_centers,
+                    clamping_enabled=clamping_enabled_val, margin_ratio=margin_ratio_val
                 )
             elif current_tab == '코':
                 self._draw_nose_tab_polygons(

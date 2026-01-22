@@ -88,6 +88,8 @@ class FaceEditPanel(
         self.left_eye_size = tk.DoubleVar(value=1.0)  # 왼쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.right_eye_size = tk.DoubleVar(value=1.0)  # 오른쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.eye_spacing = tk.BooleanVar(value=False)  # 눈 간격 조정 활성화 여부
+        self.iris_clamping_enabled = tk.BooleanVar(value=True)  # 눈동자 이동 범위 제한 활성화 여부
+        self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.3)
         self.left_eye_position_y = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.right_eye_position_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.left_eye_position_x = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수평 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
@@ -738,6 +740,61 @@ class FaceEditPanelV2(FaceEditPanel):
         self.left_eye_position_x_label = create_eye_position_x_slider(eye_shape_frame, "왼쪽 눈 수평:", self.left_eye_position_x, -10.0, 10.0, 1.0, "0", is_left=True)
         self.right_eye_position_x_label = create_eye_position_x_slider(eye_shape_frame, "오른쪽 눈 수평:", self.right_eye_position_x, -10.0, 10.0, 1.0, "0", is_left=False)
         
+        # ==============================
+        # 3. 눈동자 이동 범위 제한 영역
+        # ==============================
+        iris_clamping_frame = tk.LabelFrame(tab_frame, text="눈동자 이동 범위 제한", padx=5, pady=5)
+        iris_clamping_frame.pack(fill=tk.BOTH, expand=False, pady=(5, 0))
+        
+        # 눈동자 이동 범위 제한 토글
+        clamping_checkbox = tk.Checkbutton(
+            iris_clamping_frame,
+            text="눈동자 이동 범위 제한 활성화",
+            variable=self.iris_clamping_enabled,
+            command=self.on_morphing_change
+        )
+        clamping_checkbox.pack(anchor=tk.W, pady=(0, 5))
+        
+        # 제한 마진 비율 슬라이더
+        def create_margin_slider(parent, label_text, variable, from_val, to_val, resolution, default_label=""):
+            frame = tk.Frame(parent)
+            frame.pack(fill=tk.X, pady=(0, 5))
+            
+            title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e")
+            title_label.pack(side=tk.LEFT, padx=(0, 5))
+            
+            value_label = tk.Label(frame, text=default_label, width=6)
+            value_label.pack(side=tk.LEFT)
+            
+            def on_slider_change(value):
+                value_label.config(text=f"{float(value):.1f}")
+                self.on_morphing_change()
+            
+            scale = tk.Scale(
+                frame,
+                from_=from_val,
+                to=to_val,
+                resolution=resolution,
+                orient=tk.HORIZONTAL,
+                variable=variable,
+                command=on_slider_change,
+                length=scaled_length,
+                showvalue=False
+            )
+            scale.pack(side=tk.LEFT, padx=(0, 5))
+            
+            return value_label
+        
+        self.iris_clamping_margin_ratio_label = create_margin_slider(
+            iris_clamping_frame,
+            "제한 마진 비율:",
+            self.iris_clamping_margin_ratio,
+            0.0,
+            1.0,
+            0.01,
+            "0.3"
+        )
+        
         return tab_frame
     
     def _create_mouth_tab(self, notebook):
@@ -1025,6 +1082,8 @@ class FaceEditPanelV2(FaceEditPanel):
                 right_eye_position_y=self.right_eye_position_y.get(),
                 left_eye_position_x=self.left_eye_position_x.get(),
                 right_eye_position_x=self.right_eye_position_x.get(),
+                clamping_enabled=self.iris_clamping_enabled.get(),
+                margin_ratio=self.iris_clamping_margin_ratio.get(),
                 # V2: 영역 파라미터를 None으로 전달하여 기본값 사용
                 eye_region_padding=None,
                 eye_region_offset_x=None,

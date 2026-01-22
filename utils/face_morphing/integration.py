@@ -52,7 +52,8 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                           lower_lip_region_padding_x=None, lower_lip_region_padding_y=None,
         upper_lip_region_offset_x=None, upper_lip_region_offset_y=None,
         lower_lip_region_offset_x=None, lower_lip_region_offset_y=None,
-        use_landmark_warping=False, blend_ratio=1.0):
+        use_landmark_warping=False, blend_ratio=1.0,
+        clamping_enabled=True, margin_ratio=0.3):
     """
     모든 얼굴 특징 보정을 한 번에 적용합니다.
     
@@ -226,7 +227,10 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                 return image
             
             print(f"[얼굴모핑] 랜드마크 변형 적용: 원본 {len(original_landmarks)}개, 변형 {len(transformed_landmarks)}개")
-            result = morph_face_by_polygons(image, original_landmarks, transformed_landmarks)
+            result = morph_face_by_polygons(
+                image, original_landmarks, transformed_landmarks,
+                clamping_enabled=clamping_enabled, margin_ratio=margin_ratio
+            )
             if result is None:
                 print("[얼굴모핑] 랜드마크 변형 결과가 None입니다")
                 return image

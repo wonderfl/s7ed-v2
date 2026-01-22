@@ -826,8 +826,13 @@ class TabDrawersMixin:
                 bind_polygon_click_events(polygon_id, jaw_indices_set)
 
 
-    def _draw_iris_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_centers=None):
-        """iris 탭 폴리곤 그리기 - 눈동자만 표시"""
+    def _draw_iris_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
+        """iris 탭 폴리곤 그리기 - 눈동자만 표시
+        
+        Args:
+            clamping_enabled: 눈동자 이동 범위 제한 활성화 여부
+            margin_ratio: 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0)
+        """
         try:
             import mediapipe as mp
             mp_face_mesh = mp.solutions.face_mesh

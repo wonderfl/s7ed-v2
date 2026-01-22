@@ -81,10 +81,59 @@ def _validate_and_prepare_inputs(image, original_landmarks, transformed_landmark
     return (img_array, img_width, img_height)
 
 
+def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_height, 
+                             margin_ratio=0.3, clamping_enabled=True):
+    """눈동자 중심점을 눈 영역 내로 제한
+    
+    Args:
+        iris_center_coord: 눈동자 중심점 좌표 (x, y)
+        eye_landmarks: 눈 랜드마크 포인트 리스트 [(x, y), ...]
+        img_width: 이미지 너비
+        img_height: 이미지 높이
+        margin_ratio: 눈 영역 마진 비율 (0.0 ~ 1.0, 기본값 0.3)
+        clamping_enabled: 클램핑 활성화 여부 (기본값 True)
+    
+    Returns:
+        (x, y): 제한된 눈동자 중심점 좌표
+    """
+    if not clamping_enabled or not eye_landmarks:
+        return iris_center_coord
+    
+    # 눈 영역 바운딩 박스 계산
+    x_coords = [pt[0] if isinstance(pt, tuple) else pt.x * img_width for pt in eye_landmarks]
+    y_coords = [pt[1] if isinstance(pt, tuple) else pt.y * img_height for pt in eye_landmarks]
+    
+    if not x_coords or not y_coords:
+        return iris_center_coord
+    
+    min_x = min(x_coords)
+    min_y = min(y_coords)
+    max_x = max(x_coords)
+    max_y = max(y_coords)
+    
+    # 마진 계산
+    width = max_x - min_x
+    height = max_y - min_y
+    margin_x = width * margin_ratio
+    margin_y = height * margin_ratio
+    
+    # 제한된 영역 계산
+    clamped_min_x = max(0, min_x - margin_x)
+    clamped_min_y = max(0, min_y - margin_y)
+    clamped_max_x = min(img_width, max_x + margin_x)
+    clamped_max_y = min(img_height, max_y + margin_y)
+    
+    # 눈동자 중심점을 제한된 영역 내로 클램핑
+    clamped_x = max(clamped_min_x, min(clamped_max_x, iris_center_coord[0]))
+    clamped_y = max(clamped_min_y, min(clamped_max_y, iris_center_coord[1]))
+    
+    return (clamped_x, clamped_y)
+
+
 def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                          left_iris_center_coord, right_iris_center_coord,
                          left_iris_center_orig, right_iris_center_orig,
-                         img_width, img_height):    
+                         img_width, img_height, clamping_enabled=True, margin_ratio=0.3):    
     """눈동자 포인트 처리 및 중앙 포인트 준비
     Args:
         original_landmarks: 원본 랜드마크 포인트 리스트
@@ -102,7 +151,26 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     """
     
     # 눈동자 포인트 제거 및 중앙 포인트 추가
-    # 1. 눈동자 인덱스 가져오기
+    # 1. 랜드마크 길이 확인
+    original_len = len(original_landmarks) if original_landmarks else 0
+    transformed_len = len(transformed_landmarks) if transformed_landmarks else 0
+    
+    # 디버깅: 랜드마크 길이 확인
+    try:
+        from utils.logger import print_info, print_warning
+    except ImportError:
+        def print_info(module, msg):
+            print(f"[{module}] {msg}")
+        def print_warning(module, msg):
+            print(f"[{module}] WARNING: {msg}")
+    
+    print_info("얼굴모핑", f"_prepare_iris_centers: original_landmarks 길이={original_len}, transformed_landmarks 길이={transformed_len}")
+    
+    # 2. 길이 불일치 경고
+    if original_len != transformed_len:
+        print_warning("얼굴모핑", f"랜드마크 길이 불일치: original={original_len}, transformed={transformed_len}")
+    
+    # 3. 눈동자 인덱스 가져오기
     try:
         from .region_extraction import get_iris_indices
         left_iris_indices, right_iris_indices = get_iris_indices()
@@ -121,9 +189,35 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         iris_center_indices = {468, 473}
         iris_indices = iris_contour_indices | iris_center_indices
     
-    # 2. 눈동자 포인트 제거
-    original_landmarks_no_iris = [pt for i, pt in enumerate(original_landmarks) if i not in iris_indices]
-    transformed_landmarks_no_iris = [pt for i, pt in enumerate(transformed_landmarks) if i not in iris_indices]
+    # 4. 눈동자 포인트 제거 (길이에 따라 조건부 처리)
+    if original_len == 478:
+        # 478개인 경우: 인덱스로 눈동자 포인트 제거
+        original_landmarks_no_iris = [pt for i, pt in enumerate(original_landmarks) if i not in iris_indices]
+        print_info("얼굴모핑", f"original_landmarks(478개)에서 눈동자 포인트 제거: {len(original_landmarks_no_iris)}개로 변환")
+    elif original_len == 468:
+        # 468개인 경우: 이미 눈동자 포인트가 제거된 상태이므로 그대로 사용
+        original_landmarks_no_iris = list(original_landmarks)
+        print_info("얼굴모핑", f"original_landmarks(468개)는 이미 눈동자 포인트가 제거된 상태")
+    else:
+        # 예상치 못한 길이: 경고 후 그대로 사용
+        print_warning("얼굴모핑", f"original_landmarks의 예상치 못한 길이: {original_len} (예상: 468 또는 478)")
+        original_landmarks_no_iris = list(original_landmarks)
+    
+    if transformed_len == 478:
+        # 478개인 경우: 인덱스로 눈동자 포인트 제거
+        transformed_landmarks_no_iris = [pt for i, pt in enumerate(transformed_landmarks) if i not in iris_indices]
+        print_info("얼굴모핑", f"transformed_landmarks(478개)에서 눈동자 포인트 제거: {len(transformed_landmarks_no_iris)}개로 변환")
+    elif transformed_len == 468:
+        # 468개인 경우: 이미 눈동자 포인트가 제거된 상태이므로 그대로 사용
+        transformed_landmarks_no_iris = list(transformed_landmarks)
+        print_info("얼굴모핑", f"transformed_landmarks(468개)는 이미 눈동자 포인트가 제거된 상태")
+    else:
+        # 예상치 못한 길이: 경고 후 그대로 사용
+        print_warning("얼굴모핑", f"transformed_landmarks의 예상치 못한 길이: {transformed_len} (예상: 468 또는 478)")
+        transformed_landmarks_no_iris = list(transformed_landmarks)
+    
+    # 디버깅: 최종 길이 확인
+    print_info("얼굴모핑", f"_prepare_iris_centers 결과: original_no_iris={len(original_landmarks_no_iris)}개, transformed_no_iris={len(transformed_landmarks_no_iris)}개")
     
     # 3. 중앙 포인트 계산 또는 전달된 좌표 사용
     # 전달된 좌표는 사용자 관점이므로 MediaPipe 관점으로 변환 필요
@@ -205,6 +299,45 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         # 따라서: 사용자 왼쪽 = MediaPipe LEFT_IRIS, 사용자 오른쪽 = MediaPipe RIGHT_IRIS
         left_iris_center_trans = left_iris_center_coord  # 변형된 중앙 포인트 (사용자 왼쪽 = MediaPipe LEFT_IRIS)
         right_iris_center_trans = right_iris_center_coord  # 변형된 중앙 포인트 (사용자 오른쪽 = MediaPipe RIGHT_IRIS)
+        
+        # 클램핑 적용: 눈 영역 내로 제한
+        if clamping_enabled:
+            try:
+                from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
+                # 왼쪽 눈 랜드마크 추출
+                left_eye_landmarks = []
+                for idx in LEFT_EYE_INDICES:
+                    if idx < len(transformed_landmarks_tuple):
+                        pt = transformed_landmarks_tuple[idx]
+                        if isinstance(pt, tuple):
+                            left_eye_landmarks.append(pt)
+                        elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                            left_eye_landmarks.append((pt.x * img_width, pt.y * img_height))
+                
+                # 오른쪽 눈 랜드마크 추출
+                right_eye_landmarks = []
+                for idx in RIGHT_EYE_INDICES:
+                    if idx < len(transformed_landmarks_tuple):
+                        pt = transformed_landmarks_tuple[idx]
+                        if isinstance(pt, tuple):
+                            right_eye_landmarks.append(pt)
+                        elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                            right_eye_landmarks.append((pt.x * img_width, pt.y * img_height))
+                
+                # 클램핑 적용
+                if left_eye_landmarks:
+                    left_iris_center_trans = clamp_iris_to_eye_region(
+                        left_iris_center_trans, left_eye_landmarks, img_width, img_height,
+                        margin_ratio=margin_ratio, clamping_enabled=clamping_enabled
+                    )
+                if right_eye_landmarks:
+                    right_iris_center_trans = clamp_iris_to_eye_region(
+                        right_iris_center_trans, right_eye_landmarks, img_width, img_height,
+                        margin_ratio=margin_ratio, clamping_enabled=clamping_enabled
+                    )
+            except ImportError:
+                # LEFT_EYE_INDICES, RIGHT_EYE_INDICES를 가져올 수 없으면 클램핑 건너뜀
+                pass
         
         # 원본 중앙 포인트: 파라미터로 전달된 값이 있으면 사용, 없으면 계산 시도
         if left_iris_center_orig is None or right_iris_center_orig is None:
@@ -312,11 +445,29 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     # 4. 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
     if left_iris_center_orig is not None and right_iris_center_orig is not None:
+        # #region agent log
+        import json, time
+        try:
+            # 추가 전 468개 랜드마크 중 처음 5개와 중앙 포인트 정보 로깅
+            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'F','location':'core.py:447','message':'before adding iris centers','data':{'orig_no_iris_len':len(original_landmarks_no_iris),'trans_no_iris_len':len(transformed_landmarks_no_iris),'orig_first_3':original_landmarks_no_iris[:3] if len(original_landmarks_no_iris)>=3 else [],'trans_first_3':transformed_landmarks_no_iris[:3] if len(transformed_landmarks_no_iris)>=3 else [],'left_center_orig':left_iris_center_orig,'right_center_orig':right_iris_center_orig,'left_center_trans':left_iris_center_trans,'right_center_trans':right_iris_center_trans},'timestamp':int(time.time()*1000)})+'\n')
+        except: pass
+        # #endregion
+        
         # MediaPipe LEFT_IRIS 먼저 추가 (len-2), MediaPipe RIGHT_IRIS 나중 추가 (len-1)
         original_landmarks_no_iris.append(left_iris_center_orig)   # MediaPipe LEFT_IRIS (사용자 왼쪽)
         original_landmarks_no_iris.append(right_iris_center_orig)  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
         transformed_landmarks_no_iris.append(left_iris_center_trans)
         transformed_landmarks_no_iris.append(right_iris_center_trans)
+        
+        # #region agent log
+        import json, time
+        try:
+            # 추가 후 470개 확인
+            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'F','location':'core.py:452','message':'after adding iris centers','data':{'orig_no_iris_len':len(original_landmarks_no_iris),'trans_no_iris_len':len(transformed_landmarks_no_iris),'orig_last_2':original_landmarks_no_iris[-2:],'trans_last_2':transformed_landmarks_no_iris[-2:]},'timestamp':int(time.time()*1000)})+'\n')
+        except: pass
+        # #endregion
         
         # 중앙 포인트 이동 거리 계산 (중앙 포인트가 실제로 변경되었을 때만 로그 출력)
         left_displacement = np.sqrt((left_iris_center_trans[0] - left_iris_center_orig[0])**2 + 
@@ -520,7 +671,8 @@ def _calculate_landmark_bounding_box(landmarks, img_width, img_height, padding_r
 def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, selected_point_indices=None,
                            left_iris_center_coord=None, right_iris_center_coord=None,
                            left_iris_center_orig=None, right_iris_center_orig=None,
-                           cached_original_bbox=None, blend_ratio=1.0):
+                           cached_original_bbox=None, blend_ratio=1.0,
+                           clamping_enabled=True, margin_ratio=0.3, iris_center_only=False):
     """
     Delaunay Triangulation을 사용하여 폴리곤(랜드마크 포인트) 기반 얼굴 변형을 수행합니다.
     뒤집힌 삼각형이 발생하면 변형을 점진적으로 줄여서 재시도합니다.
@@ -552,7 +704,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             original_landmarks, transformed_landmarks,
             left_iris_center_coord, right_iris_center_coord,
             left_iris_center_orig, right_iris_center_orig,
-            img_width, img_height
+            img_width, img_height,
+            clamping_enabled=clamping_enabled, margin_ratio=margin_ratio
         )
         original_landmarks_no_iris, transformed_landmarks_no_iris, \
         original_points_array, transformed_points_array, iris_indices = iris_result        
@@ -750,6 +903,137 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         else:
             # 작은 바운딩 박스는 한 번에 처리
             simplex_indices_orig = tri.find_simplex(pixel_coords_orig_global)
+        
+        # 눈동자 중심점만 드래그한 경우: 중앙 포인트와 눈 영역 랜드마크만 포함하는 삼각형만 변형
+        if iris_center_only:
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'core.py:916','message':'iris_center_only block entered','data':{'iris_center_only':iris_center_only,'landmarks_count':landmarks_count},'timestamp':int(time.time()*1000)})+'\n')
+            except Exception as e:
+                print(f"[얼굴모핑] 로그 쓰기 실패 (I): {e}")
+            # #endregion
+            
+            # 중앙 포인트 인덱스 (470개 구조에서 468, 469번)
+            iris_center_indices = {landmarks_count - 2, landmarks_count - 1}
+            
+            # 눈 영역 랜드마크 인덱스 가져오기 (인덱스 기반 필터링)
+            try:
+                from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
+                # 눈 영역 랜드마크 (눈꺼풀 윤곽)
+                eye_landmarks_raw = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
+                
+                # #region agent log
+                import json, time
+                try:
+                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'core.py:928','message':'eye indices check','data':{'left_eye_indices':LEFT_EYE_INDICES,'right_eye_indices':RIGHT_EYE_INDICES,'landmarks_count':landmarks_count,'eye_landmarks_raw_full':sorted(list(eye_landmarks_raw)),'eye_landmarks_raw_count':len(eye_landmarks_raw)},'timestamp':int(time.time()*1000)})+'\n')
+                except Exception as e:
+                    print(f"[얼굴모핑] 로그 쓰기 실패 (G): {e}")
+                # #endregion
+                
+                # MediaPipe 인덱스(478개)를 468개 구조로 변환 필요 여부 확인
+                # 현재 landmarks_count는 470개 (468개 + 중앙 포인트 2개)
+                # 따라서 실제 랜드마크는 468개
+                # MediaPipe는 478개이므로 10개(눈동자 윤곽)가 제거된 상태
+                # 눈 랜드마크 인덱스가 468 미만이면 그대로 사용, 이상이면 조정 필요
+                max_eye_idx = max(eye_landmarks_raw) if eye_landmarks_raw else 0
+                if max_eye_idx >= landmarks_count - 2:  # 중앙 포인트 인덱스 제외
+                    # 인덱스가 범위를 벗어남 - 매핑 필요
+                    print(f"[얼굴모핑] 경고: 눈 랜드마크 인덱스가 범위 초과 (max={max_eye_idx}, landmarks={landmarks_count-2})")
+                    # 일단 사용 가능한 인덱스만 필터링
+                    eye_landmarks = {idx for idx in eye_landmarks_raw if idx < landmarks_count - 2}
+                else:
+                    eye_landmarks = eye_landmarks_raw
+                    
+                print(f"[얼굴모핑] 눈 영역 랜드마크: 왼쪽 눈 {len(LEFT_EYE_INDICES)}개, 오른쪽 눈 {len(RIGHT_EYE_INDICES)}개, 합계 {len(eye_landmarks)}개 (사용 가능)")
+            except ImportError:
+                # 폴백: 중앙 포인트만 사용
+                eye_landmarks = set()
+                print(f"[얼굴모핑] 경고: 눈 랜드마크 인덱스를 가져올 수 없음")
+            
+            # 경계 포인트
+            boundary_indices = set(range(landmarks_count, landmarks_count + 4))
+            
+            # 거리 기반 필터링: 눈동자 중심점 주변 랜드마크만 허용
+            # 두 눈 사이 거리를 기준으로 설정
+            left_iris_pt = original_points_array[landmarks_count - 2]  # 왼쪽 눈동자 중심
+            right_iris_pt = original_points_array[landmarks_count - 1]  # 오른쪽 눈동자 중심
+            eye_distance = np.linalg.norm(right_iris_pt - left_iris_pt)
+            max_distance = eye_distance * 2.0  # 눈 사이 거리의 200%
+            
+            print(f"[얼굴모핑] 눈 거리: {eye_distance:.2f}픽셀, 최대 허용 거리: {max_distance:.2f}픽셀")
+            
+            # 각 삼각형 검사: 중앙 포인트를 포함하고, 나머지 꼭짓점이 가까이 있어야 함
+            iris_triangles = set()
+            sample_triangles = []  # 디버그용 샘플
+            rejected_triangles = []  # 디버그용 거부된 샘플
+            for simplex_idx, simplex in enumerate(tri.simplices):
+                has_iris_center = any(idx in iris_center_indices for idx in simplex)
+                if has_iris_center:
+                    # 중앙 포인트 제외한 나머지 꼭짓점 확인
+                    other_vertices = [idx for idx in simplex if idx not in iris_center_indices]
+                    # 나머지 꼭짓점이 모두 경계 포인트인지 확인
+                    all_boundary = all(idx in boundary_indices for idx in other_vertices)
+                    
+                    # 경계 포인트만 있는 삼각형은 제외
+                    if all_boundary:
+                        if len(rejected_triangles) < 3:
+                            rejected_triangles.append(('all_boundary', simplex_idx, simplex.tolist()))
+                        continue
+                    
+                    # 나머지 꼭짓점이 눈동자 중심점 근처에 있는지 확인 (거리 기반)
+                    iris_center_in_simplex = [idx for idx in simplex if idx in iris_center_indices][0]
+                    iris_center_pt = original_points_array[iris_center_in_simplex]
+                    
+                    all_nearby = True
+                    far_vertices = []
+                    for vert_idx in other_vertices:
+                        if vert_idx in boundary_indices:
+                            continue  # 경계 포인트는 허용
+                        vert_pt = original_points_array[vert_idx]
+                        dist = np.linalg.norm(vert_pt - iris_center_pt)
+                        if dist > max_distance:
+                            all_nearby = False
+                            far_vertices.append((vert_idx, float(dist)))
+                    
+                    if all_nearby:
+                        iris_triangles.add(simplex_idx)
+                        if len(sample_triangles) < 5:  # 처음 5개만 샘플링
+                            sample_triangles.append((simplex_idx, simplex.tolist()))
+                    else:
+                        if len(rejected_triangles) < 3:
+                            rejected_triangles.append(('too_far', simplex_idx, simplex.tolist(), far_vertices))
+            
+            print(f"[얼굴모핑] 눈동자 중심점만 드래그: {len(iris_triangles)}개 삼각형만 변형 (전체 {len(tri.simplices)}개 중)")
+            
+            # #region agent log
+            import json, time
+            try:
+                # NumPy 타입을 Python 타입으로 변환
+                sample_triangles_json = [[int(idx), [int(v) for v in tri]] for idx, tri in sample_triangles]
+                rejected_triangles_json = []
+                for item in rejected_triangles:
+                    if len(item) == 3:  # all_boundary
+                        rejected_triangles_json.append([item[0], int(item[1]), [int(v) for v in item[2]]])
+                    elif len(item) == 4:  # too_far
+                        # far_vertices는 [(idx, dist), ...] 형식
+                        far_verts_json = [[int(idx), dist] for idx, dist in item[3]]
+                        rejected_triangles_json.append([item[0], int(item[1]), [int(v) for v in item[2]], far_verts_json])
+                
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'core.py:1020','message':'iris triangles selected','data':{'iris_triangles_count':int(len(iris_triangles)),'total_triangles':int(len(tri.simplices)),'sample_triangles':sample_triangles_json,'rejected_triangles':rejected_triangles_json,'iris_center_indices':[int(x) for x in iris_center_indices],'boundary_indices':[int(x) for x in boundary_indices],'eye_distance':float(eye_distance),'max_distance':float(max_distance),'landmarks_count':int(landmarks_count)},'timestamp':int(time.time()*1000)})+'\n')
+            except Exception as e:
+                print(f"[얼굴모핑] 로그 쓰기 실패 (H): {e}")
+                import traceback
+                traceback.print_exc()
+            # #endregion
+
+            
+            # 중앙 포인트를 포함하지 않거나 눈 영역 밖의 삼각형은 변형하지 않음
+            mask_iris_triangles = np.isin(simplex_indices_orig, list(iris_triangles))
+            simplex_indices_orig[~mask_iris_triangles] = -1
         
         # 각 삼각형의 정변환 행렬 미리 계산 (캐싱)
         forward_transform_cache = {}
