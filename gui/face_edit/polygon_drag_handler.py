@@ -331,30 +331,36 @@ class PolygonDragHandlerMixin:
         if custom is not None and len(custom) >= 2:
             # 계산된 중앙 포인트 인덱스: 
             # custom_landmarks에는 눈동자 포인트가 제거되고 중앙 포인트가 추가되어 있음
-            # *** 주의: landmarks[468]과 landmarks[469]의 순서가 x 좌표에 따라 다름! ***
-            # 실제로 landmarks[468]은 x가 작은 쪽 (화면상 오른쪽 눈 = 사용자 오른쪽)
-            # 실제로 landmarks[469]는 x가 큰 쪽 (화면상 왼쪽 눈 = 사용자 왼쪽)
-            # 따라서: len-2 (468번) = 사용자 오른쪽 눈, len-1 (469번) = 사용자 왼쪽 눈
-            # 드래그 시 iris_side는 사용자 관점이므로 반대로 매핑해야 함!
+            # landmarks[468] = LEFT_EYE_INDICES에서 계산된 중심
+            # landmarks[469] = RIGHT_EYE_INDICES에서 계산된 중심
+            
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'polygon_drag_handler.py:331','message':'iris drag start','data':{'iris_side':iris_side,'new_center':(new_center_x,new_center_y),'custom_len':len(custom),'custom_468':custom[468] if len(custom)>468 else None,'custom_469':custom[469] if len(custom)>469 else None},'timestamp':int(time.time()*1000)})+'\n')
+            except: pass
+            # #endregion
+            
             if iris_side == 'left':
-                # 사용자 왼쪽 = landmarks[469] = len(custom)-1
-                left_idx = len(custom) - 1
-                # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
-                self.landmark_manager.update_custom_landmark(left_idx, (new_center_x, new_center_y))
-                right_center_current = self.landmark_manager.get_right_iris_center_coord()
-                self.landmark_manager.set_iris_center_coords(
-                    (new_center_x, new_center_y),
-                    right_center_current
-                )
-            elif iris_side == 'right':
-                # 사용자 오른쪽 = landmarks[468] = len(custom)-2
-                right_idx = len(custom) - 2
+                # UI Left → landmarks[469] = len(custom)-1
+                right_idx = len(custom) - 1
                 # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
                 self.landmark_manager.update_custom_landmark(right_idx, (new_center_x, new_center_y))
                 left_center_current = self.landmark_manager.get_left_iris_center_coord()
                 self.landmark_manager.set_iris_center_coords(
                     left_center_current,
                     (new_center_x, new_center_y)
+                )
+            elif iris_side == 'right':
+                # UI Right → landmarks[468] = len(custom)-2
+                left_idx = len(custom) - 2
+                # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
+                self.landmark_manager.update_custom_landmark(left_idx, (new_center_x, new_center_y))
+                right_center_current = self.landmark_manager.get_right_iris_center_coord()
+                self.landmark_manager.set_iris_center_coords(
+                    (new_center_x, new_center_y),
+                    right_center_current
                 )
         else:
             # custom_landmarks가 없거나 길이가 부족한 경우
@@ -812,29 +818,37 @@ class PolygonDragHandlerMixin:
                     original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
                     
                     if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
-                        # 눈동자 랜드마크: 왼쪽 5개 (0-4), 오른쪽 5개 (5-9)
-                        left_iris_points = original_iris_landmarks[:5]
-                        right_iris_points = original_iris_landmarks[5:]
+                        # 눈동자 랜드마크: 첫 5개와 다음 5개
+                        first_iris_points = original_iris_landmarks[:5]
+                        second_iris_points = original_iris_landmarks[5:]
                         
-                        if left_iris_points and left_center_orig is None:
-                            left_center_orig = (
-                                sum(p[0] for p in left_iris_points) / len(left_iris_points),
-                                sum(p[1] for p in left_iris_points) / len(left_iris_points)
-                            )
+                        # x 좌표로 왼쪽/오른쪽 판단
+                        if first_iris_points and second_iris_points:
+                            first_center_x = sum(p[0] for p in first_iris_points) / len(first_iris_points)
+                            second_center_x = sum(p[0] for p in second_iris_points) / len(second_iris_points)
+                            
+                            # x 좌표 비교
+                            if first_center_x > second_center_x:
+                                left_iris_points = first_iris_points
+                                right_iris_points = second_iris_points
+                            else:
+                                left_iris_points = second_iris_points
+                                right_iris_points = first_iris_points
+                            
+                            if left_center_orig is None:
+                                left_center_orig = (
+                                    sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                                    sum(p[1] for p in left_iris_points) / len(left_iris_points)
+                                )
+                            if right_center_orig is None:
+                                right_center_orig = (
+                                    sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                                    sum(p[1] for p in right_iris_points) / len(right_iris_points)
+                                )
+                            
                             # landmark_manager에 원본으로 저장
                             self.landmark_manager.set_iris_center_coords(
                                 left_center_orig, 
-                                self.landmark_manager.get_original_right_iris_center_coord(),
-                                is_original=True
-                            )
-                        if right_iris_points and right_center_orig is None:
-                            right_center_orig = (
-                                sum(p[0] for p in right_iris_points) / len(right_iris_points),
-                                sum(p[1] for p in right_iris_points) / len(right_iris_points)
-                            )
-                            # landmark_manager에 원본으로 저장
-                            self.landmark_manager.set_iris_center_coords(
-                                self.landmark_manager.get_original_left_iris_center_coord(),
                                 right_center_orig,
                                 is_original=True
                             )
@@ -844,9 +858,9 @@ class PolygonDragHandlerMixin:
                 extracted_right_center = None
                 if custom_landmarks_for_morph is not None and len(custom_landmarks_for_morph) == 470:
                     # 마지막 2개가 중앙 포인트이므로 추출
-                    # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
-                    extracted_left_center = custom_landmarks_for_morph[-2]  # MediaPipe LEFT_IRIS (사용자 왼쪽)
-                    extracted_right_center = custom_landmarks_for_morph[-1]  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
+                    # [-2] = LEFT, [-1] = RIGHT (변경하지 말 것)
+                    extracted_left_center = custom_landmarks_for_morph[-2]   # LEFT
+                    extracted_right_center = custom_landmarks_for_morph[-1]  # RIGHT
                     # custom_landmarks를 468개로 변환 (중앙 포인트 제거)
                     custom_landmarks_for_morph = custom_landmarks_for_morph[:-2]
                     

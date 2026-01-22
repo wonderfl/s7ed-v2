@@ -317,8 +317,8 @@ class LandmarkManager:
         """눈동자 중앙 포인트 좌표 설정
         
         Args:
-            left: 왼쪽 눈동자 중앙 포인트 좌표
-            right: 오른쪽 눈동자 중앙 포인트 좌표
+            left: 왼쪽 눈동자 중앙 포인트 좌표 (MediaPipe LEFT_EYE 기준)
+            right: 오른쪽 눈동자 중앙 포인트 좌표 (MediaPipe RIGHT_EYE 기준)
             is_original: True이면 원본 중앙 포인트로 저장 (처음 감지 시)
         """
         self._left_iris_center_coord = left
@@ -464,6 +464,8 @@ class LandmarkManager:
             self._custom_iris_centers = None
             self._left_iris_center_coord = None
             self._right_iris_center_coord = None
+            self._original_left_iris_center_coord = None
+            self._original_right_iris_center_coord = None
             self._dragged_indices.clear()  # 드래그 표시도 초기화
         
         self._log_change("reset", keep_original=keep_original)
@@ -617,8 +619,8 @@ class LandmarkManager:
             if left_center is not None and right_center is not None:
                 # 중앙 포인트 추가를 위해 새 리스트 생성 (구조 변경 필요)
                 original = list(self._original_face_landmarks)  # 중앙 포인트 추가를 위해 복사본 필요
-                original.append(left_center)   # MediaPipe LEFT_IRIS (사용자 왼쪽, len-2)
-                original.append(right_center)  # MediaPipe RIGHT_IRIS (사용자 오른쪽, len-1)
+                original.append(left_center)   # landmarks[468]
+                original.append(right_center)  # landmarks[469]
             else:
                 # 중앙 포인트가 없으면 직접 참조 반환 (복사본 없음)
                 original = self._original_face_landmarks

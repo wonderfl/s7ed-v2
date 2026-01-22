@@ -776,9 +776,9 @@ class LogicMixin(EditingStepsMixin):
                 
                 # 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
                 if left_center is not None and right_center is not None:
-                    # MediaPipe LEFT_IRIS 먼저 추가 (len-2), MediaPipe RIGHT_IRIS 나중 추가 (len-1)
-                    final_landmarks.append(left_center)   # MediaPipe LEFT_IRIS (사용자 왼쪽)
-                    final_landmarks.append(right_center)  # MediaPipe RIGHT_IRIS (사용자 오른쪽)
+                    # landmarks[468] = LEFT_EYE_INDICES, landmarks[469] = RIGHT_EYE_INDICES
+                    final_landmarks.append(left_center)   # landmarks[468]
+                    final_landmarks.append(right_center)  # landmarks[469]
                     original_face_landmarks_tuple.append(left_center)  # 원본도 동일하게 추가
                     original_face_landmarks_tuple.append(right_center)
                     
@@ -809,8 +809,8 @@ class LogicMixin(EditingStepsMixin):
                 if left_center is not None and right_center is not None:
                     # final_landmarks에 중앙 포인트 추가 (470개 구조로 변환)
                     final_landmarks_for_custom = list(final_landmarks)
-                    final_landmarks_for_custom.append(left_center)   # MediaPipe LEFT_IRIS (사용자 왼쪽, len-2)
-                    final_landmarks_for_custom.append(right_center)  # MediaPipe RIGHT_IRIS (사용자 오른쪽, len-1)
+                    final_landmarks_for_custom.append(left_center)   # landmarks[468]
+                    final_landmarks_for_custom.append(right_center)  # landmarks[469]
                     print_info("얼굴편집", f"기존 custom_landmarks(470개)에 중앙 포인트 업데이트: 왼쪽={left_center}, 오른쪽={right_center}")
             
             # custom_landmarks 업데이트 (LandmarkManager 사용)

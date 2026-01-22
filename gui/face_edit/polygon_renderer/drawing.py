@@ -127,11 +127,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                                     sum(p[1] for p in right_iris_points) / len(right_iris_points)
                                 )
                             
-                            # MediaPipe 관점: LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
-                            # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
-                            # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
-                            # 따라서: left_iris_points는 사용자 왼쪽, right_iris_points는 사용자 오른쪽
-                            # landmark_manager에 저장할 때는 사용자 관점으로 저장
+                            # LEFT_EYE_INDICES → left_center, RIGHT_EYE_INDICES → right_center
                             if left_center is not None and right_center is not None:
                                 self.landmark_manager.set_iris_center_coords(left_center, right_center)
                                 self._left_iris_center_coord = left_center
@@ -162,8 +158,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         
                         # 중앙 포인트 추가 (저장된 좌표 사용 또는 계산)
                         # morph_face_by_polygons와 동일한 순서로 추가해야 함
-                        # morph_face_by_polygons: left_iris_center_orig 먼저 (len-2), right_iris_center_orig 나중 (len-1)
-                        # MediaPipe 관점: LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽), RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
+                        # landmarks[468] = LEFT_EYE_INDICES, landmarks[469] = RIGHT_EYE_INDICES
                         
                         # landmark_manager에서 저장된 중앙 포인트 가져오기
                         if left_center is None:
@@ -175,11 +170,20 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         if (left_center is None or right_center is None) and hasattr(self, '_calculate_iris_center'):
                             original = self.landmark_manager.get_original_landmarks()
                             if original is not None:
-                                # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS, 오른쪽 = MediaPipe LEFT_IRIS
+                                # landmarks[468] = LEFT_EYE_INDICES에서 계산
+                                # landmarks[469] = RIGHT_EYE_INDICES에서 계산
                                 if left_center is None:
-                                    left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                    left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
                                 if right_center is None:
-                                    right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                                    right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                                
+                                # #region agent log
+                                import json, time
+                                try:
+                                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'drawing.py:175','message':'iris centers calculated','data':{'left_center':left_center,'right_center':right_center,'left_indices_sample':left_iris_indices[:5] if left_iris_indices else [],'right_indices_sample':right_iris_indices[:5] if right_iris_indices else []},'timestamp':int(time.time()*1000)})+'\n')
+                                except: pass
+                                # #endregion
                                 
                                 # 계산 성공 시 landmark_manager에 저장
                                 if left_center is not None and right_center is not None:
@@ -187,12 +191,9 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         
                         # 중앙 포인트 추가
                         if left_center is not None and right_center is not None:
-                            # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
-                            # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
-                            # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
-                            # 따라서: 사용자 왼쪽 먼저 추가 (len-2), 사용자 오른쪽 나중 추가 (len-1)
-                            custom_landmarks_no_iris.append(left_center)   # 사용자 왼쪽 = MediaPipe LEFT_IRIS (len-2)
-                            custom_landmarks_no_iris.append(right_center)  # 사용자 오른쪽 = MediaPipe RIGHT_IRIS (len-1)
+                            # landmarks[468] = LEFT_EYE_INDICES, landmarks[469] = RIGHT_EYE_INDICES
+                            custom_landmarks_no_iris.append(left_center)   # landmarks[468]
+                            custom_landmarks_no_iris.append(right_center)  # landmarks[469]
                             print(f"[폴리곤렌더러] 중앙 포인트 추가 완료: 왼쪽={left_center}, 오른쪽={right_center}")
                         else:
                             print_warning("폴리곤렌더러", "중앙 포인트 계산 실패, custom_landmarks에 추가하지 않음")
@@ -242,14 +243,28 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 # 왼쪽 중앙 포인트 계산
                 if left_center is None and original is not None:
                     left_iris_indices, right_iris_indices = self._get_iris_indices()
-                    # 사용자 관점: 왼쪽 = MediaPipe RIGHT_IRIS
-                    left_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        # LEFT_EYE_INDICES의 실제 좌표 확인
+                        left_eye_indices = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+                        right_eye_indices = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+                        left_eye_sample = [original[i] for i in left_eye_indices[:3] if i < len(original)]
+                        right_eye_sample = [original[i] for i in right_eye_indices[:3] if i < len(original)]
+                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'J','location':'drawing.py:244','message':'EYE_INDICES coordinates','data':{'LEFT_EYE_sample':left_eye_sample[:3],'RIGHT_EYE_sample':right_eye_sample[:3]},'timestamp':int(time.time()*1000)})+'\n')
+                    except: pass
+                    # #endregion
+                    
+                    # LEFT_EYE_INDICES → left_center
+                    left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
                 
                 # 오른쪽 중앙 포인트 계산
                 if right_center is None and original is not None:
                     left_iris_indices, right_iris_indices = self._get_iris_indices()
-                    # 사용자 관점: 오른쪽 = MediaPipe LEFT_IRIS
-                    right_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+                    # RIGHT_EYE_INDICES → right_center
+                    right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
                 
                 # 좌표를 저장
                 if left_center is not None or right_center is not None:

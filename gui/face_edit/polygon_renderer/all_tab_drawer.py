@@ -326,16 +326,26 @@ class AllTabDrawerMixin:
 
                 len_landmarks = len(landmarks)
                 # iris_centers 파라미터가 전달된 경우 우선 사용
+                # UI 라벨 "Left"/"Right"와 실제 눈 매핑
                 if iris_centers is not None and len(iris_centers) == 2:
                     if iris_side == 'left':
-                        center_pt = iris_centers[0]
+                        center_pt = iris_centers[1]  # UI Left → landmarks[469]
                     else:
-                        center_pt = iris_centers[1]
+                        center_pt = iris_centers[0]  # UI Right → landmarks[468]
                     if isinstance(center_pt, tuple):
                         center_x, center_y = center_pt
                     else:
                         center_x = center_pt.x * img_width
                         center_y = center_pt.y * img_height
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'all_tab_drawer.py:329','message':'drawing iris center','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'iris_centers_0':iris_centers[0],'iris_centers_1':iris_centers[1]},'timestamp':int(time.time()*1000)})+'\n')
+                    except: pass
+                    # #endregion
+                    
                     setattr(self, iris_center_coord_attr, (center_x, center_y))
                 # Tesselation 모드: custom_landmarks에서 중앙 포인트 추출 (470개 구조만)
                 elif len_landmarks == 470:
@@ -373,6 +383,14 @@ class AllTabDrawerMixin:
                     rel_y = (center_y - img_height / 2) * scale_y
                     canvas_x = pos_x + rel_x
                     canvas_y = pos_y + rel_y
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'all_tab_drawer.py:380','message':'creating iris circle on canvas','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'canvas_x':canvas_x,'canvas_y':canvas_y},'timestamp':int(time.time()*1000)})+'\n')
+                    except: pass
+                    # #endregion
                     
                     center_radius = 8
                     center_id = canvas.create_oval(
@@ -468,30 +486,43 @@ class AllTabDrawerMixin:
                 iris_centers = self.landmark_manager.get_custom_iris_centers()
                 if iris_centers is None and len(landmarks) == 470:
                     # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
-                    # 주의: MediaPipe는 사용자 관점이므로, x 좌표로 왼쪽/오른쪽 판단
+                    # landmarks[468] = LEFT_EYE_INDICES에서 계산된 중심
+                    # landmarks[469] = RIGHT_EYE_INDICES에서 계산된 중심
                     pt468 = landmarks[468]
                     pt469 = landmarks[469]
+                    
+                    # 좌표 추출 (로그용)
                     if isinstance(pt468, tuple):
                         coord468 = pt468
                     else:
                         coord468 = (pt468.x * img_width, pt468.y * img_height)
+                    
                     if isinstance(pt469, tuple):
                         coord469 = pt469
                     else:
                         coord469 = (pt469.x * img_width, pt469.y * img_height)
                     
-                    # x 좌표가 작은 것이 화면상 왼쪽이지만, 실제 얼굴에서는 오른쪽 눈일 수 있음
-                    # 사용자 피드백: x=352(작은값)가 오른쪽 눈, x=437(큰값)이 왼쪽 눈
-                    if coord468[0] < coord469[0]:
-                        # 468의 x가 작음 → 468이 오른쪽 눈, 469가 왼쪽 눈
-                        iris_centers = [landmarks[469], landmarks[468]]  # [left, right]
-                    else:
-                        # 469의 x가 작음 → 469가 오른쪽 눈, 468이 왼쪽 눈
-                        iris_centers = [landmarks[468], landmarks[469]]  # [left, right]
+                    iris_centers = [landmarks[468], landmarks[469]]
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'all_tab_drawer.py:486','message':'iris_centers array created','data':{'landmarks_468_coord':coord468,'landmarks_469_coord':coord469,'iris_centers_len':len(iris_centers),'which_is_left_on_screen':'468_x=' + str(coord468[0]) + '_is_smaller' if coord468[0]<coord469[0] else '469_x=' + str(coord469[0]) + '_is_smaller'},'timestamp':int(time.time()*1000)})+'\n')
+                    except: pass
+                    # #endregion
             
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
             # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음
             if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
+                # #region agent log
+                import json, time
+                try:
+                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'all_tab_drawer.py:516','message':'calling draw_iris for LEFT checkbox','data':{'iris_side':'left','iris_centers_available':iris_centers is not None},'timestamp':int(time.time()*1000)})+'\n')
+                except: pass
+                # #endregion
+                
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('left', LEFT_IRIS if LEFT_IRIS else [], '_left_iris_center_coord')
