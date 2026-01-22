@@ -367,9 +367,6 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                 max_x_orig = max(pt[0] for pt in original_landmarks_tuple)
                 max_y_orig = max(pt[1] for pt in original_landmarks_tuple)
                 
-                print(f"[얼굴모핑] 랜드마크 범위: x=[{min_x_orig:.1f}, {max_x_orig:.1f}], y=[{min_y_orig:.1f}, {max_y_orig:.1f}]")
-                print(f"[얼굴모핑] 원본 중심점 좌표: left={left_iris_center_orig}, right={right_iris_center_orig}")
-                
                 # 원본 이미지 크기 추정 (랜드마크 범위 + 여유)
                 margin = 10
                 orig_img_width = max(max_x_orig - min_x_orig + margin * 2, img_width)
@@ -379,38 +376,25 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                 offset_x = min_x_orig - margin if min_x_orig > margin else 0
                 offset_y = min_y_orig - margin if min_y_orig > margin else 0
                 
-                print(f"[얼굴모핑] 중심점 범위 체크: left=({left_iris_center_orig[0]:.1f}, {left_iris_center_orig[1]:.1f}), right=({right_iris_center_orig[0]:.1f}, {right_iris_center_orig[1]:.1f})")
-                print(f"[얼굴모핑] 이미지 크기: {img_width}x{img_height}")
-                
                 # 중심점이 이미지 범위 안에 있는지 확인
                 left_in_bounds = (0 <= left_iris_center_orig[0] <= img_width and 0 <= left_iris_center_orig[1] <= img_height)
                 right_in_bounds = (0 <= right_iris_center_orig[0] <= img_width and 0 <= right_iris_center_orig[1] <= img_height)
-                
-                print(f"[얼굴모핑] 중심점 범위 안? left={left_in_bounds}, right={right_in_bounds}")
                 
                 # 원본 중심점이 현재 이미지 크기를 벗어나는지 확인
                 # 중요: 중심점이 이미지 범위 안에 있으면 스케일링 불필요!
                 needs_adjustment = (not left_in_bounds or not right_in_bounds or
                                    abs(orig_img_width - img_width) > 1.0 or abs(orig_img_height - img_height) > 1.0)
                 
-                print(f"[얼굴모핑] 스케일링 필요? {needs_adjustment}")
-                
                 if needs_adjustment and orig_img_width > 0 and orig_img_height > 0:
                     # 스케일 비율 계산
                     scale_x = img_width / orig_img_width
                     scale_y = img_height / orig_img_height
-                    
-                    print(f"[얼굴모핑] 스케일링 정보: offset=({offset_x:.1f}, {offset_y:.1f}), scale=({scale_x:.3f}, {scale_y:.3f})")
-                    print(f"[얼굴모핑] 원본 이미지 크기 추정: {orig_img_width:.1f}x{orig_img_height:.1f}, 현재: {img_width}x{img_height}")
-                    print(f"[얼굴모핑] 스케일링 전 중심점: left={left_iris_center_orig}, right={right_iris_center_orig}")
                     
                     # 원본 중심점: 오프셋 적용 후 스케일링 (원본 이미지 좌표계 -> 현재 이미지 좌표계)
                     left_iris_center_orig_offset = (left_iris_center_orig[0] - offset_x, left_iris_center_orig[1] - offset_y)
                     right_iris_center_orig_offset = (right_iris_center_orig[0] - offset_x, right_iris_center_orig[1] - offset_y)
                     left_iris_center_orig_scaled = (left_iris_center_orig_offset[0] * scale_x, left_iris_center_orig_offset[1] * scale_y)
                     right_iris_center_orig_scaled = (right_iris_center_orig_offset[0] * scale_x, right_iris_center_orig_offset[1] * scale_y)
-                    
-                    print(f"[얼굴모핑] 스케일링 후 중심점: left={left_iris_center_orig_scaled}, right={right_iris_center_orig_scaled}")
                     
                     # 변형된 중심점도 동일한 좌표계로 맞춤 (원본과 같은 변환 적용)
                     # 중요: 원본과 변형된 중심점이 같은 좌표계를 사용해야 Delaunay Triangulation이 정상 작동
@@ -464,30 +448,12 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     # 4. 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
     if left_iris_center_orig is not None and right_iris_center_orig is not None:
-        # #region agent log
-        import json, time
-        try:
-            # 추가 전 468개 랜드마크 중 처음 5개와 중앙 포인트 정보 로깅
-            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'F','location':'core.py:447','message':'before adding iris centers','data':{'orig_no_iris_len':len(original_landmarks_no_iris),'trans_no_iris_len':len(transformed_landmarks_no_iris),'orig_first_3':original_landmarks_no_iris[:3] if len(original_landmarks_no_iris)>=3 else [],'trans_first_3':transformed_landmarks_no_iris[:3] if len(transformed_landmarks_no_iris)>=3 else [],'left_center_orig':left_iris_center_orig,'right_center_orig':right_iris_center_orig,'left_center_trans':left_iris_center_trans,'right_center_trans':right_iris_center_trans},'timestamp':int(time.time()*1000)})+'\n')
-        except: pass
-        # #endregion
-        
         # landmarks[468] = LEFT_EYE_INDICES에서 계산된 중심
         # landmarks[469] = RIGHT_EYE_INDICES에서 계산된 중심
         original_landmarks_no_iris.append(left_iris_center_orig)   # landmarks[468]
         original_landmarks_no_iris.append(right_iris_center_orig)  # landmarks[469]
         transformed_landmarks_no_iris.append(left_iris_center_trans)
         transformed_landmarks_no_iris.append(right_iris_center_trans)
-        
-        # #region agent log
-        import json, time
-        try:
-            # 추가 후 470개 확인
-            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'F','location':'core.py:452','message':'after adding iris centers','data':{'orig_no_iris_len':len(original_landmarks_no_iris),'trans_no_iris_len':len(transformed_landmarks_no_iris),'orig_last_2':original_landmarks_no_iris[-2:],'trans_last_2':transformed_landmarks_no_iris[-2:]},'timestamp':int(time.time()*1000)})+'\n')
-        except: pass
-        # #endregion
         
         # 중앙 포인트 이동 거리 계산 (중앙 포인트가 실제로 변경되었을 때만 로그 출력)
         left_displacement = np.sqrt((left_iris_center_trans[0] - left_iris_center_orig[0])**2 + 
@@ -935,17 +901,7 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             simplex_indices_orig = tri.find_simplex(pixel_coords_orig_global)
         
         # 눈동자 중심점만 드래그한 경우: 중앙 포인트와 눈 영역 랜드마크만 포함하는 삼각형만 변형
-        print(f"[얼굴모핑] iris_center_only 플래그: {iris_center_only}")
         if iris_center_only:
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'core.py:916','message':'iris_center_only block entered','data':{'iris_center_only':iris_center_only,'landmarks_count':landmarks_count},'timestamp':int(time.time()*1000)})+'\n')
-            except Exception as e:
-                print(f"[얼굴모핑] 로그 쓰기 실패 (I): {e}")
-            # #endregion
-            
             # 중앙 포인트 인덱스 (470개 구조에서 468, 469번)
             iris_center_indices = {landmarks_count - 2, landmarks_count - 1}
             
@@ -954,15 +910,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
                 # 눈 영역 랜드마크 (눈꺼풀 윤곽)
                 eye_landmarks_raw = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
-                
-                # #region agent log
-                import json, time
-                try:
-                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'core.py:928','message':'eye indices check','data':{'left_eye_indices':LEFT_EYE_INDICES,'right_eye_indices':RIGHT_EYE_INDICES,'landmarks_count':landmarks_count,'eye_landmarks_raw_full':sorted(list(eye_landmarks_raw)),'eye_landmarks_raw_count':len(eye_landmarks_raw)},'timestamp':int(time.time()*1000)})+'\n')
-                except Exception as e:
-                    print(f"[얼굴모핑] 로그 쓰기 실패 (G): {e}")
-                # #endregion
                 
                 # MediaPipe 인덱스(478개)를 468개 구조로 변환 필요 여부 확인
                 # 현재 landmarks_count는 470개 (468개 + 중앙 포인트 2개)
@@ -1066,28 +1013,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                             rejected_triangles.append(('outside_allowed_region', simplex_idx, simplex.tolist(), outside_vertices))
             
             print(f"[얼굴모핑] 눈동자 중심점만 드래그: {len(iris_triangles)}개 삼각형만 변형 (전체 {len(tri.simplices)}개 중)")
-            
-            # #region agent log
-            import json, time
-            try:
-                # NumPy 타입을 Python 타입으로 변환
-                sample_triangles_json = [[int(idx), [int(v) for v in tri]] for idx, tri in sample_triangles]
-                rejected_triangles_json = []
-                for item in rejected_triangles:
-                    if len(item) == 3:  # all_boundary
-                        rejected_triangles_json.append([item[0], int(item[1]), [int(v) for v in item[2]]])
-                    elif len(item) == 4:  # outside_eye_region
-                        # outside_vertices는 [idx, ...] 형식
-                        rejected_triangles_json.append([item[0], int(item[1]), [int(v) for v in item[2]], item[3]])
-                
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'core.py:1020','message':'iris triangles selected','data':{'iris_triangles_count':int(len(iris_triangles)),'total_triangles':int(len(tri.simplices)),'sample_triangles':sample_triangles_json,'rejected_triangles':rejected_triangles_json,'iris_center_indices':[int(x) for x in iris_center_indices],'boundary_indices':[int(x) for x in boundary_indices],'allowed_vertices_count':len(allowed_vertices),'eye_landmarks_count':len(eye_landmarks),'landmarks_count':int(landmarks_count)},'timestamp':int(time.time()*1000)})+'\n')
-            except Exception as e:
-                print(f"[얼굴모핑] 로그 쓰기 실패 (H): {e}")
-                import traceback
-                traceback.print_exc()
-            # #endregion
-
             
             # 중앙 포인트를 포함하지 않거나 눈 영역 밖의 삼각형은 변형하지 않음
             mask_iris_triangles = np.isin(simplex_indices_orig, list(iris_triangles))
