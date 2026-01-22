@@ -278,14 +278,6 @@ class PolygonDragHandlerMixin:
         # 눈동자 중심점 드래그임을 명확히 표시 (apply_polygon_drag_final에서 감지용)
         self.last_selected_landmark_index = iris_side  # 'left' 또는 'right'
         
-        # #region agent log
-        import json, time
-        try:
-            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'A','location':'polygon_drag_handler.py:279','message':'iris drag start - last_selected set','data':{'iris_side':iris_side,'last_selected_landmark_index':self.last_selected_landmark_index},'timestamp':int(time.time()*1000)})+'\n')
-        except: pass
-        # #endregion
-        
         # 선택된 포인트 표시
         self._draw_selected_landmark_indicator(canvas_obj, None, event.x, event.y)
         
@@ -339,12 +331,14 @@ class PolygonDragHandlerMixin:
         if custom is not None and len(custom) >= 2:
             # 계산된 중앙 포인트 인덱스: 
             # custom_landmarks에는 눈동자 포인트가 제거되고 중앙 포인트가 추가되어 있음
-            # morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저 (len-2), MediaPipe RIGHT_IRIS 나중 (len-1)
-            # MediaPipe LEFT_IRIS = 이미지 오른쪽 (사용자 왼쪽)
-            # MediaPipe RIGHT_IRIS = 이미지 왼쪽 (사용자 오른쪽)
-            # 따라서: len-2 = MediaPipe LEFT_IRIS (사용자 왼쪽), len-1 = MediaPipe RIGHT_IRIS (사용자 오른쪽)
+            # *** 주의: landmarks[468]과 landmarks[469]의 순서가 x 좌표에 따라 다름! ***
+            # 실제로 landmarks[468]은 x가 작은 쪽 (화면상 오른쪽 눈 = 사용자 오른쪽)
+            # 실제로 landmarks[469]는 x가 큰 쪽 (화면상 왼쪽 눈 = 사용자 왼쪽)
+            # 따라서: len-2 (468번) = 사용자 오른쪽 눈, len-1 (469번) = 사용자 왼쪽 눈
+            # 드래그 시 iris_side는 사용자 관점이므로 반대로 매핑해야 함!
             if iris_side == 'left':
-                left_idx = len(custom) - 2  # MediaPipe LEFT_IRIS = 사용자 왼쪽
+                # 사용자 왼쪽 = landmarks[469] = len(custom)-1
+                left_idx = len(custom) - 1
                 # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
                 self.landmark_manager.update_custom_landmark(left_idx, (new_center_x, new_center_y))
                 right_center_current = self.landmark_manager.get_right_iris_center_coord()
@@ -353,7 +347,8 @@ class PolygonDragHandlerMixin:
                     right_center_current
                 )
             elif iris_side == 'right':
-                right_idx = len(custom) - 1  # MediaPipe RIGHT_IRIS = 사용자 오른쪽
+                # 사용자 오른쪽 = landmarks[468] = len(custom)-2
+                right_idx = len(custom) - 2
                 # LandmarkManager를 통해서만 수정 (직접 참조로 수정)
                 self.landmark_manager.update_custom_landmark(right_idx, (new_center_x, new_center_y))
                 left_center_current = self.landmark_manager.get_left_iris_center_coord()
