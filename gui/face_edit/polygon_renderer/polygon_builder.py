@@ -146,6 +146,69 @@ class PolygonBuilderMixin:
         if not connections or len(connections) == 0:
             return []
         
+        
+        try:
+            import mediapipe as mp
+            mp_face_mesh = mp.solutions.face_mesh
+            LEFT_IRIS_CONNECTIONS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
+            RIGHT_IRIS_CONNECTIONS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+        except AttributeError:
+            LEFT_IRIS_CONNECTIONS = []
+            RIGHT_IRIS_CONNECTIONS = []
+        
+        # #region agent log
+        import json, time
+        try:
+            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'pb_A','location':'polygon_builder.py:163','message':'_build_polygon_path_from_connections called','data':{'connections_len':len(connections),'is_left_iris':connections == LEFT_IRIS_CONNECTIONS, 'is_right_iris':connections == RIGHT_IRIS_CONNECTIONS},'timestamp':int(time.time()*1000)})+'\\\\n')
+        except: pass
+        # #endregion
+
+        # 눈동자 폴리곤은 삼각형 메쉬 대신 단순 닫힌 폴리곤으로 처리
+        if connections == LEFT_IRIS_CONNECTIONS or connections == RIGHT_IRIS_CONNECTIONS:
+            from utils.logger import get_logger
+            logger = get_logger('얼굴편집')
+            logger.debug(f"[polygon_builder] 눈동자 폴리곤 특수 처리: {len(connections)}개 연결")
+
+            iris_points_from_landmarks = []
+            iris_indices_set = set()
+            for idx1, idx2 in connections:
+                iris_indices_set.add(idx1)
+                iris_indices_set.add(idx2)
+            
+            # 중복 제거 및 정렬
+            sorted_iris_indices = sorted(list(iris_indices_set))
+
+            for idx in sorted_iris_indices:
+                if idx < len(landmarks):
+                    pt = landmarks[idx]
+                    if isinstance(pt, tuple):
+                        img_x, img_y = pt
+                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                        img_x = pt.x * img_width
+                        img_y = pt.y * img_height
+                    else:
+                        continue
+                    
+                    rel_x = (img_x - img_width / 2) * scale_x
+                    rel_y = (img_y - img_height / 2) * scale_y
+                    canvas_x = pos_x + rel_x
+                    canvas_y = pos_y + rel_y
+                    iris_points_from_landmarks.append((canvas_x, canvas_y))
+
+            # 폴리곤을 닫기 위해 첫 번째 점을 마지막에 추가
+            if iris_points_from_landmarks and len(iris_points_from_landmarks) > 0:
+                iris_points_from_landmarks.append(iris_points_from_landmarks[0])
+
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'pb_A','location':'polygon_builder.py:207','message':'Iris polygon built directly','data':{'iris_points_len':len(iris_points_from_landmarks)},'timestamp':int(time.time()*1000)})+'\\\\n')
+            except: pass
+            # #endregion
+            return iris_points_from_landmarks
+        
         try:
             import mediapipe as mp
             mp_face_mesh = mp.solutions.face_mesh
@@ -220,6 +283,7 @@ class PolygonBuilderMixin:
                         next_level_indices = set()
                         for idx in current_level_indices:
                             if idx in tesselation_graph:
+
                                 # 직접 이웃 포인트 추가
                                 for neighbor in tesselation_graph[idx]:
                                     if neighbor < len(landmarks) and neighbor not in extended_indices_set:
@@ -259,7 +323,7 @@ class PolygonBuilderMixin:
                     # 눈동자 연결 정보가 원본 connections에 포함되어 있으면 추가
                     for idx1, idx2 in connections:
                         if (idx1 in iris_indices or idx2 in iris_indices) and \
-                           idx1 < len(landmarks) and idx2 < len(landmarks):
+                            idx1 < len(landmarks) and idx2 < len(landmarks):
                             if (idx1, idx2) not in filtered_connections:
                                 filtered_connections.append((idx1, idx2))
                 

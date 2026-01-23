@@ -882,10 +882,70 @@ class TabDrawersMixin:
                         self.polygon_point_map_edited.add(idx)
             
             # 왼쪽 눈동자 폴리곤 그리기
+            # 눈동자 중심점의 이동량 계산
+            # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
+            # iris_centers[0] = landmarks[468] = 화면상 오른쪽
+            # iris_centers[1] = landmarks[469] = 화면상 왼쪽
+            # 현재 랜드마크는 MediaPipe 기준으로 470개 (얼굴 468 + 눈동자 중심 2)
+            left_iris_center_current = None
+            if iris_centers is not None and len(iris_centers) == 2:
+                # iris_centers[1] = 화면상 왼쪽 눈동자 중심
+                center_pt = iris_centers[1]
+                if isinstance(center_pt, tuple):
+                    left_iris_center_current = center_pt
+                else:
+                    left_iris_center_current = (center_pt.x * img_width, center_pt.y * img_height)
+            elif len(landmarks) == 470: # Tesselation 모드 (470개 구조): landmarks[469]에서 직접 가져오기
+                center_pt = landmarks[469] # 화면상 왼쪽 = landmarks[469]
+                if hasattr(center_pt, 'x'):
+                    left_iris_center_current = (center_pt.x * img_width, center_pt.y * img_height)
+                else:
+                    left_iris_center_current = center_pt
+            
+            # 원본 왼쪽 눈동자 중심점 가져오기
+            left_iris_center_original = self.landmark_manager.get_original_left_iris_center_coord()
+            
+            # 이동량 계산
+            offset_x_left, offset_y_left = 0, 0
+            if left_iris_center_current and left_iris_center_original:
+                offset_x_left = left_iris_center_current[0] - left_iris_center_original[0]
+                offset_y_left = left_iris_center_current[1] - left_iris_center_original[1]
+
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_A','location':f'tab_drawers.py:{915}','message':'Left iris offset calculation','data':{'offset_x_left':offset_x_left,'offset_y_left':offset_y_left,'left_iris_center_current':left_iris_center_current,'left_iris_center_original':left_iris_center_original},'timestamp':int(time.time()*1000)})+'\\n')
+            except: pass
+            # #endregion
+
+            # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
+            adjusted_landmarks_left_iris = []
+            for i, pt in enumerate(landmarks):
+                if i in left_iris_indices_set: # 왼쪽 눈동자 윤곽 랜드마크에만 적용
+                    if isinstance(pt, tuple):
+                        adjusted_landmarks_left_iris.append((pt[0] + offset_x_left, pt[1] + offset_y_left))
+                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                        adjusted_landmarks_left_iris.append(type(pt)(x=(pt.x * img_width + offset_x_left) / img_width, y=(pt.y * img_height + offset_y_left) / img_height, z=pt.z, visibility=pt.visibility))
+                    else:
+                        adjusted_landmarks_left_iris.append(pt)
+                else:
+                    adjusted_landmarks_left_iris.append(pt)
+            
+            # _get_polygon_from_indices 호출 시 조정된 랜드마크 사용
             left_iris_points = self._get_polygon_from_indices(
-                [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
+                [], adjusted_landmarks_left_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
                 use_mediapipe_connections=True, connections=LEFT_IRIS, expansion_level=0
             )
+
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_B','location':f'tab_drawers.py:{945}','message':'Left iris points after adjustment','data':{'left_iris_points_len':len(left_iris_points) if left_iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
+            except: pass
+            # #endregion
+
             if left_iris_points and len(left_iris_points) >= 3:
                 polygon_id = canvas.create_polygon(
                     left_iris_points,
@@ -898,10 +958,65 @@ class TabDrawersMixin:
                 bind_polygon_click_events(polygon_id, list(left_iris_indices_set))
             
             # 오른쪽 눈동자 폴리곤 그리기
+            right_iris_center_current = None
+            if iris_centers is not None and len(iris_centers) == 2:
+                # iris_centers[0] = 화면상 오른쪽 눈동자 중심
+                center_pt = iris_centers[0]
+                if isinstance(center_pt, tuple):
+                    right_iris_center_current = center_pt
+                else:
+                    right_iris_center_current = (center_pt.x * img_width, center_pt.y * img_height)
+            elif len(landmarks) == 470: # Tesselation 모드 (470개 구조): landmarks[468]에서 직접 가져오기
+                center_pt = landmarks[468] # 화면상 오른쪽 = landmarks[468]
+                if hasattr(center_pt, 'x'):
+                    right_iris_center_current = (center_pt.x * img_width, center_pt.y * img_height)
+                else:
+                    right_iris_center_current = center_pt
+            
+            # 원본 오른쪽 눈동자 중심점 가져오기
+            right_iris_center_original = self.landmark_manager.get_original_right_iris_center_coord()
+            
+            # 이동량 계산
+            offset_x_right, offset_y_right = 0, 0
+            if right_iris_center_current and right_iris_center_original:
+                offset_x_right = right_iris_center_current[0] - right_iris_center_original[0]
+                offset_y_right = right_iris_center_current[1] - right_iris_center_original[1]
+            
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_A','location':f'tab_drawers.py:{985}','message':'Right iris offset calculation','data':{'offset_x_right':offset_x_right,'offset_y_right':offset_y_right,'right_iris_center_current':right_iris_center_current,'right_iris_center_original':right_iris_center_original},'timestamp':int(time.time()*1000)})+'\\n')
+            except: pass
+            # #endregion
+
+            # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
+            adjusted_landmarks_right_iris = []
+            for i, pt in enumerate(landmarks):
+                if i in right_iris_indices_set: # 오른쪽 눈동자 윤곽 랜드마크에만 적용
+                    if isinstance(pt, tuple):
+                        adjusted_landmarks_right_iris.append((pt[0] + offset_x_right, pt[1] + offset_y_right))
+                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                        adjusted_landmarks_right_iris.append(type(pt)(x=(pt.x * img_width + offset_x_right) / img_width, y=(pt.y * img_height + offset_y_right) / img_height, z=pt.z, visibility=pt.visibility))
+                    else:
+                        adjusted_landmarks_right_iris.append(pt)
+                else:
+                    adjusted_landmarks_right_iris.append(pt)
+
+            # _get_polygon_from_indices 호출 시 조정된 랜드마크 사용
             right_iris_points = self._get_polygon_from_indices(
-                [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
+                [], adjusted_landmarks_right_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
                 use_mediapipe_connections=True, connections=RIGHT_IRIS, expansion_level=0
             )
+
+            # #region agent log
+            import json, time
+            try:
+                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_B','location':f'tab_drawers.py:{1013}','message':'Right iris points after adjustment','data':{'right_iris_points_len':len(right_iris_points) if right_iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
+            except: pass
+            # #endregion
+
             if right_iris_points and len(right_iris_points) >= 3:
                 polygon_id = canvas.create_polygon(
                     right_iris_points,

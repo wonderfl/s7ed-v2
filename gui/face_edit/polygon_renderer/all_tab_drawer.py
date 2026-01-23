@@ -287,8 +287,62 @@ class AllTabDrawerMixin:
                 
                 # 폴리곤 그리기 (iris_landmarks가 있을 때만)
                 if has_iris_landmarks:
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_A','location':f'all_tab_drawer.py:{290}','message':'iris offset calculation - all tab','data':{'iris_side':iris_side,'offset_x':offset_x,'offset_y':offset_y,'current_iris_center':current_iris_center_coord,'original_iris_center':original_iris_center_coord},'timestamp':int(time.time()*1000)})+'\\n')
+                    except: pass
+                    # #endregion
+                    
+                    # 눈동자 중심점의 이동량 계산
+                    current_iris_center_coord = None
+                    if iris_centers is not None and len(iris_centers) == 2: # iris_centers는 UI 기준 (왼쪽이 [1], 오른쪽이 [0])
+                        if iris_side == 'left':
+                            current_iris_center_coord = iris_centers[1]
+                        else:
+                            current_iris_center_coord = iris_centers[0]
+                    elif hasattr(self, f'_{iris_side}_iris_center_coord'):
+                        current_iris_center_coord = getattr(self, f'_{iris_side}_iris_center_coord')
+
+                    if iris_side == 'left':
+                        original_iris_center_coord = self.landmark_manager.get_original_left_iris_center_coord()
+                    else:
+                        original_iris_center_coord = self.landmark_manager.get_original_right_iris_center_coord()
+
+                    offset_x, offset_y = 0, 0
+                    if current_iris_center_coord and original_iris_center_coord:
+                        offset_x = current_iris_center_coord[0] - original_iris_center_coord[0]
+                        offset_y = current_iris_center_coord[1] - original_iris_center_coord[1]
+                    
+                    # #region agent log
+                    import json, time
+                    try:
+                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_B','location':f'all_tab_drawer.py:{345}','message':'Iris points after adjustment - all tab','data':{'iris_side':iris_side,'iris_points_len':len(iris_points) if iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
+                    except: pass
+                    # #endregion
+
+                    # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
+                    adjusted_landmarks_iris = []
+                    iris_connections_indices = set()
+                    for idx1, idx2 in iris_connections:
+                        iris_connections_indices.add(idx1)
+                        iris_connections_indices.add(idx2)
+
+                    for i, pt in enumerate(landmarks):
+                        if i in iris_connections_indices: # 눈동자 윤곽 랜드마크에만 적용
+                            if isinstance(pt, tuple):
+                                adjusted_landmarks_iris.append((pt[0] + offset_x, pt[1] + offset_y))
+                            elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                                adjusted_landmarks_iris.append(type(pt)(x=(pt.x * img_width + offset_x) / img_width, y=(pt.y * img_height + offset_y) / img_height, z=pt.z, visibility=pt.visibility))
+                            else:
+                                adjusted_landmarks_iris.append(pt)
+                        else:
+                            adjusted_landmarks_iris.append(pt)
+
                     iris_points = self._get_polygon_from_indices(
-                        [], landmarks, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
+                        [], adjusted_landmarks_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
                         use_mediapipe_connections=True, connections=iris_connections, expansion_level=0
                     )
                     if iris_points and len(iris_points) >= 3:
@@ -341,8 +395,8 @@ class AllTabDrawerMixin:
                     # #region agent log
                     import json, time
                     try:
-                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'all_tab_drawer.py:329','message':'drawing iris center','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'iris_centers_0':iris_centers[0],'iris_centers_1':iris_centers[1]},'timestamp':int(time.time()*1000)})+'\n')
+                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_C','location':f'all_tab_drawer.py:{393}','message':'drawing iris center','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'iris_centers_0':iris_centers[0],'iris_centers_1':iris_centers[1]},'timestamp':int(time.time()*1000)})+'\\n')
                     except: pass
                     # #endregion
                     
@@ -387,8 +441,8 @@ class AllTabDrawerMixin:
                     # #region agent log
                     import json, time
                     try:
-                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'H','location':'all_tab_drawer.py:380','message':'creating iris circle on canvas','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'canvas_x':canvas_x,'canvas_y':canvas_y},'timestamp':int(time.time()*1000)})+'\n')
+                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_C','location':f'all_tab_drawer.py:{439}','message':'creating iris circle on canvas','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'canvas_x':canvas_x,'canvas_y':canvas_y},'timestamp':int(time.time()*1000)})+'\\n')
                     except: pass
                     # #endregion
                     
@@ -510,8 +564,8 @@ class AllTabDrawerMixin:
                 # #region agent log
                 import json, time
                 try:
-                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'all_tab_drawer.py:516','message':'calling draw_iris for LEFT checkbox','data':{'iris_side':'left','iris_centers_available':iris_centers is not None},'timestamp':int(time.time()*1000)})+'\n')
+                    with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_D','location':f'all_tab_drawer.py:{561}','message':'calling draw_iris for LEFT checkbox','data':{'iris_side':'left','iris_centers_available':iris_centers is not None},'timestamp':int(time.time()*1000)})+'\\n')
                 except: pass
                 # #endregion
                 

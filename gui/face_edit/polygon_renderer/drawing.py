@@ -177,13 +177,6 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                                 if right_center is None:
                                     right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
                                 
-                                # #region agent log
-                                import json, time
-                                try:
-                                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'drawing.py:175','message':'iris centers calculated','data':{'left_center':left_center,'right_center':right_center,'left_indices_sample':left_iris_indices[:5] if left_iris_indices else [],'right_indices_sample':right_iris_indices[:5] if right_iris_indices else []},'timestamp':int(time.time()*1000)})+'\n')
-                                except: pass
-                                # #endregion
                                 
                                 # 계산 성공 시 landmark_manager에 저장
                                 if left_center is not None and right_center is not None:
@@ -244,18 +237,6 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 if left_center is None and original is not None:
                     left_iris_indices, right_iris_indices = self._get_iris_indices()
                     
-                    # #region agent log
-                    import json, time
-                    try:
-                        # LEFT_EYE_INDICES의 실제 좌표 확인
-                        left_eye_indices = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-                        right_eye_indices = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-                        left_eye_sample = [original[i] for i in left_eye_indices[:3] if i < len(original)]
-                        right_eye_sample = [original[i] for i in right_eye_indices[:3] if i < len(original)]
-                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'J','location':'drawing.py:244','message':'EYE_INDICES coordinates','data':{'LEFT_EYE_sample':left_eye_sample[:3],'RIGHT_EYE_sample':right_eye_sample[:3]},'timestamp':int(time.time()*1000)})+'\n')
-                    except: pass
-                    # #endregion
                     
                     # LEFT_EYE_INDICES → left_center
                     left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
