@@ -334,14 +334,6 @@ class PolygonDragHandlerMixin:
             # landmarks[468] = LEFT_EYE_INDICES에서 계산된 중심
             # landmarks[469] = RIGHT_EYE_INDICES에서 계산된 중심
             
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'G','location':'polygon_drag_handler.py:331','message':'iris drag start','data':{'iris_side':iris_side,'new_center':(new_center_x,new_center_y),'custom_len':len(custom),'custom_468':custom[468] if len(custom)>468 else None,'custom_469':custom[469] if len(custom)>469 else None},'timestamp':int(time.time()*1000)})+'\n')
-            except: pass
-            # #endregion
-            
             if iris_side == 'left':
                 # UI Left → landmarks[469] = len(custom)-1
                 right_idx = len(custom) - 1
@@ -546,8 +538,12 @@ class PolygonDragHandlerMixin:
         result_image = Image.fromarray(result.astype(np.uint8))
         return result_image
     
-    def apply_polygon_drag_final(self):
-        """폴리곤 드래그 종료 시 최종 편집 적용"""
+    def apply_polygon_drag_final(self, force_slider_mode=False):
+        """폴리곤 드래그 종료 시 최종 편집 적용
+        
+        Args:
+            force_slider_mode: (사용 안 함, 하위 호환성 유지용)
+        """
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         
@@ -609,17 +605,11 @@ class PolygonDragHandlerMixin:
                     # 중앙 포인트 드래그의 경우 ('left' 또는 'right')
                     print_info("얼굴편집", f"마지막 선택 포인트: 중앙 포인트 ({last_idx})")
             
-            # 마지막으로 선택한 포인트 인덱스 확인 (눈동자 중심점만 변경한 경우 확인용)
+            # 마지막으로 선택한 포인트 인덱스 확인
             last_selected_index = getattr(self, 'last_selected_landmark_index', None)
+            # iris_center_only 플래그는 morph_face_by_polygons에서 삼각형 필터링에만 사용
+            # (눈동자 중심점 드래그 시 눈동자 영역만 변형하도록)
             is_iris_center_only = isinstance(last_selected_index, str) and last_selected_index in ('left', 'right')
-            
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'A','location':'polygon_drag_handler.py:515','message':'apply_polygon_drag_final - flag check','data':{'last_selected_index':last_selected_index,'is_iris_center_only':is_iris_center_only,'last_selected_type':str(type(last_selected_index).__name__)},'timestamp':int(time.time()*1000)})+'\n')
-            except: pass
-            # #endregion
             
             # 드래그된 포인트 백업 (슬라이더 적용 전에 저장)
             dragged_indices = self.landmark_manager.get_dragged_indices()
@@ -637,15 +627,8 @@ class PolygonDragHandlerMixin:
             # 눈동자 중심점만 변경한 경우에는 슬라이더를 적용하지 않음 (다른 랜드마크 변형 방지)
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
             
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'D','location':'polygon_drag_handler.py:532','message':'before _apply_common_sliders check','data':{'has_method':hasattr(self, '_apply_common_sliders'),'is_iris_center_only':is_iris_center_only,'will_call_sliders':hasattr(self, '_apply_common_sliders') and not is_iris_center_only},'timestamp':int(time.time()*1000)})+'\n')
-            except: pass
-            # #endregion
-            
-            if hasattr(self, '_apply_common_sliders') and not is_iris_center_only:
+            # 공통 슬라이더는 항상 적용 (눈동자 드래그 여부와 무관)
+            if hasattr(self, '_apply_common_sliders'):
                 # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
                 # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
                 base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image

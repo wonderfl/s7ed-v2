@@ -503,14 +503,6 @@ class AllTabDrawerMixin:
                         coord469 = (pt469.x * img_width, pt469.y * img_height)
                     
                     iris_centers = [landmarks[468], landmarks[469]]
-                    
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'I','location':'all_tab_drawer.py:486','message':'iris_centers array created','data':{'landmarks_468_coord':coord468,'landmarks_469_coord':coord469,'iris_centers_len':len(iris_centers),'which_is_left_on_screen':'468_x=' + str(coord468[0]) + '_is_smaller' if coord468[0]<coord469[0] else '469_x=' + str(coord469[0]) + '_is_smaller'},'timestamp':int(time.time()*1000)})+'\n')
-                    except: pass
-                    # #endregion
             
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
             # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음

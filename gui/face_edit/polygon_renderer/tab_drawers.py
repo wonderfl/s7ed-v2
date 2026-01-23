@@ -919,13 +919,23 @@ class TabDrawersMixin:
             center_y = None
             
             # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
+            # iris_centers[0] = landmarks[468] = 화면상 오른쪽
+            # iris_centers[1] = landmarks[469] = 화면상 왼쪽
             if iris_centers is not None and len(iris_centers) == 2:
-                center_pt = iris_centers[0]  # 왼쪽 눈동자 중앙 포인트
+                center_pt = iris_centers[1]  # 화면상 왼쪽 눈동자 → landmarks[469]
                 if isinstance(center_pt, tuple):
                     center_x, center_y = center_pt
                 else:
                     center_x = center_pt.x * img_width
                     center_y = center_pt.y * img_height
+            # Tesselation 모드 (470개 구조): landmarks[469]에서 직접 가져오기
+            elif len(landmarks) == 470:
+                center_pt = landmarks[469]  # 화면상 왼쪽 = landmarks[469]
+                if hasattr(center_pt, 'x'):
+                    center_x = center_pt.x * img_width
+                    center_y = center_pt.y * img_height
+                else:
+                    center_x, center_y = center_pt
             elif hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None:
                 center_x, center_y = self._left_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
@@ -998,13 +1008,23 @@ class TabDrawersMixin:
             center_y = None
             
             # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
+            # iris_centers[0] = landmarks[468] = 화면상 오른쪽
+            # iris_centers[1] = landmarks[469] = 화면상 왼쪽
             if iris_centers is not None and len(iris_centers) == 2:
-                center_pt = iris_centers[1]  # 오른쪽 눈동자 중앙 포인트
+                center_pt = iris_centers[0]  # 화면상 오른쪽 눈동자 → landmarks[468]
                 if isinstance(center_pt, tuple):
                     center_x, center_y = center_pt
                 else:
                     center_x = center_pt.x * img_width
                     center_y = center_pt.y * img_height
+            # Tesselation 모드 (470개 구조): landmarks[468]에서 직접 가져오기
+            elif len(landmarks) == 470:
+                center_pt = landmarks[468]  # 화면상 오른쪽 = landmarks[468]
+                if hasattr(center_pt, 'x'):
+                    center_x = center_pt.x * img_width
+                    center_y = center_pt.y * img_height
+                else:
+                    center_x, center_y = center_pt
             elif hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None:
                 center_x, center_y = self._right_iris_center_coord
             elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):

@@ -176,6 +176,11 @@ class HandlersMixin:
         # 라벨 업데이트
         self.update_labels_only()
         
+        # 슬라이더 조작 시 last_selected_landmark_index 초기화
+        # (눈동자 드래그 후 슬라이더 조작 시 슬라이더가 적용되도록)
+        if hasattr(self, 'last_selected_landmark_index'):
+            self.last_selected_landmark_index = None
+        
         # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
         # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
         if self.current_image is not None:
@@ -185,8 +190,9 @@ class HandlersMixin:
                 if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                     print(f"[얼굴편집] 고급 모드 활성화: 기존 랜드마크 변경사항 적용")
                     # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
+                    # force_slider_mode=True로 호출하여 슬라이더가 적용되도록 함
                     if hasattr(self, 'apply_polygon_drag_final'):
-                        self.apply_polygon_drag_final()
+                        self.apply_polygon_drag_final(force_slider_mode=True)
                         # 이미지 업데이트 후 랜드마크 표시도 업데이트
                         if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                             self.update_face_features_display()
