@@ -156,14 +156,6 @@ class PolygonBuilderMixin:
             LEFT_IRIS_CONNECTIONS = []
             RIGHT_IRIS_CONNECTIONS = []
         
-        # #region agent log
-        import json, time
-        try:
-            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'pb_A','location':'polygon_builder.py:163','message':'_build_polygon_path_from_connections called','data':{'connections_len':len(connections),'is_left_iris':connections == LEFT_IRIS_CONNECTIONS, 'is_right_iris':connections == RIGHT_IRIS_CONNECTIONS},'timestamp':int(time.time()*1000)})+'\\\\n')
-        except: pass
-        # #endregion
-
         # 눈동자 폴리곤은 삼각형 메쉬 대신 단순 닫힌 폴리곤으로 처리
         if connections == LEFT_IRIS_CONNECTIONS or connections == RIGHT_IRIS_CONNECTIONS:
             from utils.logger import get_logger
@@ -200,13 +192,6 @@ class PolygonBuilderMixin:
             if iris_points_from_landmarks and len(iris_points_from_landmarks) > 0:
                 iris_points_from_landmarks.append(iris_points_from_landmarks[0])
 
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'pb_A','location':'polygon_builder.py:207','message':'Iris polygon built directly','data':{'iris_points_len':len(iris_points_from_landmarks)},'timestamp':int(time.time()*1000)})+'\\\\n')
-            except: pass
-            # #endregion
             return iris_points_from_landmarks
         
         try:
