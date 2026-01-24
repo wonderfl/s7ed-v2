@@ -749,35 +749,10 @@ class PolygonDragHandlerMixin:
                     # 원본 얼굴 랜드마크 사용 (468개, 중앙 포인트 제외)
                     original_face = self.landmark_manager.get_original_face_landmarks()
                     
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'B,C','location':'polygon_drag_handler.py:651','message':'iris_center_only path - original_face check','data':{'original_face_is_none':original_face is None,'original_face_len':len(original_face) if original_face else 0},'timestamp':int(time.time()*1000)})+'\n')
-                    except: pass
-                    # #endregion
-                    
                     if original_face is not None:
                         custom_landmarks_for_morph = list(original_face)  # 복사본 생성
-                        
-                        # #region agent log
-                        import json, time
-                        try:
-                            custom_lm = self.landmark_manager.get_custom_landmarks()
-                            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'C','location':'polygon_drag_handler.py:653','message':'custom_landmarks_for_morph set to original','data':{'morph_landmarks_len':len(custom_landmarks_for_morph),'morph_first_3':custom_landmarks_for_morph[:3] if len(custom_landmarks_for_morph)>=3 else [],'custom_landmarks_len':len(custom_lm) if custom_lm else 0,'custom_first_3':custom_lm[:3] if custom_lm and len(custom_lm)>=3 else []},'timestamp':int(time.time()*1000)})+'\n')
-                        except: pass
-                        # #endregion
                     else:
                         custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
-                        
-                        # #region agent log
-                        import json, time
-                        try:
-                            with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                                f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'B','location':'polygon_drag_handler.py:655','message':'original_face is None - using custom','data':{'custom_landmarks_len':len(custom_landmarks_for_morph) if custom_landmarks_for_morph else 0},'timestamp':int(time.time()*1000)})+'\n')
-                        except: pass
-                        # #endregion
                 else:
                     # _apply_common_sliders 호출 후 custom_landmarks가 업데이트되었을 수 있으므로 다시 가져오기
                     custom_landmarks_for_morph = self.landmark_manager.get_custom_landmarks()
@@ -903,20 +878,7 @@ class PolygonDragHandlerMixin:
                 print_info("얼굴편집", f"중앙 포인트: left={left_center}, right={right_center}, left_orig={left_center_orig}, right_orig={right_center_orig}")
                 print_info("얼굴편집", f"클램핑: enabled={clamping_enabled_val}, margin_ratio={margin_ratio_val}")
                 
-                # #region agent log
-                import json, time
-                try:
-                    # 랜드마크 차이 확인
-                    diff_count = 0
-                    if len(custom_landmarks_for_morph) == len(original_landmarks_for_morph):
-                        for i in range(len(custom_landmarks_for_morph)):
-                            diff = ((custom_landmarks_for_morph[i][0] - original_landmarks_for_morph[i][0])**2 + (custom_landmarks_for_morph[i][1] - original_landmarks_for_morph[i][1])**2)**0.5
-                            if diff > 0.1: diff_count += 1
-                    with open(r'd:\03.python\s7ed-v2\.cursor\debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'E','location':'polygon_drag_handler.py:824','message':'before morph_face_by_polygons call','data':{'is_iris_center_only':is_iris_center_only,'original_len':len(original_landmarks_for_morph),'custom_len':len(custom_landmarks_for_morph),'diff_count':diff_count,'left_center':left_center,'right_center':right_center,'left_center_orig':left_center_orig,'right_center_orig':right_center_orig,'last_selected_index':str(last_selected_index)},'timestamp':int(time.time()*1000)})+'\n')
-                except: pass
-                # #endregion
-                
+               
                 # morph_face_by_polygons 호출 (폴리곤 모드)
                 # 눈동자 중심점만 드래그한 경우에도 Delaunay Triangulation 사용
                 # 단, is_iris_center_only 플래그를 전달하여 선택적 변형

@@ -803,7 +803,6 @@ class SliderUIMixin:
             import utils.face_landmarks as face_landmarks
             mediapipe_available = face_landmarks.is_available()
         except Exception as e:
-            print(f"[얼굴편집] MediaPipe 확인 실패: {e}")
             mediapipe_available = False
         
         # 체크박스 그리드 배치 (2열로 변경)

@@ -118,7 +118,7 @@ class EditingStepsMixin:
                         texture_strength=texture_strength
                     )
             except Exception as e:
-                print(f"[얼굴편집] 스타일 전송 실패: {e}")
+                pass
         
         return image
 
@@ -182,7 +182,6 @@ class EditingStepsMixin:
                 has_size_change = (abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01)
                 
                 if has_size_change:
-                    print(f"[얼굴편집] apply_editing - 눈 크기 변형 적용: 왼쪽={left_ratio}, 오른쪽={right_ratio}, 드래그된 포인트 {len(dragged_indices)}개")
                     # transform_points_for_eye_size는 내부에서 복사본을 생성하므로 직접 참조 전달 (불필요한 복사본 생성 제거)
                     # 원본을 기준으로 변환 (드래그된 포인트도 원본 위치에서 변환)
                     transformed_landmarks = face_morphing.transform_points_for_eye_size(
@@ -192,7 +191,6 @@ class EditingStepsMixin:
                         right_eye_size_ratio=right_eye_size
                     )
                 else:
-                    print(f"[얼굴편집] apply_editing - 눈 크기 변형 없음 (기본값)")
                     transformed_landmarks = base_landmarks
                     has_size_change = False
             else:
@@ -227,7 +225,6 @@ class EditingStepsMixin:
                     # custom[idx]는 원본 + 드래그 상태이므로, base_landmarks를 기준으로 오프셋 계산
                     if prev_transformed is None or len(prev_transformed) != len(custom):
                         # 이전 사이즈 변환이 없었던 경우: 드래그 오프셋 = custom[idx] - base_landmarks[idx]
-                        print(f"[얼굴편집] 드래그 오프셋 계산: 이전 사이즈 변환 없음, 원본 기준")
                         for idx in dragged_indices:
                             if idx < len(custom) and idx < len(new_custom) and idx < len(base_landmarks):
                                 orig_x, orig_y = base_landmarks[idx]
@@ -238,12 +235,9 @@ class EditingStepsMixin:
                                 offset_y = dragged_y - orig_y
                                 # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
                                 new_custom[idx] = (transformed_x + offset_x, transformed_y + offset_y)
-                                if idx < 5:  # 처음 5개만 디버깅 출력
-                                    print(f"  [idx={idx}] 원본=({orig_x:.1f},{orig_y:.1f}), 드래그=({dragged_x:.1f},{dragged_y:.1f}), 변환=({transformed_x:.1f},{transformed_y:.1f}), 오프셋=({offset_x:.1f},{offset_y:.1f}), 최종=({transformed_x + offset_x:.1f},{transformed_y + offset_y:.1f})")
                     else:
                         # 이전 사이즈 변환이 있었던 경우: 드래그 오프셋 = custom[idx] - prev_transformed[idx]
                         # (순수 드래그 오프셋만 계산)
-                        print(f"[얼굴편집] 드래그 오프셋 계산: 이전 사이즈 변환 있음, 이전 변환 기준")
                         for idx in dragged_indices:
                             if idx < len(custom) and idx < len(new_custom) and idx < len(prev_transformed):
                                 # 이전 사이즈 변환된 위치
@@ -259,12 +253,9 @@ class EditingStepsMixin:
                                 
                                 # 새로운 사이즈 변환된 위치에 드래그 오프셋 적용
                                 new_custom[idx] = (transformed_x + drag_offset_x, transformed_y + drag_offset_y)
-                                if idx < 5:  # 처음 5개만 디버깅 출력
-                                    print(f"  [idx={idx}] 이전변환=({prev_transformed_x:.1f},{prev_transformed_y:.1f}), 드래그=({dragged_x:.1f},{dragged_y:.1f}), 새변환=({transformed_x:.1f},{transformed_y:.1f}), 오프셋=({drag_offset_x:.1f},{drag_offset_y:.1f}), 최종=({transformed_x + drag_offset_x:.1f},{transformed_y + drag_offset_y:.1f})")
                     
                     self.landmark_manager.set_custom_landmarks(new_custom, reason="apply_editing_size_change")
                     # 드래그 표시는 유지 (변환은 했지만 드래그로 변경된 것으로 표시 유지)
-                print(f"[얼굴편집] apply_editing - 사이즈 변경 적용, 드래그 표시 유지: {len(self.landmark_manager.get_dragged_indices())}개")
             # 사이즈 변경이 없으면 기존 custom_landmarks 유지 (_apply_common_sliders_to_landmarks에서 변환한 내용)
 
             # 중앙 포인트 좌표 업데이트
@@ -275,7 +266,6 @@ class EditingStepsMixin:
 
                     if has_size_change:
                         # 사이즈 변경이 있으면 변환된 랜드마크에서 중앙 포인트 재계산
-                        print(f"[얼굴편집] apply_editing - 사이즈 변경 감지, 변환된 랜드마크에서 중앙 포인트 재계산")
                         left_center = self._calculate_iris_center(transformed_landmarks, left_iris_indices, img_width, img_height)
                         right_center = self._calculate_iris_center(transformed_landmarks, right_iris_indices, img_width, img_height)
                         self.landmark_manager.set_iris_center_coords(left_center, right_center)
@@ -299,9 +289,6 @@ class EditingStepsMixin:
             self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
             self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
             self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
-
-            custom_count = len(self.custom_landmarks) if self.custom_landmarks else 0
-            print(f"[얼굴편집] apply_editing - custom_landmarks 업데이트 완료: 길이={custom_count}")
 
             # 폴리곤 기반 변형: 변형된 랜드마크로 이미지 변형
             # apply_all_adjustments 대신 morph_face_by_polygons 사용

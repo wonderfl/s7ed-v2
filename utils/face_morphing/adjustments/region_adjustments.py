@@ -48,7 +48,6 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         return image
     
     # 디버그 출력
-    print(f"[얼굴모핑] 부위 크기 조절 시작: {region_name}, size_x={size_x:.2f}, size_y={size_y:.2f}, center_offset=({center_offset_x:.1f}, {center_offset_y:.1f})")
     
     try:
         # 랜드마크가 없으면 자동 감지
@@ -149,7 +148,6 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
                 region_final = region_final[:, :, :3]
             else:
                 # 예상치 못한 채널 수
-                print(f"[얼굴모핑] 경고: 예상치 못한 채널 수 {region_final.shape[2]}, RGB로 변환 시도")
                 region_final = region_final[:, :, :3]
         
         # 데이터 타입 확인 및 변환 (uint8로 확실히 변환)
@@ -167,7 +165,6 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         
         # shape 확인
         if region_area.shape[:2] != region_final.shape[:2]:
-            print(f"[얼굴모핑] 경고: 영역 크기 불일치 - region_area: {region_area.shape}, region_final: {region_final.shape}")
             return image
         
         if blend_ratio == 0.0:
@@ -189,7 +186,6 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 부위 크기 조절 실패 ({region_name}): {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -409,7 +405,6 @@ def adjust_region_position(image, region_name, position_x=0.0, position_y=0.0,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 부위 위치 이동 실패 ({region_name}): {e}")
         import traceback
         traceback.print_exc()
         return image

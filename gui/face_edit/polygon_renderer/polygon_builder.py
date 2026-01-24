@@ -38,8 +38,6 @@ class PolygonBuilderMixin:
                 logger.warning("폴리곤 경로 생성 실패: 인덱스 리스트가 비어있음")
                 return []
             
-            #print(f"[얼굴편집] 폴리곤 경로 생성 시작: 요청 인덱스 {len(indices)}개, 랜드마크 배열 길이={len(landmarks) if landmarks else 0}, MediaPipe 연결 사용={use_mediapipe_connections}")
-            
             # 유효한 인덱스만 필터링
             valid_indices = [idx for idx in indices if idx < len(landmarks)]
             invalid_indices = [idx for idx in indices if idx >= len(landmarks)]
@@ -49,10 +47,7 @@ class PolygonBuilderMixin:
                 print_warning("얼굴편집", f"유효하지 않은 인덱스 {len(invalid_indices)}개: {invalid_indices[:10]}{'...' if len(invalid_indices) > 10 else ''}")
             
             if len(valid_indices) < 3:
-                print(f"[얼굴편집] 폴리곤 경로 생성 실패: 유효한 인덱스가 3개 미만 ({len(valid_indices)}개)")
                 return []
-            
-            print(f"[얼굴편집] 유효한 인덱스 {len(valid_indices)}개 사용")
             
             # 포인트 좌표 수집 (인덱스와 함께 저장)
             point_coords_with_idx = []
@@ -86,10 +81,7 @@ class PolygonBuilderMixin:
                 from utils.logger import print_warning
                 print_warning("얼굴편집", f"{failed_count}개 포인트의 좌표 추출 실패")
             
-            print(f"[얼굴편집] 좌표 추출 완료: {len(point_coords_with_idx)}개 포인트")
-            
             if len(point_coords_with_idx) < 3:
-                print(f"[얼굴편집] 폴리곤 경로 생성 실패: 유효한 좌표가 3개 미만 ({len(point_coords_with_idx)}개)")
                 return []
             
             # 모든 포인트를 포함하는 폴리곤 생성 (Convex Hull 대신 모든 포인트를 각도 순으로 정렬)
@@ -109,8 +101,6 @@ class PolygonBuilderMixin:
             if len(sorted_points) > 0:
                 sorted_points.append(sorted_points[0])
             
-            print(f"[얼굴편집] 폴리곤 경로 구성: {len(sorted_points)}개 포인트 (모든 포인트 포함)")
-            
             # 캔버스 좌표로 변환
             polygon_points = []
             for img_x, img_y in sorted_points:
@@ -123,7 +113,6 @@ class PolygonBuilderMixin:
             return polygon_points
             
         except Exception as e:
-            print(f"[얼굴편집] 폴리곤 경로 생성 실패: {e}")
             import traceback
             traceback.print_exc()
             return []
@@ -433,7 +422,6 @@ class PolygonBuilderMixin:
             return all_triangle_points
             
         except Exception as e:
-            print(f"[얼굴편집] 폴리곤 경로 구성 실패: {e}")
             import traceback
             traceback.print_exc()
             return []

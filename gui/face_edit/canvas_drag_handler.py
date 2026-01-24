@@ -32,7 +32,6 @@ class CanvasDragHandlerMixin:
                     if self._check_iris_center_click(event, landmarks, self.canvas_original):
                         # 중앙 포인트가 클릭되었으므로 다른 포인트를 찾지 않음
                         # tag_bind 이벤트가 처리할 것임
-                        print(f"[얼굴편집] 중앙 포인트 클릭 감지 - 다른 포인트 찾기 건너뜀")
                         return
                 
                 # 화면에 보이는 모든 포인트 중에서 가장 가까운 포인트 찾기
@@ -89,7 +88,6 @@ class CanvasDragHandlerMixin:
                     self.canvas_original_pos_x = preview_width // 2
                     self.canvas_original_pos_y = preview_height // 2
         except Exception as e:
-            print(f"[얼굴편집] 드래그 시작 시 위치 가져오기 실패: {e}")
             # 실패 시 저장된 위치 또는 중앙 위치 사용
             if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
                 self.canvas_original_drag_start_image_x = self.canvas_original_pos_x
@@ -131,7 +129,6 @@ class CanvasDragHandlerMixin:
                     self.canvas_original_drag_start_image_x = preview_width // 2
                     self.canvas_original_drag_start_image_y = preview_height // 2
             except Exception as e:
-                print(f"[얼굴편집] 드래그 중 위치 가져오기 실패: {e}")
                 preview_width = getattr(self, 'preview_width', 800)
                 preview_height = getattr(self, 'preview_height', 1000)
                 self.canvas_original_drag_start_image_x = preview_width // 2
@@ -193,7 +190,6 @@ class CanvasDragHandlerMixin:
                         # 바운딩 박스 업데이트 실패는 무시 (드래그 중이므로)
                         pass
         except Exception as e:
-            print(f"[얼굴편집] 원본 이미지 위치 업데이트 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -254,7 +250,6 @@ class CanvasDragHandlerMixin:
                         if hasattr(self, 'update_lip_region_display'):
                             self.update_lip_region_display()
             except Exception as e:
-                print(f"[얼굴편집] 드래그 종료 시 위치 저장 실패: {e}")
                 import traceback
                 traceback.print_exc()
         
@@ -342,7 +337,6 @@ class CanvasDragHandlerMixin:
                     self.canvas_edited_pos_x = preview_width // 2
                     self.canvas_edited_pos_y = preview_height // 2
         except Exception as e:
-            print(f"[얼굴편집] 드래그 시작 시 위치 가져오기 실패: {e}")
             # 실패 시 저장된 위치 또는 중앙 위치 사용
             if self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
                 self.canvas_edited_drag_start_image_x = self.canvas_edited_pos_x
@@ -384,7 +378,6 @@ class CanvasDragHandlerMixin:
                     self.canvas_edited_drag_start_image_x = preview_width // 2
                     self.canvas_edited_drag_start_image_y = preview_height // 2
             except Exception as e:
-                print(f"[얼굴편집] 드래그 중 위치 가져오기 실패: {e}")
                 preview_width = getattr(self, 'preview_width', 800)
                 preview_height = getattr(self, 'preview_height', 1000)
                 self.canvas_edited_drag_start_image_x = preview_width // 2
@@ -446,7 +439,6 @@ class CanvasDragHandlerMixin:
                         # 바운딩 박스 업데이트 실패는 무시 (드래그 중이므로)
                         pass
         except Exception as e:
-            print(f"[얼굴편집] 편집된 이미지 위치 업데이트 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -507,7 +499,6 @@ class CanvasDragHandlerMixin:
                         if hasattr(self, 'update_lip_region_display'):
                             self.update_lip_region_display()
             except Exception as e:
-                print(f"[얼굴편집] 드래그 종료 시 위치 저장 실패: {e}")
                 import traceback
                 traceback.print_exc()
         

@@ -428,7 +428,6 @@ def transform_points_for_eye_size(landmarks, eye_size_ratio=1.0, left_eye_size_r
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 눈 크기 랜드마크 변형 실패: {e}")
         import traceback
         traceback.print_exc()
         return landmarks
@@ -495,12 +494,10 @@ def transform_points_for_nose_size(landmarks, nose_size_ratio=1.0):
                 )
                 transformed_count += 1
         
-        print(f"[얼굴모핑] 코 크기 랜드마크 변형: 비율={nose_size_ratio:.2f}, 변형된 포인트={transformed_count}개, 코 중심={nose_center}")
         
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 코 크기 랜드마크 변형 실패: {e}")
         return landmarks
 
 
@@ -557,12 +554,10 @@ def transform_points_for_jaw(landmarks, jaw_adjustment=0.0):
                     y  # 수직 위치는 유지
                 )
         
-        print(f"[얼굴모핑] 턱선 랜드마크 변형: 조정값={jaw_adjustment:.1f}, 비율={jaw_ratio:.2f}, 변형된 포인트={len(jaw_indices)}개")
         
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 턱선 랜드마크 변형 실패: {e}")
         import traceback
         traceback.print_exc()
         return landmarks
@@ -612,12 +607,10 @@ def transform_points_for_face_size(landmarks, face_width_ratio=1.0, face_height_
                 face_center[1] + dy * face_height_ratio
             )
         
-        print(f"[얼굴모핑] 얼굴 크기 랜드마크 변형: 너비={face_width_ratio:.2f}, 높이={face_height_ratio:.2f}, 변형된 포인트={len(landmarks)}개")
         
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 얼굴 크기 랜드마크 변형 실패: {e}")
         import traceback
         traceback.print_exc()
         return landmarks
@@ -668,7 +661,6 @@ def transform_points_for_mouth_size(landmarks, mouth_size_ratio=1.0, mouth_width
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 입 크기 랜드마크 변형 실패: {e}")
         return landmarks
 
 
@@ -724,7 +716,6 @@ def transform_points_for_eye_position(landmarks, left_eye_position_x=0.0, left_e
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 눈 위치 랜드마크 변형 실패: {e}")
         return landmarks
 
 
@@ -825,7 +816,6 @@ def transform_points_for_lip_shape(landmarks, upper_lip_shape=1.0, lower_lip_sha
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 입술 모양 랜드마크 변형 실패: {e}")
         return landmarks
 
 
@@ -911,7 +901,6 @@ def transform_points_for_lip_width(landmarks, upper_lip_width=1.0, lower_lip_wid
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 입술 너비 랜드마크 변형 실패: {e}")
         return landmarks
 
 
@@ -987,7 +976,6 @@ def transform_points_for_lip_vertical_move(landmarks, upper_lip_vertical_move=0.
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 입술 수직 이동 랜드마크 변형 실패: {e}")
         return landmarks
 
 

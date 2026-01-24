@@ -254,7 +254,6 @@ class LogicMixin(EditingStepsMixin):
                 self.status_label.config(text="얼굴 정렬 완료 (이미 정렬됨)", fg="green")
                 
         except Exception as e:
-            print(f"[얼굴편집] 얼굴 정렬 실패: {e}")
             self.status_label.config(text=f"얼굴 정렬 실패: {e}", fg="red")
             # 정렬 실패 시 원본 이미지 사용
             self.aligned_image = None
@@ -310,9 +309,6 @@ class LogicMixin(EditingStepsMixin):
             position_y = self.region_position_y.get()
             blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
             
-            # 디버깅: 슬라이더 값 확인
-            print(f"[얼굴편집] 공통 슬라이더 값: size_x={size_x:.3f}, size_y={size_y:.3f}, position_x={position_x:.1f}, position_y={position_y:.1f}")
-            
             # 선택된 부위가 있고 슬라이더 값이 기본값이 아니면 적용
             size_x_condition = abs(size_x - 1.0) >= 0.01
             size_y_condition = abs(size_y - 1.0) >= 0.01
@@ -326,18 +322,14 @@ class LogicMixin(EditingStepsMixin):
             
             # 고급 모드: custom_landmarks의 포인트를 직접 조절
             if is_advanced_mode:
-                print(f"[얼굴편집] 고급 모드: 사이즈 조절 호출 - 선택된 부위={selected_regions}, size_x={size_x:.3f}, size_y={size_y:.3f}")
                 result = self._apply_common_sliders_to_landmarks(selected_regions, center_offset_x, center_offset_y, 
                                                                    size_x, size_y, position_x, position_y, image)
-                print(f"[얼굴편집] 고급 모드: 사이즈 조절 결과 - result is None={result is None}, result == image={result == image if result is not None else 'N/A'}")
                 # 이미지가 변형되었으므로 미리보기 업데이트
                 if result is not None and result != image:
                     self.edited_image = result
                     self.show_edited_preview()
                     if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                         self.update_face_features_display()
-                else:
-                    print(f"[얼굴편집] 고급 모드: 이미지 업데이트 안됨 - result is None={result is None}, result == image={result == image if result is not None else 'N/A'}")
                 return result
             
             # 일반 모드: 이미지 영역 변형
@@ -378,7 +370,6 @@ class LogicMixin(EditingStepsMixin):
             return result if result is not None else image
             
         except Exception as e:
-            print(f"[얼굴편집] 공통 슬라이더 적용 실패: {e}")
             import traceback
             traceback.print_exc()
             return image
@@ -389,9 +380,7 @@ class LogicMixin(EditingStepsMixin):
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         if custom is None:
-            print(f"[얼굴편집] 고급 모드: custom_landmarks가 None이어서 원본 반환")
             return image
-        print(f"[얼굴편집] 고급 모드: custom_landmarks 확인 - 개수={len(custom) if custom else 0}, 선택된 부위={selected_regions}")
         
         try:
             from utils.face_morphing.region_extraction import _get_region_center
@@ -772,7 +761,7 @@ class LogicMixin(EditingStepsMixin):
                                     sum(p[1] for p in right_points) / len(right_points)
                                 )
                         except Exception as e:
-                            print(f"[얼굴편집] 중앙 포인트 계산 실패: {e}")
+                            pass
                 
                 # 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
                 if left_center is not None and right_center is not None:
@@ -781,8 +770,6 @@ class LogicMixin(EditingStepsMixin):
                     final_landmarks.append(right_center)  # landmarks[469]
                     original_face_landmarks_tuple.append(left_center)  # 원본도 동일하게 추가
                     original_face_landmarks_tuple.append(right_center)
-                    
-                    print(f"[얼굴편집] Tesselation: 468개 얼굴 + 중앙 포인트 2개 추가 -> 최종 {len(final_landmarks)}개")
                     
                     # custom_landmarks는 468개 + 중앙 포인트 2개 = 470개 구조로 저장
                     final_landmarks_for_custom = final_landmarks  # 470개
@@ -944,7 +931,6 @@ class LogicMixin(EditingStepsMixin):
             return result
             
         except Exception as e:
-            print(f"[얼굴편집] 랜드마크 조절 실패: {e}")
             import traceback
             traceback.print_exc()
             return image
@@ -1147,7 +1133,6 @@ class LogicMixin(EditingStepsMixin):
             self._update_landmarks_after_editing()
             
         except Exception as e:
-            print(f"[얼굴편집] 편집 적용 실패: {e}")
             import traceback
             traceback.print_exc()
             # 실패 시 원본 이미지 사용

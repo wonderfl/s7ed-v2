@@ -8,7 +8,6 @@ class InteractionMixin:
     
     def on_polygon_line_click(self, event, current_tab, canvas, image, landmarks, pos_x, pos_y, items_list, color):
         """연결선 클릭 시 폴리곤 영역 표시"""
-        print(f"[얼굴편집] 연결선 클릭: 탭={current_tab}")
         try:
             # 기존 폴리곤 제거
             if canvas == self.canvas_original:
@@ -31,15 +30,12 @@ class InteractionMixin:
             
             # 선택된 탭에 해당하는 폴리곤 그리기
             self.selected_polygon_group = current_tab
-            print(f"[얼굴편집] 폴리곤 영역 채우기 시작: 탭={current_tab}")
             self._fill_polygon_area(canvas, image, landmarks, pos_x, pos_y, items_list, color, current_tab)
-            print(f"[얼굴편집] 폴리곤 영역 채우기 완료")
             
             # 이벤트 전파 중단
             return "break"
             
         except Exception as e:
-            print(f"[얼굴편집] 폴리곤 클릭 처리 실패: {e}")
             import traceback
             traceback.print_exc()
             return "break"
@@ -82,7 +78,6 @@ class InteractionMixin:
                             current_tab
                         )
             except Exception as e:
-                print(f"[얼굴편집] 폴리곤 갱신 실패: {e}")
                 import traceback
                 traceback.print_exc()
     

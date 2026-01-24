@@ -136,33 +136,26 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                 if left_ratio is not None and right_ratio is not None:
                     if (0.1 <= left_ratio <= 5.0 or 0.1 <= right_ratio <= 5.0) and \
                        (abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01):
-                        print(f"[얼굴모핑] 눈 크기 조정: 왼쪽={left_ratio:.2f}, 오른쪽={right_ratio:.2f}")
                         transformed_landmarks = transform_points_for_eye_size(
                             transformed_landmarks,
                             eye_size_ratio=1.0,
                             left_eye_size_ratio=left_eye_size,
                             right_eye_size_ratio=right_eye_size
                         )
-                    else:
-                        print(f"[얼굴모핑] 눈 크기 조정 스킵: 왼쪽={left_ratio:.2f}, 오른쪽={right_ratio:.2f} (기본값 또는 범위 밖)")
+
             elif eye_size is not None and abs(eye_size - 1.0) >= 0.01:
                 if 0.1 <= eye_size <= 5.0:
-                    print(f"[얼굴모핑] 눈 크기 조정: 양쪽={eye_size:.2f}")
                     transformed_landmarks = transform_points_for_eye_size(
                         transformed_landmarks,
                         eye_size_ratio=eye_size
                     )
-                else:
-                    print(f"[얼굴모핑] 눈 크기 조정 스킵: 값={eye_size:.2f} (범위 밖)")
             
             # 3. 코 크기 조정
             if abs(nose_size - 1.0) >= 0.01:
-                print(f"[얼굴모핑] 코 크기 조정 적용: nose_size={nose_size:.2f}")
                 transformed_landmarks = transform_points_for_nose_size(
                     transformed_landmarks,
                     nose_size_ratio=nose_size
                 )
-                print(f"[얼굴모핑] 코 크기 조정 후 랜드마크 변형 완료")
             
             # 4. 입 크기 조정 (기본 파라미터 사용 시)
             if not use_individual_lip_region:
@@ -226,7 +219,6 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
                 print("[얼굴모핑] 랜드마크 변형 없음 (모든 값이 기본값), 원본 이미지 반환")
                 return image
             
-            print(f"[얼굴모핑] 랜드마크 변형 적용: 원본 {len(original_landmarks)}개, 변형 {len(transformed_landmarks)}개")
             result = morph_face_by_polygons(
                 image, original_landmarks, transformed_landmarks,
                 clamping_enabled=clamping_enabled, margin_ratio=margin_ratio
@@ -391,7 +383,6 @@ def apply_all_adjustments(image, eye_size=1.0, nose_size=1.0, mouth_size=1.0, mo
         return result
         
     except Exception as e:
-        print(f"[얼굴모핑] 얼굴 특징 보정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image

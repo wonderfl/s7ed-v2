@@ -164,7 +164,6 @@ class PreviewManagerMixin:
                 self._zoom_update_id = self.after(50, update_zoom)  # 50ms 지연
                 
             except Exception as e:
-                print(f"[얼굴편집] 마우스 휠 확대/축소 실패: {e}")
                 import traceback
                 traceback.print_exc()
         
@@ -185,9 +184,6 @@ class PreviewManagerMixin:
         
         self.label_edited = tk.Label(edited_top_frame, text="편집된 이미지", font=("", 9))
         self.label_edited.pack(side=tk.LEFT)
-        
-        btn_save = tk.Button(edited_top_frame, text="PNG 저장", command=self.save_png, width=12, bg="#4CAF50", fg="white")
-        btn_save.pack(side=tk.LEFT, padx=(10, 0))
         
         self.canvas_edited = tk.Canvas(
             edited_frame,
@@ -285,7 +281,8 @@ class PreviewManagerMixin:
                             self.canvas_original_pos_x = old_coords[0]
                             self.canvas_original_pos_y = old_coords[1]
                     except Exception as e:
-                        print(f"[얼굴편집] 기존 위치 가져오기 실패: {e}")
+                        print(f"[원본 이미지 미리보기] 기존 이미지의 위치를 가져오는 중 오류 발생: {e}")
+                        pass
                 
                 self.canvas_original.delete(self.image_created_original)
             
@@ -339,7 +336,8 @@ class PreviewManagerMixin:
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
                     self.update_face_features_display()
         except Exception as e:
-            print(f"[얼굴편집] 원본 이미지 표시 실패: {e}")
+            print(f"[원본 이미지 미리보기] 오류 발생: {e}")
+            pass
     
     def show_edited_preview(self):
         """편집된 이미지 미리보기 표시"""
@@ -419,7 +417,8 @@ class PreviewManagerMixin:
                         saved_pos_x = old_coords[0]
                         saved_pos_y = old_coords[1]
                 except Exception as e:
-                    print(f"[얼굴편집] 기존 위치 가져오기 실패: {e}")
+                    print(f"[편집된 이미지 미리보기] 기존 이미지의 위치를 가져오는 중 오류 발생: {e}")
+                    pass
                 
                 self.canvas_edited.delete(self.image_created_edited)
             
@@ -483,7 +482,8 @@ class PreviewManagerMixin:
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
                     self.update_face_features_display()
         except Exception as e:
-            print(f"[얼굴편집] 편집된 이미지 표시 실패: {e}")
+            print(f"[편집된 이미지 미리보기] 오류 발생: {e}")
+            pass
     
     def clear_eye_region_display(self):
         """눈 영역 표시 제거"""
@@ -492,7 +492,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_original.delete(rect_id)
             except Exception as e:
-                print(f"[얼굴편집] 눈 영역 제거 실패: {e}")
+                print(f"[원본 이미지 눈 영역 표시 제거] 오류 발생: {e}")
+                pass
         self.eye_region_rects_original.clear()
         
         # 편집된 이미지의 눈 영역 제거
@@ -500,7 +501,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_edited.delete(rect_id)
             except Exception as e:
-                print(f"[얼굴편집] 눈 영역 제거 실패: {e}")
+                print(f"[눈 영역 표시 제거] 오류 발생: {e}")
+                pass
         self.eye_region_rects_edited.clear()
     
     def update_eye_region_display(self):
@@ -679,12 +681,10 @@ class PreviewManagerMixin:
                                     )
                                     rects_list.append(oval_id)
                 except Exception as e:
-                    print(f"[얼굴편집] 편집된 이미지 눈 영역 표시 실패: {e}")
                     import traceback
                     traceback.print_exc()
         
         except Exception as e:
-            print(f"[얼굴편집] 눈 영역 표시 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -695,7 +695,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_original.delete(rect_id)
             except Exception as e:
-                print(f"[얼굴편집] 입술 영역 제거 실패: {e}")
+                print(f"[원본 이미지 입술 영역 표시 제거] 오류 발생: {e}")
+                pass
         self.lip_region_rects_original.clear()
         
         # 편집된 이미지의 입술 영역 제거
@@ -703,7 +704,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_edited.delete(rect_id)
             except Exception as e:
-                print(f"[얼굴편집] 입술 영역 제거 실패: {e}")
+                print(f"[편집된 이미지 입술 영역 표시 제거] 오류 발생: {e}")
+                pass
         self.lip_region_rects_edited.clear()
     
     def update_lip_region_display(self):
@@ -948,12 +950,10 @@ class PreviewManagerMixin:
                                     )
                                     rects_list.append(rect_id)
                 except Exception as e:
-                    print(f"[얼굴편집] 편집된 이미지 입술 영역 표시 실패: {e}")
                     import traceback
                     traceback.print_exc()
         
         except Exception as e:
-            print(f"[얼굴편집] 입술 영역 표시 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -964,7 +964,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_original.delete(self.bbox_rect_original)
             except Exception as e:
-                print(f"[얼굴편집] 바운딩 박스 제거 실패: {e}")
+                print(f"[바운딩 박스 표시 제거] 오류 발생: {e}")
+                pass
         self.bbox_rect_original = None
     
     def update_bbox_display(self):
@@ -978,7 +979,6 @@ class PreviewManagerMixin:
             
             # 바운딩 박스 가져오기
             if not hasattr(self, 'landmark_manager'):
-                print(f"[얼굴편집] 바운딩 박스 표시 실패: landmark_manager가 없음")
                 return
             
             img_width, img_height = self.current_image.size
@@ -1008,14 +1008,11 @@ class PreviewManagerMixin:
                     if bbox is not None:
                         # 계산된 바운딩 박스를 캐시에 저장
                         self.landmark_manager.set_original_bbox(bbox, img_width, img_height)
-                        #print(f"[얼굴편집] 바운딩 박스 계산 완료: ({bbox[0]}, {bbox[1]}) ~ ({bbox[2]}, {bbox[3]})")
             
             if bbox is None:
-                print(f"[얼굴편집] 바운딩 박스 표시 실패: 바운딩 박스가 None (이미지 크기: {img_width}x{img_height})")
                 return
             
             min_x, min_y, max_x, max_y = bbox
-            #print(f"[얼굴편집] 바운딩 박스 표시: ({min_x}, {min_y}) ~ ({max_x}, {max_y}), 크기: {max_x-min_x}x{max_y-min_y}")
             
             # 원본 이미지에 바운딩 박스 표시
             if self.canvas_original_pos_x is None or self.canvas_original_pos_y is None:
@@ -1051,7 +1048,6 @@ class PreviewManagerMixin:
             )
             
         except Exception as e:
-            print(f"[얼굴편집] 바운딩 박스 표시 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -1071,7 +1067,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_original.delete(item_id)
             except Exception as e:
-                print(f"[얼굴편집] 랜드마크 제거 실패: {e}")
+                print(f"[원본 이미지 랜드마크 제거] 오류 발생: {e}")
+                pass
         self.landmarks_items_original.clear()
         # landmark_point_map은 더 이상 사용하지 않음 (polygon_point_map으로 대체됨)
         
@@ -1103,7 +1100,8 @@ class PreviewManagerMixin:
             try:
                 self.canvas_edited.delete(item_id)
             except Exception as e:
-                print(f"[얼굴편집] 랜드마크 제거 실패: {e}")
+                print(f"[편집된 이미지 랜드마크 제거] 오류 발생: {e}")
+                pass
         self.landmarks_items_edited.clear()
         # landmark_point_map은 더 이상 사용하지 않음 (polygon_point_map으로 대체됨)
         
@@ -1264,14 +1262,11 @@ class PreviewManagerMixin:
             if self.custom_landmarks is not None:
                 landmarks = self.custom_landmarks
                 detected = True
-                # 디버깅: custom_landmarks 사용 확인
-                if show_polygons:
-                    print(f"[얼굴편집] 폴리곤 그리기: custom_landmarks 사용 (랜드마크 {len(landmarks)}개)")
+
             elif self.face_landmarks is not None:
                 landmarks = self.face_landmarks
                 detected = True
-                if show_polygons:
-                    print(f"[얼굴편집] 폴리곤 그리기: face_landmarks 사용 (custom_landmarks 없음)")
+
             else:
                 landmarks, detected = face_landmarks.detect_face_landmarks(self.current_image)
                 if detected and landmarks is not None:
@@ -1355,7 +1350,6 @@ class PreviewManagerMixin:
                 self.update_bbox_display()
         
         except Exception as e:
-            print(f"[얼굴편집] 랜드마크 표시 실패: {e}")
             import traceback
             traceback.print_exc()
     

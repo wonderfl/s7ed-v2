@@ -125,7 +125,6 @@ def adjust_mouth_size(image, mouth_size_ratio=1.0, mouth_width_ratio=1.0, landma
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 입 크기 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -246,7 +245,6 @@ def adjust_upper_lip_size(image, upper_lip_size_ratio=1.0, upper_lip_width_ratio
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 윗입술 크기 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -367,7 +365,6 @@ def adjust_lower_lip_size(image, lower_lip_size_ratio=1.0, lower_lip_width_ratio
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 아래입술 크기 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -534,7 +531,6 @@ def adjust_upper_lip_shape(image, upper_lip_shape_ratio=1.0, landmarks=None,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 윗입술 모양 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -701,7 +697,6 @@ def adjust_lower_lip_shape(image, lower_lip_shape_ratio=1.0, landmarks=None,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 아래입술 모양 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -865,7 +860,6 @@ def adjust_upper_lip_width(image, upper_lip_width_ratio=1.0, landmarks=None,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 윗입술 너비 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -1029,7 +1023,6 @@ def adjust_lower_lip_width(image, lower_lip_width_ratio=1.0, landmarks=None,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 아래입술 너비 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -1252,7 +1245,6 @@ def adjust_lip_vertical_move(image, upper_lip_vertical_move=0.0, lower_lip_verti
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 입술 수직 이동 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image

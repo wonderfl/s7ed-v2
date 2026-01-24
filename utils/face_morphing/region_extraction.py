@@ -542,7 +542,6 @@ def _get_region_center(region_name, landmarks, center_offset_x=0.0, center_offse
         return (center_x, center_y)
         
     except Exception as e:
-        print(f"[얼굴편집] 부위 중심점 계산 실패 ({region_name}): {e}")
         return None
 
 
@@ -728,5 +727,4 @@ def _get_region_bbox(region_name, landmarks, img_width, img_height, padding_rati
         return (x1, y1, x2, y2)
         
     except Exception as e:
-        print(f"[얼굴편집] 부위 바운딩 박스 계산 실패 ({region_name}): {e}")
         return None

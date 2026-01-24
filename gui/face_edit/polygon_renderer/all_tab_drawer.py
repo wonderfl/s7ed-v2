@@ -287,14 +287,6 @@ class AllTabDrawerMixin:
                 
                 # 폴리곤 그리기 (iris_landmarks가 있을 때만)
                 if has_iris_landmarks:
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_A','location':f'all_tab_drawer.py:{290}','message':'iris offset calculation - all tab','data':{'iris_side':iris_side,'offset_x':offset_x,'offset_y':offset_y,'current_iris_center':current_iris_center_coord,'original_iris_center':original_iris_center_coord},'timestamp':int(time.time()*1000)})+'\\n')
-                    except: pass
-                    # #endregion
-                    
                     # 눈동자 중심점의 이동량 계산
                     current_iris_center_coord = None
                     if iris_centers is not None and len(iris_centers) == 2: # iris_centers는 UI 기준 (왼쪽이 [1], 오른쪽이 [0])
@@ -314,14 +306,6 @@ class AllTabDrawerMixin:
                     if current_iris_center_coord and original_iris_center_coord:
                         offset_x = current_iris_center_coord[0] - original_iris_center_coord[0]
                         offset_y = current_iris_center_coord[1] - original_iris_center_coord[1]
-                    
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_B','location':f'all_tab_drawer.py:{345}','message':'Iris points after adjustment - all tab','data':{'iris_side':iris_side,'iris_points_len':len(iris_points) if iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
-                    except: pass
-                    # #endregion
 
                     # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
                     adjusted_landmarks_iris = []
@@ -392,14 +376,6 @@ class AllTabDrawerMixin:
                         center_x = center_pt.x * img_width
                         center_y = center_pt.y * img_height
                     
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_C','location':f'all_tab_drawer.py:{393}','message':'drawing iris center','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'iris_centers_0':iris_centers[0],'iris_centers_1':iris_centers[1]},'timestamp':int(time.time()*1000)})+'\\n')
-                    except: pass
-                    # #endregion
-                    
                     setattr(self, iris_center_coord_attr, (center_x, center_y))
                 # Tesselation 모드: custom_landmarks에서 중앙 포인트 추출 (470개 구조만)
                 elif len_landmarks == 470:
@@ -437,16 +413,11 @@ class AllTabDrawerMixin:
                     rel_y = (center_y - img_height / 2) * scale_y
                     canvas_x = pos_x + rel_x
                     canvas_y = pos_y + rel_y
-                    
-                    # #region agent log
-                    import json, time
-                    try:
-                        with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                            f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_C','location':f'all_tab_drawer.py:{439}','message':'creating iris circle on canvas','data':{'iris_side':iris_side,'center_x':center_x,'center_y':center_y,'canvas_x':canvas_x,'canvas_y':canvas_y},'timestamp':int(time.time()*1000)})+'\\n')
-                    except: pass
-                    # #endregion
-                    
-                    center_radius = 8
+
+                    scale_factor = 1.0 # default
+                    scale_factor = math.sqrt(scale_x*scale_y)/3
+                                        
+                    center_radius = 8 * scale_factor                    
                     center_id = canvas.create_oval(
                         canvas_x - center_radius,
                         canvas_y - center_radius,
@@ -477,7 +448,6 @@ class AllTabDrawerMixin:
                         items_list.append(text_id)
                     
                     def on_iris_center_click(event):
-                        print(f"[얼굴편집] {iris_side} 눈동자 중앙 포인트 클릭")
                         self.on_iris_center_drag_start(event, iris_side, canvas)
                         return "break"
                     
@@ -561,14 +531,6 @@ class AllTabDrawerMixin:
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
             # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음
             if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
-                # #region agent log
-                import json, time
-                try:
-                    with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'ad_D','location':f'all_tab_drawer.py:{561}','message':'calling draw_iris for LEFT checkbox','data':{'iris_side':'left','iris_centers_available':iris_centers is not None},'timestamp':int(time.time()*1000)})+'\\n')
-                except: pass
-                # #endregion
-                
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('left', LEFT_IRIS if LEFT_IRIS else [], '_left_iris_center_coord')

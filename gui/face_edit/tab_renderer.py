@@ -95,7 +95,6 @@ class TabRendererMixin:
                     indices.add(idx)
                 return list(indices)
         except Exception as e:
-            print(f"[얼굴편집] 탭 인덱스 가져오기 실패: {e}")
             return list(range(468))
     
     def _get_selected_region_indices(self):
@@ -169,5 +168,4 @@ class TabRendererMixin:
             return list(indices) if indices else None
             
         except Exception as e:
-            print(f"[얼굴편집] 선택된 부위 인덱스 가져오기 실패: {e}")
             return None

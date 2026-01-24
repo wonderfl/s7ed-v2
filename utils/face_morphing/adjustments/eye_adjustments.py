@@ -187,7 +187,6 @@ def adjust_eye_size(image, eye_size_ratio=1.0, landmarks=None, left_eye_size_rat
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 눈 크기 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -366,7 +365,6 @@ def adjust_eye_spacing(image, eye_spacing=0.0, landmarks=None,
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 눈 간격 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image
@@ -526,7 +524,6 @@ def adjust_eye_position(image, eye_position_x=0.0, eye_position_y=0.0, landmarks
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 눈 위치 조정 실패: {e}")
         import traceback
         traceback.print_exc()
         return image

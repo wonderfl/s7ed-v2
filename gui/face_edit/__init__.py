@@ -443,25 +443,17 @@ class FaceEditPanel(
         self.destroy()
 
 
-def show_face_edit_panel(parent=None):
-    """얼굴 편집 패널 표시"""
-    panel = FaceEditPanel(parent)
-    panel.transient(parent)  # 부모 창에 종속
-    return panel
-
-
 class FaceEditPanelV2(FaceEditPanel):
-    """얼굴 편집 V2 패널
-
-    기존 FaceEditPanel을 상속하여 공통 동작은 그대로 두고,
-    향후 눈/입 편집 UI 및 랜드마크 기반 제어를 단계적으로 개선하기 위한 실험용 패널.
+    """얼굴 편집 패널 (V2)
+    
+    랜드마크 기반 얼굴 편집 기능을 제공합니다.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # V2 패널임을 명확히 구분하기 위해 제목만 우선 변경
-        self.title("얼굴 편집 V2")
-        # V2: 랜드마크 기반 모핑을 기본값으로 활성화 (계획서대로)
+        # 제목 설정
+        self.title("얼굴 편집")
+        # 랜드마크 기반 모핑을 기본값으로 활성화
         self.use_landmark_warping.set(True)
     
     def _create_eye_tab(self, notebook):

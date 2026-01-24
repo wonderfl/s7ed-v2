@@ -87,7 +87,6 @@ def move_point_group(landmarks, group_name, offset_x=0.0, offset_y=0.0, maintain
             # 아래입술 인덱스
             group_indices = [181, 91, 146, 78, 95, 88, 178, 87, 14, 317, 402, 318, 324]
         else:
-            print(f"[얼굴모핑] 알 수 없는 그룹 이름: {group_name}")
             return landmarks
         
         if maintain_relative_positions:
@@ -118,7 +117,6 @@ def move_point_group(landmarks, group_name, offset_x=0.0, offset_y=0.0, maintain
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 랜드마크 그룹 이동 실패: {e}")
         import traceback
         traceback.print_exc()
         return landmarks
@@ -143,7 +141,6 @@ def move_points(landmarks, point_indices, offsets, influence_radius=50.0):
         return landmarks
     
     if len(point_indices) != len(offsets):
-        print(f"[얼굴모핑] 포인트 인덱스와 오프셋 개수가 일치하지 않습니다: {len(point_indices)} != {len(offsets)}")
         return landmarks
     
     try:
@@ -196,7 +193,6 @@ def move_points(landmarks, point_indices, offsets, influence_radius=50.0):
         return transformed_landmarks
         
     except Exception as e:
-        print(f"[얼굴모핑] 랜드마크 포인트 이동 실패: {e}")
         import traceback
         traceback.print_exc()
         return landmarks

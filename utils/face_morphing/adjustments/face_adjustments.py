@@ -136,7 +136,6 @@ def adjust_jaw(image, jaw_adjustment=0.0, landmarks=None):
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 턱선 조정 실패: {e}")
         return image
 
 
@@ -257,7 +256,6 @@ def adjust_face_size(image, width_ratio=1.0, height_ratio=1.0, landmarks=None, b
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 얼굴 크기 조정 실패: {e}")
         return image
 
 

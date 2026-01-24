@@ -539,7 +539,7 @@ class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandler
         left_frame = tk.Frame(preview_frame)
         left_frame.pack(side=tk.LEFT, padx=5, pady=5)
         
-        self.label_original = tk.Label(left_frame, text="원본 이미지", font=("", 9))
+        self.label_original = tk.Label(left_frame, text="원본 이미지", font=("", 9), width=40, anchor="w")
         self.label_original.pack()
         self.canvas_original = tk.Canvas(
             left_frame, 
@@ -625,7 +625,12 @@ class FaceExtractPanel(FileManagerMixin, PreviewManagerMixin, CanvasEventHandler
     def _update_preview_titles(self, filename):
         """미리보기 타이틀에 파일명 추가 (원본 이미지만)"""
         if filename:
-            self.label_original.config(text=f"원본 이미지 ({filename})")
+            # 파일명이 너무 길면 잘라서 표시 (최대 30자)
+            if len(filename) > 30:
+                display_name = filename[:27] + "..."
+            else:
+                display_name = filename
+            self.label_original.config(text=f"원본 이미지 ({display_name})")
         else:
             self.label_original.config(text="원본 이미지")
     

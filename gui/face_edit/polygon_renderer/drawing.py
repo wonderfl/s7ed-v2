@@ -540,8 +540,6 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 
                 if len(polygon_points) >= 3:
                     # 폴리곤 그리기 (더 잘 보이도록 진하게)
-                    print(f"[얼굴편집] 폴리곤 그리기: 그룹={group}, 포인트 수={len(polygon_points)}")
-                    
                     # 폴리곤 색상 결정 (랜드마크 색상과 동일하되 더 진하게)
                     # 원본 이미지는 녹색, 편집 이미지는 노란색
                     if canvas == self.canvas_original:
@@ -583,9 +581,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                     except Exception:
                         # 실패하면 그냥 raise
                         canvas.tag_raise(polygon_id)
-                    print(f"[얼굴편집] 폴리곤 그리기 완료: 그룹={group}, 아이템 ID={polygon_id}")
                 else:
-                    print(f"[얼굴편집] 폴리곤 포인트 부족: 그룹={group}, 포인트 수={len(polygon_points)}")
+                    pass
             
             # 뒤집힌 삼각형 감지 및 표시 (원본 랜드마크와 변형된 랜드마크가 모두 있을 때만)
             # custom_landmarks를 사용하여 실제 변형된 랜드마크와 비교
@@ -600,11 +597,10 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         scale_x, scale_y
                     )
                 except Exception as e:
-                    print(f"[얼굴편집] 뒤집힌 삼각형 표시 실패: {e}")
                     import traceback
                     traceback.print_exc()
         
         except Exception as e:
-            print(f"[얼굴편집] 폴리곤 영역 채우기 실패: {e}")
+            pass
             import traceback
             traceback.print_exc()

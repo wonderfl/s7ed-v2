@@ -122,7 +122,6 @@ def adjust_nose_size(image, nose_size_ratio=1.0, landmarks=None, blend_ratio=1.0
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 코 크기 조정 실패: {e}")
         return image
 
 

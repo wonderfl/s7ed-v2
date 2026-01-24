@@ -149,7 +149,6 @@ class HandlersMixin:
     
     def on_landmarks_display_change(self):
         """랜드마크 표시 옵션 변경 시 호출"""
-        print(f"[얼굴편집] 랜드마크 표시 옵션 변경: 랜드마크={self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False}, 연결선={self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False}, 폴리곤={self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False}")
         if self.current_image is not None:
             show_landmarks = self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False
             show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
@@ -164,11 +163,9 @@ class HandlersMixin:
             
             if show_landmarks or show_lines or show_polygons:
                 # 랜드마크, 연결선, 또는 폴리곤이 표시되어야 하면 업데이트
-                print(f"[얼굴편집] 랜드마크 표시 업데이트 호출")
                 self.update_face_features_display()
             else:
                 # 모두 체크 해제되어 있으면 랜드마크 표시 제거
-                print(f"[얼굴편집] 랜드마크 표시 제거")
                 self.clear_landmarks_display()
     
     def on_morphing_change(self, value=None):
@@ -188,7 +185,6 @@ class HandlersMixin:
             if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
                 # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
                 if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
-                    print(f"[얼굴편집] 고급 모드 활성화: 기존 랜드마크 변경사항 적용")
                     # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
                     # force_slider_mode=True로 호출하여 슬라이더가 적용되도록 함
                     if hasattr(self, 'apply_polygon_drag_final'):
@@ -218,7 +214,7 @@ class HandlersMixin:
                         self.canvas_original_pos_x = original_coords[0]
                         self.canvas_original_pos_y = original_coords[1]
                 except Exception as e:
-                    print(f"[얼굴편집] 원본 위치 저장 실패: {e}")
+                    pass
             
             # 편집된 이미지 위치도 저장 (원본과 동기화)
             if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
@@ -232,7 +228,7 @@ class HandlersMixin:
                         self.canvas_edited_pos_x = edited_coords[0]
                         self.canvas_edited_pos_y = edited_coords[1]
                 except Exception as e:
-                    print(f"[얼굴편집] 편집 위치 저장 실패: {e}")
+                    pass
             
             # 고급 모드가 아닐 때만 apply_editing 호출 (고급 모드는 이미 apply_polygon_drag_final에서 처리됨)
             use_warping = getattr(self, 'use_landmark_warping', None)
@@ -263,7 +259,7 @@ class HandlersMixin:
                                     texture_strength=texture_strength
                                 )
                         except Exception as e:
-                            print(f"[얼굴편집] 스타일 전송 실패: {e}")
+                            pass
                     
                     # 나이 변환 적용
                     import utils.face_transform as face_transform
@@ -272,7 +268,6 @@ class HandlersMixin:
                         result = face_transform.transform_age(result, age_adjustment=int(age_adjustment))
                     
                     # 공통 슬라이더 적용
-                    print(f"[얼굴편집] 고급 모드: 공통 슬라이더 적용 시작")
                     # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
                     base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
                     result = self._apply_common_sliders(result, base_image=base_image)

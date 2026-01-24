@@ -911,14 +911,6 @@ class TabDrawersMixin:
                 offset_x_left = left_iris_center_current[0] - left_iris_center_original[0]
                 offset_y_left = left_iris_center_current[1] - left_iris_center_original[1]
 
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_A','location':f'tab_drawers.py:{915}','message':'Left iris offset calculation','data':{'offset_x_left':offset_x_left,'offset_y_left':offset_y_left,'left_iris_center_current':left_iris_center_current,'left_iris_center_original':left_iris_center_original},'timestamp':int(time.time()*1000)})+'\\n')
-            except: pass
-            # #endregion
-
             # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
             adjusted_landmarks_left_iris = []
             for i, pt in enumerate(landmarks):
@@ -937,14 +929,6 @@ class TabDrawersMixin:
                 [], adjusted_landmarks_left_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
                 use_mediapipe_connections=True, connections=LEFT_IRIS, expansion_level=0
             )
-
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_B','location':f'tab_drawers.py:{945}','message':'Left iris points after adjustment','data':{'left_iris_points_len':len(left_iris_points) if left_iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
-            except: pass
-            # #endregion
 
             if left_iris_points and len(left_iris_points) >= 3:
                 polygon_id = canvas.create_polygon(
@@ -982,14 +966,6 @@ class TabDrawersMixin:
                 offset_x_right = right_iris_center_current[0] - right_iris_center_original[0]
                 offset_y_right = right_iris_center_current[1] - right_iris_center_original[1]
             
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_A','location':f'tab_drawers.py:{985}','message':'Right iris offset calculation','data':{'offset_x_right':offset_x_right,'offset_y_right':offset_y_right,'right_iris_center_current':right_iris_center_current,'right_iris_center_original':right_iris_center_original},'timestamp':int(time.time()*1000)})+'\\n')
-            except: pass
-            # #endregion
-
             # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
             adjusted_landmarks_right_iris = []
             for i, pt in enumerate(landmarks):
@@ -1008,14 +984,6 @@ class TabDrawersMixin:
                 [], adjusted_landmarks_right_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,
                 use_mediapipe_connections=True, connections=RIGHT_IRIS, expansion_level=0
             )
-
-            # #region agent log
-            import json, time
-            try:
-                with open(r'd:\\03.python\\s7ed-v2\\.cursor\\debug.log', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'sessionId':'debug-session','runId':'initial','hypothesisId':'td_B','location':f'tab_drawers.py:{1013}','message':'Right iris points after adjustment','data':{'right_iris_points_len':len(right_iris_points) if right_iris_points else 0},'timestamp':int(time.time()*1000)})+'\\n')
-            except: pass
-            # #endregion
 
             if right_iris_points and len(right_iris_points) >= 3:
                 polygon_id = canvas.create_polygon(
@@ -1102,7 +1070,6 @@ class TabDrawersMixin:
                     items_list.append(text_id)
                 
                 def on_left_iris_center_click(event):
-                    print(f"[얼굴편집] 왼쪽 눈동자 중앙 포인트 클릭")
                     self.on_iris_center_drag_start(event, 'left', canvas)
                     return "break"
                 
@@ -1191,7 +1158,6 @@ class TabDrawersMixin:
                     items_list.append(text_id)
                 
                 def on_right_iris_center_click(event):
-                    print(f"[얼굴편집] 오른쪽 눈동자 중앙 포인트 클릭")
                     self.on_iris_center_drag_start(event, 'right', canvas)
                     return "break"
                 

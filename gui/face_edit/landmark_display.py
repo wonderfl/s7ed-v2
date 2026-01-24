@@ -110,7 +110,6 @@ class LandmarkDisplayMixin:
                 items_list.append(circle)
         
         except Exception as e:
-            print(f"[얼굴편집] 중심점 그리기 실패: {e}")
             import traceback
             traceback.print_exc()
     """랜드마크 표시 기능 Mixin"""
@@ -413,7 +412,6 @@ class LandmarkDisplayMixin:
                         pass
         
         except Exception as e:
-            print(f"[얼굴편집] 랜드마크 그리기 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -421,14 +419,12 @@ class LandmarkDisplayMixin:
     def _draw_landmark_lines(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, current_tab):
         """랜드마크 연결선 그리기 (연결선만, 폴리곤 아님)"""
         if image is None or pos_x is None or pos_y is None or landmarks is None:
-            print(f"[얼굴편집] 연결선 그리기 스킵: 이미지={image is not None}, pos_x={pos_x}, pos_y={pos_y}, landmarks={landmarks is not None}")
             return
         try:
             import math
             img_width, img_height = image.size
             display_size = getattr(canvas, 'display_size', None)
             if display_size is None:
-                print(f"[얼굴편집] 연결선 그리기 스킵: display_size 없음")
                 return
             
             display_width, display_height = display_size
@@ -578,10 +574,8 @@ class LandmarkDisplayMixin:
                         pass
                     line_count += 1
             
-            print(f"[얼굴편집] 연결선 그리기 완료: {line_count}개 연결선 그려짐")
             
         except Exception as e:
-            print(f"[얼굴편집] 연결선 그리기 실패: {e}")
             import traceback
             traceback.print_exc()
 
@@ -808,7 +802,8 @@ class LandmarkDisplayMixin:
                 # 선을 맨 앞으로
                 canvas_obj.tag_raise(line_id)
         except Exception as e:
-            print(f"[얼굴편집] 연결선 강조 실패: {e}")
+            print(f"[랜드마크 연결선 강조] 오류 발생: {e}")
+            pass
 
     def _update_connected_lines(self, canvas_obj, landmark_index, x, y):
         """연결된 선들의 위치 업데이트 (현재 탭의 폴리곤에 포함된 연결선만)"""
@@ -912,5 +907,5 @@ class LandmarkDisplayMixin:
                 except:
                     pass
         except Exception as e:
-            print(f"[얼굴편집] 연결선 업데이트 실패: {e}")
-
+            print(f"[연결된 선들의 위치 업데이트] 오류 발생: {e}")
+            pass

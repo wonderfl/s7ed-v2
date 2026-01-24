@@ -87,7 +87,7 @@ class WidgetCreatorMixin:
         btn_zoom_reset_original = tk.Button(original_zoom_frame, text="원래대로", command=self.zoom_reset_original, width=8)
         btn_zoom_reset_original.pack(side=tk.LEFT, padx=2)
         # 원본 이미지 좌표 표시 라벨
-        self.original_coord_label = tk.Label(original_zoom_frame, text="", fg="gray", font=("", 8))
+        self.original_coord_label = tk.Label(original_zoom_frame, text="", font=("", 8), width=8)
         self.original_coord_label.pack(side=tk.LEFT, padx=(5, 0))
         
         # 원본 이미지 드래그 이벤트 바인딩
@@ -190,9 +190,14 @@ class WidgetCreatorMixin:
         btn_zoom_out_edited.pack(side=tk.LEFT, padx=2)
         btn_zoom_reset_edited = tk.Button(edited_zoom_frame, text="원래대로", command=self.zoom_reset_edited, width=8)
         btn_zoom_reset_edited.pack(side=tk.LEFT, padx=2)
+
         # 편집 이미지 좌표 표시 라벨
-        self.edited_coord_label = tk.Label(edited_zoom_frame, text="", fg="gray", font=("", 8))
+        self.edited_coord_label = tk.Label(edited_zoom_frame, text="", font=("", 8), width=8)
         self.edited_coord_label.pack(side=tk.LEFT, padx=(5, 0))
+
+        btn_save = tk.Button(edited_zoom_frame, text="편집된 PNG 저장", command=self.save_png, width=12,
+                            bg="#4CAF50", fg="white", bd=2, cursor="hand2")
+        btn_save.pack(side=tk.LEFT, padx=(5, 0))
         
         # 편집된 이미지 드래그 이벤트 바인딩
         self.canvas_edited.bind("<Button-1>", self.on_canvas_edited_drag_start)

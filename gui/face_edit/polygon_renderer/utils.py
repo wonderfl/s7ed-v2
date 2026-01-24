@@ -80,7 +80,6 @@ class UtilsMixin:
             
             # 뒤집힌 삼각형을 빨간색으로 표시
             if flipped_indices:
-                print(f"[얼굴편집] 뒤집힌 삼각형 {len(flipped_indices)}개 감지")
                 for simplex_idx in flipped_indices:
                     simplex = tri.simplices[simplex_idx]
                     # 경계 포인트는 제외
@@ -122,6 +121,5 @@ class UtilsMixin:
                     canvas_type = 'original' if canvas == self.canvas_original else 'edited'
                     self.landmark_polygon_items[canvas_type].append(triangle_id)
         except Exception as e:
-            print(f"[얼굴편집] 뒤집힌 삼각형 감지 실패: {e}")
             import traceback
             traceback.print_exc()

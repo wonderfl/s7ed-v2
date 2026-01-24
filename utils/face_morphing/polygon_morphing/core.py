@@ -67,7 +67,6 @@ def _validate_and_prepare_inputs(image, original_landmarks, transformed_landmark
         return None
     
     if len(original_landmarks) != len(transformed_landmarks):
-        print(f"[얼굴모핑] 랜드마크 개수가 일치하지 않습니다: {len(original_landmarks)} != {len(transformed_landmarks)}")
         return None
         
     # PIL Image를 numpy 배열로 변환
@@ -352,10 +351,8 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
             # 계산 실패 시 변형된 중앙 포인트를 원본으로 사용 (폴백)
             if left_iris_center_orig is None:
                 left_iris_center_orig = left_iris_center_trans
-                print(f"[얼굴모핑] 경고: 원본 왼쪽 중앙 포인트 계산 실패, 변형된 값을 원본으로 사용")
             if right_iris_center_orig is None:
                 right_iris_center_orig = right_iris_center_trans
-                print(f"[얼굴모핑] 경고: 원본 오른쪽 중앙 포인트 계산 실패, 변형된 값을 원본으로 사용")
         
         # 원본 중앙 포인트 좌표가 현재 이미지 크기를 벗어나면 스케일링 및 오프셋 조정 필요
         # 원본 랜드마크의 좌표 범위를 확인하여 원본 이미지 크기 및 오프셋 추정
@@ -429,11 +426,6 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                         left_iris_center_orig_scaled = (left_iris_center_orig[0] * scale_x, left_iris_center_orig[1] * scale_y)
                         right_iris_center_orig_scaled = (right_iris_center_orig[0] * scale_x, right_iris_center_orig[1] * scale_y)
                         
-                        print(f"[얼굴모핑] 원본 중심점 좌표 스케일링 (랜드마크 없음): 원본 이미지 크기 추정={orig_img_width:.1f}x{orig_img_height:.1f}, "
-                              f"현재 이미지 크기={img_width}x{img_height}, 스케일 비율={scale_x:.3f}x{scale_y:.3f}")
-                        print(f"[얼굴모핑] 원본 중심점 스케일링 전: 왼쪽={left_iris_center_orig}, 오른쪽={right_iris_center_orig}")
-                        print(f"[얼굴모핑] 원본 중심점 스케일링 후: 왼쪽={left_iris_center_orig_scaled}, 오른쪽={right_iris_center_orig_scaled}")
-                        
                         left_iris_center_orig = left_iris_center_orig_scaled
                         right_iris_center_orig = right_iris_center_orig_scaled
     else:
@@ -460,15 +452,6 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                                    (left_iris_center_trans[1] - left_iris_center_orig[1])**2)
         right_displacement = np.sqrt((right_iris_center_trans[0] - right_iris_center_orig[0])**2 + 
                                     (right_iris_center_trans[1] - right_iris_center_orig[1])**2)
-        
-        # 중앙 포인트가 실제로 변경되었을 때만 상세 로그 출력
-        if left_displacement > 0.1 or right_displacement > 0.1:
-            print(f"[얼굴모핑] Delaunay 포인트 구성: 원본 {len(original_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(original_landmarks_no_iris)}개")
-            print(f"[얼굴모핑] Delaunay 포인트 구성: 변환 {len(transformed_landmarks)}개 -> 눈동자 {len(iris_indices)}개 제거 -> 중앙 포인트 2개 추가 -> 최종 {len(transformed_landmarks_no_iris)}개")
-            print(f"[얼굴모핑] 중앙 포인트 인덱스: 왼쪽={len(original_landmarks_no_iris) - 2}, 오른쪽={len(original_landmarks_no_iris) - 1} (Delaunay 배열 내 인덱스)")
-            print(f"[얼굴모핑] 중앙 포인트 원본: 왼쪽={left_iris_center_orig}, 오른쪽={right_iris_center_orig}")
-            print(f"[얼굴모핑] 중앙 포인트 변형: 왼쪽={left_iris_center_trans}, 오른쪽={right_iris_center_trans}")
-            print(f"[얼굴모핑] 중앙 포인트 이동 거리: 왼쪽={left_displacement:.2f}픽셀, 오른쪽={right_displacement:.2f}픽셀 (이미지 크기: {img_width}x{img_height})")
     
     # 이미지 경계 포인트 추가 (Delaunay Triangulation을 위해)
     # 경계 포인트: 4개 모서리
@@ -596,7 +579,6 @@ def _check_and_fix_flipped_triangles(original_points_array, transformed_points_a
     flipped_count, flipped_indices, problematic_point_indices, neighbor_point_indices = _check_triangles_flipped(original_points_array, transformed_points_array, tri)
     
     if flipped_count > 0:
-        print(f"[얼굴모핑] 경고: 뒤집힌 삼각형 {flipped_count}개 감지됨. 폴리곤에서 빨간색으로 표시된 삼각형을 확인하고 수정해주세요.")
         # 뒤집힌 삼각형이 있으면 문제 포인트를 원본으로 복원 (눈 랜드마크, 중심점, 경계 포인트는 제외)
         restored_count = 0
         skipped_iris_centers = []
@@ -605,12 +587,8 @@ def _check_and_fix_flipped_triangles(original_points_array, transformed_points_a
                 transformed_points_array[point_idx] = original_points_array[point_idx].copy()
                 restored_count += 1
             elif point_idx in iris_center_indices_set:
-                skipped_iris_centers.append(point_idx)
-        
-        if skipped_iris_centers:
-            print(f"[얼굴모핑] 중심점 {skipped_iris_centers}는 뒤집힌 삼각형 복원에서 제외했습니다 (눈동자 움직임 유지)")
-        print(f"[얼굴모핑] 뒤집힌 삼각형의 문제 포인트 {restored_count}개를 원본으로 복원했습니다.")
-    
+                skipped_iris_centers.append(point_idx)        
+
     return transformed_points_array
 
 def _calculate_landmark_bounding_box(landmarks, img_width, img_height, padding_ratio=0.3, exclude_indices=None):
@@ -866,13 +844,11 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             diffs = np.sqrt(np.sum((trans_pts - orig_pts)**2, axis=1))
             max_diff = np.max(diffs)
             changed_count = np.sum(diffs > 0.1)
-            print(f"[얼굴모핑] 랜드마크 변형 확인: 최대 차이={max_diff:.2f}픽셀, 변경된 포인트={changed_count}개 (전체 {landmarks_count}개 중)")
         else:
             max_diff = 0.0
             changed_count = 0
         # 랜드마크가 변형되지 않았으면 원본 이미지 반환
         if max_diff < 0.1:
-            print(f"[얼굴모핑] 랜드마크 변형이 없어 원본 이미지 반환 (max_diff={max_diff:.2f})")
             return image
         
         # 바운딩 박스 영역만 처리
@@ -919,17 +895,14 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 max_eye_idx = max(eye_landmarks_raw) if eye_landmarks_raw else 0
                 if max_eye_idx >= landmarks_count - 2:  # 중앙 포인트 인덱스 제외
                     # 인덱스가 범위를 벗어남 - 매핑 필요
-                    print(f"[얼굴모핑] 경고: 눈 랜드마크 인덱스가 범위 초과 (max={max_eye_idx}, landmarks={landmarks_count-2})")
                     # 일단 사용 가능한 인덱스만 필터링
                     eye_landmarks = {idx for idx in eye_landmarks_raw if idx < landmarks_count - 2}
                 else:
                     eye_landmarks = eye_landmarks_raw
                     
-                print(f"[얼굴모핑] 눈 영역 랜드마크: 왼쪽 눈 {len(LEFT_EYE_INDICES)}개, 오른쪽 눈 {len(RIGHT_EYE_INDICES)}개, 합계 {len(eye_landmarks)}개 (사용 가능)")
             except ImportError:
                 # 폴백: 중앙 포인트만 사용
                 eye_landmarks = set()
-                print(f"[얼굴모핑] 경고: 눈 랜드마크 인덱스를 가져올 수 없음")
             
             # 경계 포인트
             boundary_indices = set(range(landmarks_count, landmarks_count + 4))
@@ -946,10 +919,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 eye_x_min, eye_x_max = min(eye_x_coords), max(eye_x_coords)
                 eye_y_min, eye_y_max = min(eye_y_coords), max(eye_y_coords)
                 
-                print(f"[얼굴모핑] 눈 영역 범위: x=[{eye_x_min:.1f}, {eye_x_max:.1f}], y=[{eye_y_min:.1f}, {eye_y_max:.1f}]")
-                print(f"[얼굴모핑] 왼쪽 중심점: {left_iris_pt}, 오른쪽 중심점: {right_iris_pt}")
-                print(f"[얼굴모핑] 왼쪽 중심점이 눈 영역 안에? x: {eye_x_min <= left_iris_pt[0] <= eye_x_max}, y: {eye_y_min <= left_iris_pt[1] <= eye_y_max}")
-                print(f"[얼굴모핑] 오른쪽 중심점이 눈 영역 안에? x: {eye_x_min <= right_iris_pt[0] <= eye_x_max}, y: {eye_y_min <= right_iris_pt[1] <= eye_y_max}")
             
             # 1단계: 중심점을 포함하는 모든 삼각형의 꼭짓점 수집
             vertices_connected_to_iris = set()
@@ -973,9 +942,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             filtered_vertices = vertices_connected_to_iris & expanded_eye_landmarks
             allowed_vertices = filtered_vertices | iris_center_indices | boundary_indices
             
-            print(f"[얼굴모핑] 중심점과 연결된 꼭짓점: {len(vertices_connected_to_iris)}개 (예: {sorted(list(vertices_connected_to_iris))[:10]})")
-            print(f"[얼굴모핑] 눈 영역 {len(eye_landmarks)}개 → 확장 {len(expanded_eye_landmarks)}개")
-            print(f"[얼굴모핑] 필터링 후: {len(filtered_vertices)}개, 허용된 꼭짓점 총 {len(allowed_vertices)}개")
             
             # 각 삼각형 검사: 중앙 포인트를 포함하고, 나머지 꼭짓점이 허용 영역에 있어야 함
             iris_triangles = set()
@@ -1012,7 +978,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                         if len(rejected_triangles) < 3:
                             rejected_triangles.append(('outside_allowed_region', simplex_idx, simplex.tolist(), outside_vertices))
             
-            print(f"[얼굴모핑] 눈동자 중심점만 드래그: {len(iris_triangles)}개 삼각형만 변형 (전체 {len(tri.simplices)}개 중)")
             
             # 중앙 포인트를 포함하지 않거나 눈 영역 밖의 삼각형은 변형하지 않음
             mask_iris_triangles = np.isin(simplex_indices_orig, list(iris_triangles))
@@ -1322,9 +1287,6 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         
         # 원본 크기로 복원 (다운샘플링했던 경우)
         # 성능 최적화: 바운딩 박스 영역만 업샘플링, 나머지는 원본 이미지 사용
-        # 디버깅: 업샘플링 조건 확인
-        if scale_factor < 1.0:
-            print(f"[얼굴모핑] 업샘플링 필요: scale_factor={scale_factor:.4f}, min_x_orig_bbox={min_x_orig_bbox}")
         if scale_factor < 1.0 and min_x_orig_bbox is not None:
             # 바운딩 박스 영역만 업샘플링 (전체 이미지 업샘플링 대신)
             # 원본 이미지로 시작
@@ -1389,11 +1351,9 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                 img_array_float = img_array.astype(np.float32)
                 result = (img_array_float * (1.0 - blend_ratio) + result_float * blend_ratio).astype(np.uint8)
         
-        print(f"[얼굴모핑] 랜드마크 변형 완료: 이미지 크기 {img_width}x{img_height}, blend_ratio={blend_ratio:.2f}")
         return Image.fromarray(result)
         
     except Exception as e:
-        print(f"[얼굴모핑] 랜드마크 기반 변형 실패: {e}")
         import traceback
         traceback.print_exc()
         return image

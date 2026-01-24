@@ -1,0 +1,41 @@
+"""
+Remove debug print statements from code
+"""
+import re
+
+files_to_clean = [
+    r'd:\03.python\s7ed-v2\gui\face_edit\preview.py',
+    r'd:\03.python\s7ed-v2\gui\face_edit\canvas_drag_handler.py',
+    r'd:\03.python\s7ed-v2\gui\face_edit\landmark_display.py',
+    r'd:\03.python\s7ed-v2\gui\face_edit\tab_renderer.py',
+    r'd:\03.python\s7ed-v2\gui\face_edit\slider_ui.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\region_extraction.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\polygon_morphing\core.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\polygon_morphing\movement.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\polygon_morphing\transformations.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\adjustments\region_adjustments.py',
+    r'd:\03.python\s7ed-v2\utils\face_morphing\adjustments\mouth_adjustments.py'
+]
+
+for filepath in files_to_clean:
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        cleaned_lines = []
+        for line in lines:
+            # Skip lines with debug print statements
+            if 'print(f"[얼굴편집]' in line or 'print(f"[얼굴모핑]' in line:
+                continue
+            cleaned_lines.append(line)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.writelines(cleaned_lines)
+        
+        removed_count = len(lines) - len(cleaned_lines)
+        filename = filepath.split('\\')[-1]
+        print(f'[OK] Cleaned: {filename} - Removed {removed_count} lines')
+    except Exception as e:
+        print(f'[ERROR] Error cleaning {filepath}: {e}')
+
+print('\nDebug log removal complete!')

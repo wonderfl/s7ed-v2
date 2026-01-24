@@ -274,7 +274,6 @@ class UtilsMixin:
                     # 이전 transformed_landmarks가 없으면 (드래그 시작 시 원본에서 시작한 경우)
                     if prev_transformed is None or len(prev_transformed) != len(custom):
                         # 이전 사이즈 변환이 없었던 경우: 드래그 오프셋 = custom[idx] - base_landmarks[idx]
-                        print(f"[얼굴편집] update_polygons_only - 드래그 오프셋 계산: 이전 사이즈 변환 없음, 원본 기준")
                         for idx in dragged_indices:
                             if idx < len(custom) and idx < len(new_custom) and idx < len(base_landmarks):
                                 orig_x, orig_y = base_landmarks[idx]
@@ -287,7 +286,6 @@ class UtilsMixin:
                                 new_custom[idx] = (transformed_x + offset_x, transformed_y + offset_y)
                     else:
                         # 이전 사이즈 변환이 있었던 경우: 드래그 오프셋 = custom[idx] - prev_transformed[idx]
-                        print(f"[얼굴편집] update_polygons_only - 드래그 오프셋 계산: 이전 사이즈 변환 있음, 이전 변환 기준")
                         for idx in dragged_indices:
                             if idx < len(custom) and idx < len(new_custom) and idx < len(prev_transformed):
                                 # 이전 사이즈 변환된 위치
@@ -385,7 +383,6 @@ class UtilsMixin:
                                 force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
                             )
         except Exception as e:
-            print(f"[얼굴편집] 폴리곤 업데이트 실패: {e}")
             import traceback
             traceback.print_exc()
     
@@ -472,6 +469,5 @@ class UtilsMixin:
             return list(indices)
             
         except Exception as e:
-            print(f"[얼굴편집] 부위 인덱스 가져오기 실패 ({region_name}): {e}")
             return []
     
