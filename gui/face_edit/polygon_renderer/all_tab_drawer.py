@@ -3,10 +3,147 @@
 전체탭에 맞는 폴리곤 그리기 로직을 담당
 """
 import math
+import time
 
 
 class AllTabDrawerMixin:
-    """전체탭 폴리곤 그리기 기능 Mixin"""
+    """전체 탭 폴리곤 그리기 믹스인"""
+    
+    def __init__(self):
+        # 눈동자 윤곽 재계산 캐시
+        self._iris_contour_cache = {}
+        self._cache_max_size = 100
+        
+        # 성능 측정
+        self._performance_stats = {
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'total_calls': 0,
+            'total_time': 0.0
+        }
+    
+    def calculate_iris_contour(self, iris_center, eye_landmarks, original_iris_landmarks, img_width, img_height):
+        """눈동자 중심점과 눈꺼풀 랜드마크를 기반으로 눈동자 윤곽 재계산 (캐싱 적용)
+        
+        Args:
+            iris_center: 눈동자 중심점 좌표 (x, y)
+            eye_landmarks: 눈꺼풀 랜드마크 리스트 [(x, y), ...]
+            original_iris_landmarks: 원본 눈동자 윤곽 랜드마크 리스트
+            img_width: 이미지 너비
+            img_height: 이미지 높이
+            
+        Returns:
+            list: 재계산된 눈동자 윤곽 랜드마크 리스트
+        """
+        # 성능 측정 시작
+        start_time = time.time()
+        self._performance_stats['total_calls'] += 1
+        
+        if not iris_center or not eye_landmarks or not original_iris_landmarks:
+            return original_iris_landmarks
+        
+        # 캐시 키 생성 (입력값 기반)
+        cache_key = (
+            round(iris_center[0], 2), round(iris_center[1], 2),
+            len(eye_landmarks), len(original_iris_landmarks),
+            round(img_width, 0), round(img_height, 0)
+        )
+        
+        # 캐시 확인
+        if cache_key in self._iris_contour_cache:
+            self._performance_stats['cache_hits'] += 1
+            return self._iris_contour_cache[cache_key]
+        
+        self._performance_stats['cache_misses'] += 1
+        
+        # 캐시 크기 관리
+        if len(self._iris_contour_cache) >= self._cache_max_size:
+            # 가장 오래된 항목 제거 (간단한 LRU)
+            oldest_key = next(iter(self._iris_contour_cache))
+            del self._iris_contour_cache[oldest_key]
+            
+        # 원본 눈동자 중심점 계산
+        original_center_x = sum(pt[0] if isinstance(pt, tuple) else pt.x * img_width for pt in original_iris_landmarks) / len(original_iris_landmarks)
+        original_center_y = sum(pt[1] if isinstance(pt, tuple) else pt.y * img_height for pt in original_iris_landmarks) / len(original_iris_landmarks)
+        
+        # 이동량 계산
+        offset_x = iris_center[0] - original_center_x
+        offset_y = iris_center[1] - original_center_y
+        
+        # 이동량이 거의 없으면 원본 반환 (불필요한 재계산 방지)
+        if abs(offset_x) < 1.0 and abs(offset_y) < 1.0:
+            return original_iris_landmarks
+        
+        # 눈꺼풀 경계 계산
+        eye_x_coords = [pt[0] if isinstance(pt, tuple) else pt.x * img_width for pt in eye_landmarks]
+        eye_y_coords = [pt[1] if isinstance(pt, tuple) else pt.y * img_height for pt in eye_landmarks]
+        
+        if not eye_x_coords or not eye_y_coords:
+            return original_iris_landmarks
+            
+        eye_min_x, eye_max_x = min(eye_x_coords), max(eye_x_coords)
+        eye_min_y, eye_max_y = min(eye_y_coords), max(eye_y_coords)
+        eye_center_x = (eye_min_x + eye_max_x) / 2
+        eye_center_y = (eye_min_y + eye_max_y) / 2
+        eye_width = eye_max_x - eye_min_x
+        eye_height = eye_max_y - eye_min_y
+        
+        # 재계산된 눈동자 윤곽
+        adjusted_landmarks = []
+        
+        for pt in original_iris_landmarks:
+            if isinstance(pt, tuple):
+                original_x, original_y = pt[0], pt[1]
+            else:
+                original_x = pt.x * img_width
+                original_y = pt.y * img_height
+                
+            # 기본 이동 적용
+            new_x = original_x + offset_x
+            new_y = original_y + offset_y
+            
+            # 최종 좌표를 이미지 상대 좌표로 변환
+            final_x = new_x / img_width
+            final_y = new_y / img_height
+            
+            # 원본 포인트 타입 유지
+            if isinstance(pt, tuple):
+                adjusted_landmarks.append((final_x, final_y))
+            else:
+                adjusted_landmarks.append(type(pt)(x=final_x, y=final_y, z=pt.z, visibility=pt.visibility))
+        
+        # 결과를 캐시에 저장
+        self._iris_contour_cache[cache_key] = adjusted_landmarks
+        
+        # 성능 측정 종료
+        end_time = time.time()
+        self._performance_stats['total_time'] += (end_time - start_time)
+        
+        return adjusted_landmarks
+    
+    def get_performance_stats(self):
+        """성능 통계 정보 반환
+        
+        Returns:
+            dict: 성능 통계 정보
+        """
+        stats = self._performance_stats.copy()
+        if stats['total_calls'] > 0:
+            stats['cache_hit_rate'] = stats['cache_hits'] / stats['total_calls'] * 100
+            stats['avg_time_ms'] = (stats['total_time'] / stats['total_calls']) * 1000
+        else:
+            stats['cache_hit_rate'] = 0.0
+            stats['avg_time_ms'] = 0.0
+        return stats
+    
+    def clear_performance_stats(self):
+        """성능 통계 초기화"""
+        self._performance_stats = {
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'total_calls': 0,
+            'total_time': 0.0
+        }
     
     def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
@@ -287,7 +424,7 @@ class AllTabDrawerMixin:
                 
                 # 폴리곤 그리기 (iris_landmarks가 있을 때만)
                 if has_iris_landmarks:
-                    # 눈동자 중심점의 이동량 계산
+                    # 눈동자 중심점 가져오기
                     current_iris_center_coord = None
                     if iris_centers is not None and len(iris_centers) == 2: # iris_centers는 UI 기준 (왼쪽이 [1], 오른쪽이 [0])
                         if iris_side == 'left':
@@ -297,33 +434,41 @@ class AllTabDrawerMixin:
                     elif hasattr(self, f'_{iris_side}_iris_center_coord'):
                         current_iris_center_coord = getattr(self, f'_{iris_side}_iris_center_coord')
 
+                    # 눈꺼풀 랜드마크 가져오기
+                    eye_landmarks = None
                     if iris_side == 'left':
-                        original_iris_center_coord = self.landmark_manager.get_original_left_iris_center_coord()
+                        # FACEMESH_LEFT_EYE는 [(idx1, idx2), ...] 형태이므로 평탄화
+                        left_eye_indices = set()
+                        for idx1, idx2 in LEFT_EYE:
+                            left_eye_indices.add(idx1)
+                            left_eye_indices.add(idx2)
+                        eye_landmarks = [landmarks[i] for i in left_eye_indices if i < len(landmarks)]
                     else:
-                        original_iris_center_coord = self.landmark_manager.get_original_right_iris_center_coord()
+                        # FACEMESH_RIGHT_EYE는 [(idx1, idx2), ...] 형태이므로 평탄화
+                        right_eye_indices = set()
+                        for idx1, idx2 in RIGHT_EYE:
+                            right_eye_indices.add(idx1)
+                            right_eye_indices.add(idx2)
+                        eye_landmarks = [landmarks[i] for i in right_eye_indices if i < len(landmarks)]
 
-                    offset_x, offset_y = 0, 0
-                    if current_iris_center_coord and original_iris_center_coord:
-                        offset_x = current_iris_center_coord[0] - original_iris_center_coord[0]
-                        offset_y = current_iris_center_coord[1] - original_iris_center_coord[1]
-
-                    # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
-                    adjusted_landmarks_iris = []
+                    # 원본 눈동자 윤곽 랜드마크 추출
+                    original_iris_landmarks = []
                     iris_connections_indices = set()
                     for idx1, idx2 in iris_connections:
                         iris_connections_indices.add(idx1)
                         iris_connections_indices.add(idx2)
+                    
+                    for idx in sorted(iris_connections_indices):
+                        if idx < len(landmarks):
+                            original_iris_landmarks.append(landmarks[idx])
 
-                    for i, pt in enumerate(landmarks):
-                        if i in iris_connections_indices: # 눈동자 윤곽 랜드마크에만 적용
-                            if isinstance(pt, tuple):
-                                adjusted_landmarks_iris.append((pt[0] + offset_x, pt[1] + offset_y))
-                            elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                                adjusted_landmarks_iris.append(type(pt)(x=(pt.x * img_width + offset_x) / img_width, y=(pt.y * img_height + offset_y) / img_height, z=pt.z, visibility=pt.visibility))
-                            else:
-                                adjusted_landmarks_iris.append(pt)
-                        else:
-                            adjusted_landmarks_iris.append(pt)
+                    # 눈동자 윤곽 재계산
+                    if current_iris_center_coord and eye_landmarks and original_iris_landmarks:
+                        adjusted_landmarks_iris = self.calculate_iris_contour(
+                            current_iris_center_coord, eye_landmarks, original_iris_landmarks, img_width, img_height
+                        )
+                    else:
+                        adjusted_landmarks_iris = landmarks
 
                     iris_points = self._get_polygon_from_indices(
                         [], adjusted_landmarks_iris, img_width, img_height, scale_x, scale_y, pos_x, pos_y,

@@ -1112,8 +1112,10 @@ class SliderUIMixin:
         """눈동자 탭 UI 생성"""
         tab_frame = tk.Frame(notebook, padx=5, pady=5)
         
-        # 눈동자 탭은 현재 슬라이더 없이 폴리곤만 표시
-        # 나중에 필요하면 슬라이더 추가 가능
+        scaled_length = 200
+        label_width = 16
+        
+        # 안내 텍스트
         info_label = tk.Label(
             tab_frame,
             text="눈동자 위치를 드래그하여 조정할 수 있습니다.",
@@ -1121,6 +1123,72 @@ class SliderUIMixin:
             fg="gray"
         )
         info_label.pack(pady=10)
+        
+        # ==============================
+        # 눈동자 이동 범위 제한 설정
+        # ==============================
+        iris_clamping_frame = tk.LabelFrame(tab_frame, text="눈동자 이동 범위 제한", padx=5, pady=5)
+        iris_clamping_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
+        
+        # 클램핑 활성화 체크박스
+        clamping_checkbox = tk.Checkbutton(
+            iris_clamping_frame,
+            text="눈동자 이동 범위 제한 활성화",
+            variable=self.iris_clamping_enabled,
+            command=self.on_morphing_change
+        )
+        clamping_checkbox.pack(anchor=tk.W, pady=(0, 5))
+        
+        # 마진 비율 슬라이더 (소수점 표시용)
+        def create_margin_ratio_slider(parent, label_text, variable, from_val, to_val, resolution, default_label=""):
+            frame = tk.Frame(parent)
+            frame.pack(fill=tk.X, pady=(0, 5))
+            
+            title_label = tk.Label(frame, text=label_text, width=label_width, anchor="e", cursor="hand2")
+            title_label.pack(side=tk.LEFT, padx=(0, 4))
+            
+            value_label = tk.Label(frame, text=default_label, width=6)
+            
+            def on_slider_change(value):
+                value_label.config(text=f"{float(value):.1f}")
+            
+            def on_slider_release(event):
+                self.on_morphing_change()
+            
+            def reset_slider(event):
+                variable.set(0.3)
+                value_label.config(text="0.3")
+                self.on_morphing_change()
+            
+            title_label.bind("<Button-1>", reset_slider)
+            
+            scale = tk.Scale(
+                frame,
+                from_=from_val,
+                to=to_val,
+                resolution=resolution,
+                orient=tk.HORIZONTAL,
+                variable=variable,
+                command=on_slider_change,
+                length=scaled_length,
+                showvalue=False
+            )
+            scale.pack(side=tk.LEFT, padx=(0, 5))
+            scale.bind("<ButtonRelease-1>", on_slider_release)
+            
+            value_label.pack(side=tk.LEFT)
+            
+            return value_label
+        
+        self.iris_clamping_margin_ratio_label = create_margin_ratio_slider(
+            iris_clamping_frame,
+            "제한 마진 비율:",
+            self.iris_clamping_margin_ratio,
+            0.0,
+            1.0,
+            0.01,
+            "0.3"
+        )
         
         return tab_frame
 

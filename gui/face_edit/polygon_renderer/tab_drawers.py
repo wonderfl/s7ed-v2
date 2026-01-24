@@ -881,12 +881,7 @@ class TabDrawersMixin:
                     if idx < len(landmarks):
                         self.polygon_point_map_edited.add(idx)
             
-            # 왼쪽 눈동자 폴리곤 그리기
-            # 눈동자 중심점의 이동량 계산
-            # iris_centers 파라미터가 전달된 경우 우선 사용 (Tesselation 모드)
-            # iris_centers[0] = landmarks[468] = 화면상 오른쪽
-            # iris_centers[1] = landmarks[469] = 화면상 왼쪽
-            # 현재 랜드마크는 MediaPipe 기준으로 470개 (얼굴 468 + 눈동자 중심 2)
+            # 왼쪽 눈동자 중심점 가져오기
             left_iris_center_current = None
             if iris_centers is not None and len(iris_centers) == 2:
                 # iris_centers[1] = 화면상 왼쪽 눈동자 중심
@@ -902,27 +897,31 @@ class TabDrawersMixin:
                 else:
                     left_iris_center_current = center_pt
             
-            # 원본 왼쪽 눈동자 중심점 가져오기
-            left_iris_center_original = self.landmark_manager.get_original_left_iris_center_coord()
-            
-            # 이동량 계산
-            offset_x_left, offset_y_left = 0, 0
-            if left_iris_center_current and left_iris_center_original:
-                offset_x_left = left_iris_center_current[0] - left_iris_center_original[0]
-                offset_y_left = left_iris_center_current[1] - left_iris_center_original[1]
+            # 눈꺼풀 랜드마크 가져오기
+            try:
+                LEFT_EYE = list(mp_face_mesh.FACEMESH_LEFT_EYE)
+                # FACEMESH_LEFT_EYE는 [(idx1, idx2), ...] 형태이므로 평탄화
+                left_eye_indices = set()
+                for idx1, idx2 in LEFT_EYE:
+                    left_eye_indices.add(idx1)
+                    left_eye_indices.add(idx2)
+                left_eye_landmarks = [landmarks[i] for i in left_eye_indices if i < len(landmarks)]
+            except AttributeError:
+                left_eye_landmarks = []
 
-            # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
-            adjusted_landmarks_left_iris = []
-            for i, pt in enumerate(landmarks):
-                if i in left_iris_indices_set: # 왼쪽 눈동자 윤곽 랜드마크에만 적용
-                    if isinstance(pt, tuple):
-                        adjusted_landmarks_left_iris.append((pt[0] + offset_x_left, pt[1] + offset_y_left))
-                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                        adjusted_landmarks_left_iris.append(type(pt)(x=(pt.x * img_width + offset_x_left) / img_width, y=(pt.y * img_height + offset_y_left) / img_height, z=pt.z, visibility=pt.visibility))
-                    else:
-                        adjusted_landmarks_left_iris.append(pt)
-                else:
-                    adjusted_landmarks_left_iris.append(pt)
+            # 원본 왼쪽 눈동자 윤곽 랜드마크 추출
+            original_left_iris_landmarks = []
+            for idx in sorted(left_iris_indices_set):
+                if idx < len(landmarks):
+                    original_left_iris_landmarks.append(landmarks[idx])
+
+            # 눈동자 윤곽 재계산
+            if left_iris_center_current and left_eye_landmarks and original_left_iris_landmarks:
+                adjusted_landmarks_left_iris = self.calculate_iris_contour(
+                    left_iris_center_current, left_eye_landmarks, original_left_iris_landmarks, img_width, img_height
+                )
+            else:
+                adjusted_landmarks_left_iris = landmarks
             
             # _get_polygon_from_indices 호출 시 조정된 랜드마크 사용
             left_iris_points = self._get_polygon_from_indices(
@@ -941,7 +940,7 @@ class TabDrawersMixin:
                 items_list.append(polygon_id)
                 bind_polygon_click_events(polygon_id, list(left_iris_indices_set))
             
-            # 오른쪽 눈동자 폴리곤 그리기
+            # 오른쪽 눈동자 중심점 가져오기
             right_iris_center_current = None
             if iris_centers is not None and len(iris_centers) == 2:
                 # iris_centers[0] = 화면상 오른쪽 눈동자 중심
@@ -957,27 +956,31 @@ class TabDrawersMixin:
                 else:
                     right_iris_center_current = center_pt
             
-            # 원본 오른쪽 눈동자 중심점 가져오기
-            right_iris_center_original = self.landmark_manager.get_original_right_iris_center_coord()
-            
-            # 이동량 계산
-            offset_x_right, offset_y_right = 0, 0
-            if right_iris_center_current and right_iris_center_original:
-                offset_x_right = right_iris_center_current[0] - right_iris_center_original[0]
-                offset_y_right = right_iris_center_current[1] - right_iris_center_original[1]
-            
-            # 눈동자 윤곽 랜드마크에 이동량 적용 (임시 랜드마크 리스트 생성)
-            adjusted_landmarks_right_iris = []
-            for i, pt in enumerate(landmarks):
-                if i in right_iris_indices_set: # 오른쪽 눈동자 윤곽 랜드마크에만 적용
-                    if isinstance(pt, tuple):
-                        adjusted_landmarks_right_iris.append((pt[0] + offset_x_right, pt[1] + offset_y_right))
-                    elif hasattr(pt, 'x') and hasattr(pt, 'y'):
-                        adjusted_landmarks_right_iris.append(type(pt)(x=(pt.x * img_width + offset_x_right) / img_width, y=(pt.y * img_height + offset_y_right) / img_height, z=pt.z, visibility=pt.visibility))
-                    else:
-                        adjusted_landmarks_right_iris.append(pt)
-                else:
-                    adjusted_landmarks_right_iris.append(pt)
+            # 눈꺼풀 랜드마크 가져오기
+            try:
+                RIGHT_EYE = list(mp_face_mesh.FACEMESH_RIGHT_EYE)
+                # FACEMESH_RIGHT_EYE는 [(idx1, idx2), ...] 형태이므로 평탄화
+                right_eye_indices = set()
+                for idx1, idx2 in RIGHT_EYE:
+                    right_eye_indices.add(idx1)
+                    right_eye_indices.add(idx2)
+                right_eye_landmarks = [landmarks[i] for i in right_eye_indices if i < len(landmarks)]
+            except AttributeError:
+                right_eye_landmarks = []
+
+            # 원본 오른쪽 눈동자 윤곽 랜드마크 추출
+            original_right_iris_landmarks = []
+            for idx in sorted(right_iris_indices_set):
+                if idx < len(landmarks):
+                    original_right_iris_landmarks.append(landmarks[idx])
+
+            # 눈동자 윤곽 재계산
+            if right_iris_center_current and right_eye_landmarks and original_right_iris_landmarks:
+                adjusted_landmarks_right_iris = self.calculate_iris_contour(
+                    right_iris_center_current, right_eye_landmarks, original_right_iris_landmarks, img_width, img_height
+                )
+            else:
+                adjusted_landmarks_right_iris = landmarks
 
             # _get_polygon_from_indices 호출 시 조정된 랜드마크 사용
             right_iris_points = self._get_polygon_from_indices(

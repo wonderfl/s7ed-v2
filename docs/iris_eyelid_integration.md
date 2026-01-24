@@ -283,13 +283,23 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
 
 **파일**: `gui/face_edit/__init__.py`
 
+#### 전역 변수 (모든 탭에서 공유)
+
 ```python
 # 눈동자 이동 범위 제한 설정 (라인 91-92)
 self.iris_clamping_enabled = tk.BooleanVar(value=True)
 self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)
 ```
 
-**UI 컴포넌트** (라인 738-780):
+**중요**: 이 변수들은 **전역으로 공유**되므로, 어느 탭에서 변경하든 모든 탭에 적용됩니다.
+
+#### UI 위치: 눈동자(Iris) 탭
+
+**파일**: `gui/face_edit/slider_ui.py` (라인 1111-1195)
+
+눈동자 클램핑 설정 UI는 **눈동자 탭에** 존재합니다. 눈동자 관련 모든 설정이 한 곳에 모여 있어 사용자가 눈동자 작업 중 바로 설정을 조절할 수 있습니다.
+
+**UI 컴포넌트**:
 
 1. **클램핑 활성화 체크박스**
    ```python
@@ -297,7 +307,7 @@ self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)
        iris_clamping_frame,
        text="눈동자 이동 범위 제한 활성화",
        variable=self.iris_clamping_enabled,
-       # ...
+       command=self.on_morphing_change
    )
    ```
 
@@ -305,11 +315,20 @@ self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)
    ```python
    create_margin_slider(
        iris_clamping_frame,
-       "마진 비율",
+       "제한 마진 비율:",
        self.iris_clamping_margin_ratio,
-       # ...
+       0.0,      # 최소값
+       1.0,      # 최대값
+       0.01,     # 해상도
+       "0.3"     # 기본값 표시
    )
    ```
+
+#### 탭 간 설정 공유
+
+- **눈동자 탭에서 설정** → 전체 탭, 눈 탭 등 모든 탭에 자동 적용
+- **전체 탭에서 눈동자 드래그** → 눈동자 탭에서 설정한 `margin_ratio` 값 사용
+- **설정 변경 시** → `self.on_morphing_change()` 호출로 즉시 반영
 
 ### 4.2 설정 전달
 
@@ -433,14 +452,19 @@ left_iris_indices, right_iris_indices = get_iris_indices()
 
 ### 6.2 클램핑 설정 조절
 
-**UI에서 조절**:
-- "눈동자 이동 범위 제한 활성화" 체크박스: 클램핑 ON/OFF
-- "마진 비율" 슬라이더: 0.0 (제한적) ~ 1.0 (자유로움)
+**UI 위치**: **눈동자(Iris) 탭**의 "눈동자 이동 범위 제한" 섹션
 
-**효과**:
+**조절 방법**:
+1. 눈동자 탭으로 이동 (또는 눈동자 작업 중 같은 탭에서)
+2. "눈동자 이동 범위 제한 활성화" 체크박스: 클램핑 ON/OFF
+3. "제한 마진 비율" 슬라이더: 0.0 (제한적) ~ 1.0 (자유로움)
+
+**설정 효과** (모든 탭에 적용):
 - `margin_ratio = 0.0`: 눈동자가 눈 영역 경계에 딱 맞춤
 - `margin_ratio = 0.3` (기본값): 적당한 여유 공간
 - `margin_ratio = 1.0`: 눈 영역의 2배 범위까지 허용
+
+**참고**: 눈동자 탭에서 설정을 변경하면 전체 탭, 눈 탭 등 모든 탭에서 동일하게 적용됩니다.
 
 ### 6.3 프로그래밍 방식 사용
 

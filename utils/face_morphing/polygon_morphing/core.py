@@ -17,6 +17,7 @@
 3. 폴리곤 포인트 변형: transform_points_* 함수로 포인트 변형
 4. 폴리곤 모핑: morph_face_by_polygons 함수로 변형된 포인트를 사용하여 이미지 변형
 """
+import math
 import numpy as np
 from PIL import Image
 
@@ -82,7 +83,7 @@ def _validate_and_prepare_inputs(image, original_landmarks, transformed_landmark
 
 def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_height, 
                              margin_ratio=0.3, clamping_enabled=True):
-    """눈동자 중심점을 눈 영역 내로 제한
+    """눈동자 중심점을 눈 영역 내로 제한 (형태 보존 클램핑)
     
     Args:
         iris_center_coord: 눈동자 중심점 좌표 (x, y)
@@ -110,11 +111,19 @@ def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_he
     max_x = max(x_coords)
     max_y = max(y_coords)
     
-    # 마진 계산
-    width = max_x - min_x
-    height = max_y - min_y
-    margin_x = width * margin_ratio
-    margin_y = height * margin_ratio
+    # 눈 중심점 계산
+    eye_center_x = (min_x + max_x) / 2
+    eye_center_y = (min_y + max_y) / 2
+    
+    # 눈 크기 계산
+    eye_width = max_x - min_x
+    eye_height = max_y - min_y
+    
+    # 동적 마진 계산 (눈 크기에 따라 적응)
+    # 눈이 작을수록 마진 비율을 줄여 더 넓은 움직임 허용
+    adaptive_margin_ratio = margin_ratio * min(1.0, (eye_width + eye_height) / 200.0)
+    margin_x = eye_width * adaptive_margin_ratio
+    margin_y = eye_height * adaptive_margin_ratio
     
     # 제한된 영역 계산
     clamped_min_x = max(0, min_x - margin_x)
@@ -122,9 +131,26 @@ def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_he
     clamped_max_x = min(img_width, max_x + margin_x)
     clamped_max_y = min(img_height, max_y + margin_y)
     
-    # 눈동자 중심점을 제한된 영역 내로 클램핑
+    # 기본 클램핑
     clamped_x = max(clamped_min_x, min(clamped_max_x, iris_center_coord[0]))
     clamped_y = max(clamped_min_y, min(clamped_max_y, iris_center_coord[1]))
+    
+    # 형태 보존 클램핑: 눈동자가 눈 영역을 벗어날 경우 부드러운 조정
+    # 눈 중심으로부터의 거리 계산
+    dist_from_center = math.sqrt((clamped_x - eye_center_x)**2 + (clamped_y - eye_center_y)**2)
+    
+    # 최대 허용 반경 (눈 크기의 45%까지 허용 - 기존보다 확장)
+    max_allowed_radius = min(eye_width, eye_height) * 0.45
+    
+    if dist_from_center > max_allowed_radius:
+        # 비율에 맞춰 부드럽게 조정 (경계에서 멈추는 대신)
+        scale = max_allowed_radius / dist_from_center
+        
+        # 눈 중심을 기준으로 크기 조절
+        adjusted_x = eye_center_x + (clamped_x - eye_center_x) * scale
+        adjusted_y = eye_center_y + (clamped_y - eye_center_y) * scale
+        
+        return (adjusted_x, adjusted_y)
     
     return (clamped_x, clamped_y)
 
