@@ -518,10 +518,6 @@ class AllTabDrawerMixin:
                     tags=("iris_connections", f"iris_outline_{iris_side}")
                 )
                 items_list.append(line_id)
-            
-            print(f"Drawn {len(canvas_points)//2} outer points with connecting lines for {iris_side}")
-        else:
-            print(f"Not enough iris coords for {iris_side}: {len(iris_coords)} < 4")
     
     def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
