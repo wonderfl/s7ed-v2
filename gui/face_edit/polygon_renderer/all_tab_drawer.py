@@ -4,7 +4,17 @@
 """
 import math
 import time
+from typing import List, Tuple, Optional, Dict, Any
 
+# 눈꺼풀 랜드마크 인덱스 정의 (MediaPipe Face Mesh)
+LEFT_EYELID_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+RIGHT_EYELID_INDICES = [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382]
+
+# 상안견/하안견 분리 (위쪽 눈꺼풀)
+LEFT_UPPER_EYELID_INDICES = [33, 7, 163, 144, 145, 153, 154, 155]
+LEFT_LOWER_EYELID_INDICES = [133, 173, 157, 158, 159, 160, 161, 246]
+RIGHT_UPPER_EYELID_INDICES = [362, 398, 384, 385, 386, 387, 388]
+RIGHT_LOWER_EYELID_INDICES = [263, 249, 390, 373, 374, 380, 381, 382]
 
 class AllTabDrawerMixin:
     """전체 탭 폴리곤 그리기 믹스인"""
@@ -22,15 +32,20 @@ class AllTabDrawerMixin:
             'total_time': 0.0
         }
     
-    def calculate_iris_contour(self, iris_center, eye_landmarks, original_iris_landmarks, img_width, img_height):
-        """눈동자 중심점과 눈꺼풀 랜드마크를 기반으로 눈동자 윤곽 재계산 (캐싱 적용)
+    def calculate_iris_contour(self, iris_center: Tuple[float, float], 
+                           eye_landmarks: List[Tuple[float, float]], 
+                           original_iris_landmarks: List[Tuple[float, float]], 
+                           img_width: int, img_height: int,
+                           face_landmarks: Optional[List[Tuple[float, float]]] = None) -> List[Tuple[float, float]]:
+        """눈동자 윤곽 재계산 (눈꺼풀 상호작용 포함)
         
         Args:
-            iris_center: 눈동자 중심점 좌표 (x, y)
+            iris_center: 이동된 눈동자 중심점 (x, y)
             eye_landmarks: 눈꺼풀 랜드마크 리스트 [(x, y), ...]
             original_iris_landmarks: 원본 눈동자 윤곽 랜드마크 리스트
             img_width: 이미지 너비
             img_height: 이미지 높이
+            face_landmarks: 전체 얼굴 랜드마크 (눈꺼풀 상호작용용)
             
         Returns:
             list: 재계산된 눈동자 윤곽 랜드마크 리스트
@@ -54,14 +69,26 @@ class AllTabDrawerMixin:
         if not iris_center or not eye_landmarks or not original_iris_landmarks:
             return original_iris_landmarks
         
-        # 캐시 키 생성 (입력값 기반)
+        # 눈동자-눈꺼풀 상호작용 파라미터 가져오기
+        interaction_enabled = getattr(self, 'iris_eyelid_interaction', None)
+        interaction_enabled_val = interaction_enabled.get() if interaction_enabled is not None else True
+        adjustment_intensity = getattr(self, 'eyelid_adjustment_intensity', None)
+        adjustment_intensity_val = adjustment_intensity.get() if adjustment_intensity is not None else 0.5
+        detection_sensitivity = getattr(self, 'eyelid_detection_sensitivity', None)
+        detection_sensitivity_val = detection_sensitivity.get() if detection_sensitivity is not None else 8.0
+        
+        # 캐시 키 생성 (입력값 기반 + 눈꺼풀 상호작용 파라미터)
         cache_key = (
             round(iris_center[0], 1), round(iris_center[1], 1),
             len(eye_landmarks), len(original_iris_landmarks),
             round(img_width, 0), round(img_height, 0),
             # 눈꺼풀 랜드마크 일부를 포함하여 더 정밀한 캐싱
             round(eye_landmarks[0][0] if eye_landmarks else 0, 1),
-            round(eye_landmarks[0][1] if eye_landmarks else 0, 1)
+            round(eye_landmarks[0][1] if eye_landmarks else 0, 1),
+            # 눈꺼풀 상호작용 파라미터 포함
+            interaction_enabled_val,
+            round(adjustment_intensity_val, 2),
+            round(detection_sensitivity_val, 1)
         )
         
         # 캐시 확인
@@ -88,6 +115,54 @@ class AllTabDrawerMixin:
         # 이동량이 거의 없으면 원본 반환 (불필요한 재계산 방지)
         if abs(offset_x) < 0.1 and abs(offset_y) < 0.1:
             return original_iris_landmarks
+        
+        # 눈동자-눈꺼풀 상호작용 처리
+        enhanced_iris_center = iris_center
+        if interaction_enabled_val and face_landmarks:
+            # 경계 근접 감지
+            proximity_info = self.detect_eyelid_boundary_proximity(
+                iris_center, face_landmarks, detection_sensitivity_val
+            )
+            
+            if proximity_info['is_near_boundary']:
+                # 눈동자 위치를 눈꺼풀 방향으로 더 확장
+                direction = proximity_info['direction']
+                distance = proximity_info['distance']
+                closest_point = proximity_info['closest_point']
+                
+                # 조정량 계산 (거리가 가까울수록 더 많이 조정)
+                adjustment_factor = max(0, 1 - (distance / detection_sensitivity_val))
+                adjustment_factor *= adjustment_intensity_val * 0.6  # 최대 60%까지 조정 (극대화)
+                
+                # 방향별 눈동자 위치 확장
+                if direction == 'up':
+                    # 위쪽으로 더 이동
+                    enhanced_iris_center = (
+                        iris_center[0],
+                        iris_center[1] - adjustment_factor * detection_sensitivity_val * 0.7
+                    )
+                elif direction == 'down':
+                    # 아래쪽으로 더 이동
+                    enhanced_iris_center = (
+                        iris_center[0],
+                        iris_center[1] + adjustment_factor * detection_sensitivity_val * 0.7
+                    )
+                elif direction == 'left':
+                    # 왼쪽으로 더 이동
+                    enhanced_iris_center = (
+                        iris_center[0] - adjustment_factor * detection_sensitivity_val * 0.5,
+                        iris_center[1]
+                    )
+                elif direction == 'right':
+                    # 오른쪽으로 더 이동
+                    enhanced_iris_center = (
+                        iris_center[0] + adjustment_factor * detection_sensitivity_val * 0.5,
+                        iris_center[1]
+                    )
+                
+                # 새로운 중심점으로 이동량 재계산
+                offset_x = enhanced_iris_center[0] - original_center_x
+                offset_y = enhanced_iris_center[1] - original_center_y
         
         # 눈꺼풀 경계 계산
         eye_x_coords = [pt[0] if isinstance(pt, tuple) else pt.x * img_width for pt in eye_landmarks]
@@ -168,6 +243,263 @@ class AllTabDrawerMixin:
             'total_calls': 0,
             'total_time': 0.0
         }
+    
+    def calculate_iris_eyelid_distance(self, iris_center: Tuple[float, float], 
+                                     eyelid_landmarks: List[Tuple[float, float]]) -> Tuple[float, Tuple[float, float]]:
+        """눈동자 중심점과 눈꺼풀 랜드마크 간의 최소 거리 계산
+        
+        Args:
+            iris_center: 눈동자 중심점 (x, y)
+            eyelid_landmarks: 눈꺼풀 랜드마크 리스트 [(x, y), ...]
+            
+        Returns:
+            tuple: (최소 거리, 가장 가까운 눈꺼풀 포인트)
+        """
+        if not iris_center or not eyelid_landmarks:
+            return float('inf'), (0, 0)
+        
+        min_distance = float('inf')
+        closest_point = (0, 0)
+        
+        for point in eyelid_landmarks:
+            if point:
+                distance = math.sqrt((iris_center[0] - point[0])**2 + (iris_center[1] - point[1])**2)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_point = point
+        
+        return min_distance, closest_point
+    
+    def detect_eyelid_boundary_proximity(self, iris_center: Tuple[float, float],
+                                      face_landmarks: List[Tuple[float, float]],
+                                      sensitivity: float = 8.0) -> Dict[str, Any]:
+        """눈동자가 눈꺼풀 경계에 근접했는지 감지 (상하좌우 전체 방향)
+        
+        Args:
+            iris_center: 눈동자 중심점 (x, y)
+            face_landmarks: 얼굴 랜드마크 (468개)
+            sensitivity: 감지 민감도 (픽셀)
+            
+        Returns:
+            dict: 감지 결과 정보
+        """
+        if not iris_center or not face_landmarks:
+            return {
+                'is_near_boundary': False,
+                'direction': None,
+                'distance': float('inf'),
+                'closest_point': (0, 0),
+                'eyelid_type': None,
+                'is_left_eye': True
+            }
+        
+        # 눈동자 x좌표로 왼쪽/오른쪽 눈 판단
+        iris_x = iris_center[0]
+        is_left_eye = iris_x < face_landmarks[0][0] if face_landmarks else True
+        
+        # 해당 눈의 눈꺼풀 랜드마크 선택
+        if is_left_eye:
+            upper_indices = LEFT_UPPER_EYELID_INDICES
+            lower_indices = LEFT_LOWER_EYELID_INDICES
+            # 좌우 눈꺼풀 인덱스 (왼쪽 눈 기준)
+            left_indices = [33, 7, 163, 144]  # 왼쪽 눈꺼풀 (코 쪽)
+            right_indices = [173, 157, 158, 159]  # 오른쪽 눈꺼풀 (귀 쪽)
+        else:
+            upper_indices = RIGHT_UPPER_EYELID_INDICES
+            lower_indices = RIGHT_LOWER_EYELID_INDICES
+            # 좌우 눈꺼풀 인덱스 (오른쪽 눈 기준)
+            left_indices = [362, 398, 384, 385]  # 왼쪽 눈꺼풀 (코 쪽)
+            right_indices = [263, 249, 390, 373]  # 오른쪽 눈꺼풀 (귀 쪽)
+        
+        # 상하좌우 눈꺼풀 거리 계산
+        upper_landmarks = [face_landmarks[i] for i in upper_indices if i < len(face_landmarks)]
+        lower_landmarks = [face_landmarks[i] for i in lower_indices if i < len(face_landmarks)]
+        left_landmarks = [face_landmarks[i] for i in left_indices if i < len(face_landmarks)]
+        right_landmarks = [face_landmarks[i] for i in right_indices if i < len(face_landmarks)]
+        
+        upper_dist, upper_point = self.calculate_iris_eyelid_distance(iris_center, upper_landmarks)
+        lower_dist, lower_point = self.calculate_iris_eyelid_distance(iris_center, lower_landmarks)
+        left_dist, left_point = self.calculate_iris_eyelid_distance(iris_center, left_landmarks)
+        right_dist, right_point = self.calculate_iris_eyelid_distance(iris_center, right_landmarks)
+        
+        # 가장 가까운 방향 결정
+        distances = [
+            ('up', upper_dist, upper_point, 'upper'),
+            ('down', lower_dist, lower_point, 'lower'),
+            ('left', left_dist, left_point, 'left'),
+            ('right', right_dist, right_point, 'right')
+        ]
+        
+        min_distance = float('inf')
+        closest_point = (0, 0)
+        direction = None
+        eyelid_type = None
+        
+        for dir_name, dist, point, eyelid in distances:
+            if dist < min_distance:
+                min_distance = dist
+                closest_point = point
+                direction = dir_name
+                eyelid_type = eyelid
+        
+        # 경계 근접 여부 판단
+        is_near_boundary = min_distance < sensitivity
+        
+        return {
+            'is_near_boundary': is_near_boundary,
+            'direction': direction,
+            'distance': min_distance,
+            'closest_point': closest_point,
+            'eyelid_type': eyelid_type,
+            'is_left_eye': is_left_eye
+        }
+    
+    def adjust_eyelid_landmarks(self, face_landmarks: List[Tuple[float, float]], 
+                               proximity_info: Dict[str, Any], 
+                               intensity: float = 0.5) -> List[Tuple[float, float]]:
+        """눈꺼풀 랜드마크를 실시간으로 직접 변형
+        
+        Args:
+            face_landmarks: 원본 얼굴 랜드마크 (468개)
+            proximity_info: 경계 근접 정보
+            intensity: 조정 강도
+            
+        Returns:
+            list: 변형된 얼굴 랜드마크
+        """
+        if not proximity_info['is_near_boundary'] or not face_landmarks:
+            return face_landmarks
+        
+        # 랜드마크 복사본 생성
+        adjusted_landmarks = list(face_landmarks)
+        
+        direction = proximity_info['direction']
+        is_left_eye = proximity_info['is_left_eye']
+        distance = proximity_info['distance']
+        
+        # 조정량 계산
+        adjustment_factor = max(0, 1 - (distance / 8.0))  # 기본 민감도 8.0
+        adjustment_factor *= intensity * 0.3  # 최대 30%까지 랜드마크 변형
+        
+        # 방향별 눈꺼풀 랜드마크 선택 및 변형
+        if direction == 'up':
+            # 상안견을 위로 미세하게 당기기
+            indices = LEFT_UPPER_EYELID_INDICES if is_left_eye else RIGHT_UPPER_EYELID_INDICES
+            for idx in indices:
+                if idx < len(adjusted_landmarks):
+                    x, y = adjusted_landmarks[idx]
+                    adjusted_landmarks[idx] = (x, y - adjustment_factor * 2.0)
+                    
+        elif direction == 'down':
+            # 하안견을 아래로 미세하게 당기기
+            indices = LEFT_LOWER_EYELID_INDICES if is_left_eye else RIGHT_LOWER_EYELID_INDICES
+            for idx in indices:
+                if idx < len(adjusted_landmarks):
+                    x, y = adjusted_landmarks[idx]
+                    adjusted_landmarks[idx] = (x, y + adjustment_factor * 2.0)
+                    
+        elif direction == 'left':
+            # 왼쪽 눈꺼풀을 왼쪽으로 미세하게 당기기
+            if is_left_eye:
+                indices = [33, 7, 163, 144]  # 왼쪽 눈의 왼쪽
+            else:
+                indices = [362, 398, 384, 385]  # 오른쪽 눈의 왼쪽
+            for idx in indices:
+                if idx < len(adjusted_landmarks):
+                    x, y = adjusted_landmarks[idx]
+                    adjusted_landmarks[idx] = (x - adjustment_factor * 1.5, y)
+                    
+        elif direction == 'right':
+            # 오른쪽 눈꺼풀을 오른쪽으로 미세하게 당기기
+            if is_left_eye:
+                indices = [173, 157, 158, 159]  # 왼쪽 눈의 오른쪽
+            else:
+                indices = [263, 249, 390, 373]  # 오른쪽 눈의 오른쪽
+            for idx in indices:
+                if idx < len(adjusted_landmarks):
+                    x, y = adjusted_landmarks[idx]
+                    adjusted_landmarks[idx] = (x + adjustment_factor * 1.5, y)
+        
+        return adjusted_landmarks
+    
+    def _draw_iris_connection_polygons(self, canvas, iris_side: str, center_x: float, center_y: float,
+                                     iris_coords: List[Tuple[float, float]], img_width: int, img_height: int,
+                                     scale_x: float, scale_y: float, pos_x: float, pos_y: float, items_list: List):
+        """눈동자 중심점과 연결된 폴리곤 그리기
+        
+        Args:
+            canvas: 캔버스 객체
+            iris_side: 'left' 또는 'right'
+            center_x, center_y: 눈동자 중심점 좌표
+            iris_coords: 눈동자 윤곽 좌표 리스트
+            img_width, img_height: 이미지 크기
+            scale_x, scale_y: 스케일
+            pos_x, pos_y: 위치
+            items_list: 아이템 리스트
+        """
+        if not iris_coords:
+            return
+        
+        # 중심점 캔버스 좌표 계산
+        center_rel_x = (center_x - img_width / 2) * scale_x
+        center_rel_y = (center_y - img_height / 2) * scale_y
+        center_canvas_x = pos_x + center_rel_x
+        center_canvas_y = pos_y + center_rel_y
+        
+        # 연결선 스타일 설정
+        connection_color = "#FF6B6B" if iris_side == 'left' else "#4ECDC4"
+        connection_width = 2
+        
+        # 눈동자 윤곽점과 중심점 연결
+        for i, (iris_x, iris_y) in enumerate(iris_coords):
+            # 눈동자 윤곽점 캔버스 좌표 계산
+            iris_rel_x = (iris_x - img_width / 2) * scale_x
+            iris_rel_y = (iris_y - img_height / 2) * scale_y
+            iris_canvas_x = pos_x + iris_rel_x
+            iris_canvas_y = pos_y + iris_rel_y
+            
+            # 연결선 그리기
+            line_id = canvas.create_line(
+                center_canvas_x, center_canvas_y,
+                iris_canvas_x, iris_canvas_y,
+                fill=connection_color,
+                width=connection_width,
+                dash=(5, 3),  # 점선 스타일
+                tags=("iris_connections", f"iris_connection_{iris_side}_{i}")
+            )
+            items_list.append(line_id)
+        
+        # 방사형 폴리곤 그리기 (중심점에서 윤곽점까지)
+        if len(iris_coords) >= 3:
+            # 삼각형 팬 형태로 그리기
+            for i in range(len(iris_coords)):
+                next_i = (i + 1) % len(iris_coords)
+                
+                # 세 점의 캔버스 좌표
+                pt1 = (center_canvas_x, center_canvas_y)
+                
+                iris_rel_x1 = (iris_coords[i][0] - img_width / 2) * scale_x
+                iris_rel_y1 = (iris_coords[i][1] - img_height / 2) * scale_y
+                pt2 = (pos_x + iris_rel_x1, pos_y + iris_rel_y1)
+                
+                iris_rel_x2 = (iris_coords[next_i][0] - img_width / 2) * scale_x
+                iris_rel_y2 = (iris_coords[next_i][1] - img_height / 2) * scale_y
+                pt3 = (pos_x + iris_rel_x2, pos_y + iris_rel_y2)
+                
+                # 반투명 삼각형 폴리곤
+                polygon_points = [pt1[0], pt1[1], pt2[0], pt2[1], pt3[0], pt3[1]]
+                
+                # 색상 설정 (왼쪽: 붉은색 계열, 오른쪽: 청록색 계열)
+                fill_color = "#FF6B6B20" if iris_side == 'left' else "#4ECDC420"  # 20% 투명도
+                
+                polygon_id = canvas.create_polygon(
+                    polygon_points,
+                    fill=fill_color,
+                    outline=connection_color,
+                    width=1,
+                    tags=("iris_connections", f"iris_polygon_{iris_side}_{i}")
+                )
+                items_list.append(polygon_id)
     
     def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
@@ -489,7 +821,7 @@ class AllTabDrawerMixin:
                     # 눈동자 윤곽 재계산
                     if current_iris_center_coord and eye_landmarks and original_iris_landmarks:
                         adjusted_landmarks_iris = self.calculate_iris_contour(
-                            current_iris_center_coord, eye_landmarks, original_iris_landmarks, img_width, img_height
+                            current_iris_center_coord, eye_landmarks, original_iris_landmarks, img_width, img_height, landmarks
                         )
                     else:
                         adjusted_landmarks_iris = landmarks
@@ -631,6 +963,12 @@ class AllTabDrawerMixin:
                     canvas.tag_bind(center_id, "<Button-1>", on_iris_center_click)
                     canvas.tag_bind(center_id, "<B1-Motion>", on_iris_center_drag)
                     canvas.tag_bind(center_id, "<ButtonRelease-1>", on_iris_center_release)
+                    
+                    # 눈동자 중심점과 연결된 폴리곤 그리기
+                    if hasattr(self, 'show_iris_connections') and self.show_iris_connections.get():
+                        self._draw_iris_connection_polygons(canvas, iris_side, center_x, center_y, 
+                                                          iris_coords, img_width, img_height, 
+                                                          scale_x, scale_y, pos_x, pos_y, items_list)
 
             # 선택된 부위만 폴리곤 그리기
             if len(selected_regions) > 0:

@@ -90,6 +90,14 @@ class FaceEditPanel(
         self.eye_spacing = tk.BooleanVar(value=False)  # 눈 간격 조정 활성화 여부
         self.iris_clamping_enabled = tk.BooleanVar(value=False)  # 눈동자 이동 범위 제한 활성화 여부 (기본값: False)
         self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.05)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.05)
+        self.iris_eyelid_interaction = tk.BooleanVar(value=True)  # 눈동자-눈꺼풀 상호작용 활성화 여부
+        self.eyelid_adjustment_intensity = tk.DoubleVar(value=0.5)  # 눈꺼풀 조정 강도 (0.0 ~ 1.0, 기본값: 0.5)
+        self.eyelid_detection_sensitivity = tk.DoubleVar(value=8.0)  # 눈꺼풀 경계 감지 민감도 (1 ~ 20픽셀, 기본값: 8.0)
+        
+        # 눈동자 연결 폴리곤 표시 제어
+        self.show_iris_connections = tk.BooleanVar(value=False)
+        self.show_iris_eyelid_connections = tk.BooleanVar(value=False)
+        
         self.left_eye_position_y = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.right_eye_position_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.left_eye_position_x = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수평 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
