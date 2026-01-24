@@ -359,6 +359,10 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
                 margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
                 
+                # 눈동자 랜드마크 가져오기
+                if iris_landmarks is None:
+                    iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+                
                 self._draw_all_tab_polygons(
                     canvas, image, landmarks, pos_x, pos_y, items_list, color,
                     scale_x, scale_y, img_width, img_height, expansion_level, show_indices,

@@ -95,8 +95,8 @@ class FaceEditPanel(
         self.eyelid_detection_sensitivity = tk.DoubleVar(value=8.0)  # 눈꺼풀 경계 감지 민감도 (1 ~ 20픽셀, 기본값: 8.0)
         
         # 눈동자 연결 폴리곤 표시 제어
-        self.show_iris_connections = tk.BooleanVar(value=False)
-        self.show_iris_eyelid_connections = tk.BooleanVar(value=False)
+        self.show_iris_connections = tk.BooleanVar(value=True)
+        self.show_iris_eyelid_connections = tk.BooleanVar(value=True)
         
         self.left_eye_position_y = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.right_eye_position_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)

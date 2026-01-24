@@ -469,37 +469,59 @@ class AllTabDrawerMixin:
             )
             items_list.append(line_id)
         
-        # 방사형 폴리곤 그리기 (중심점에서 윤곽점까지)
-        if len(iris_coords) >= 3:
-            # 삼각형 팬 형태로 그리기
-            for i in range(len(iris_coords)):
-                next_i = (i + 1) % len(iris_coords)
+        # 외곽선 4개 점을 연결하는 선만 그리기
+        if len(iris_coords) >= 4:
+            import math
+            
+            # 중심점 찾기 (가장 중앙에 있는 점)
+            center_x_avg = sum(coord[0] for coord in iris_coords) / len(iris_coords)
+            center_y_avg = sum(coord[1] for coord in iris_coords) / len(iris_coords)
+            
+            # 중심점에서 가장 가까운 점을 중심점으로 간주하고 제외
+            def distance_from_center(coord):
+                return math.sqrt((coord[0] - center_x_avg)**2 + (coord[1] - center_y_avg)**2)
+            
+            # 거리순으로 정렬하여 가장 가까운 점(중심점)을 찾음
+            sorted_by_distance = sorted(iris_coords, key=distance_from_center)
+            center_point = sorted_by_distance[0]  # 중심점
+            
+            # 중심점을 제외한 외곽선 점들
+            outer_points = [coord for coord in iris_coords if coord != center_point]
+            
+            # 외곽점을 각도순으로 정렬
+            def angle_from_point(coord):
+                return -math.atan2(coord[1] - center_y, coord[0] - center_x)  # 시계 반대 방향
+            
+            sorted_outer_points = sorted(outer_points, key=angle_from_point)
+            
+            # 외곽선 4개 점을 연결하는 선 그리기
+            canvas_points = []
+            for coord in sorted_outer_points[:4]:  # 외곽선 4개 점만 사용
+                rel_x = (coord[0] - img_width / 2) * scale_x
+                rel_y = (coord[1] - img_height / 2) * scale_y
+                canvas_pt = (pos_x + rel_x, pos_y + rel_y)
+                canvas_points.extend(canvas_pt)
+            
+            # 색상 설정 (왼쪽: 붉은색 계열, 오른쪽: 청록색 계열)
+            line_color = "#FF6B6B" if iris_side == 'left' else "#4ECDC4"  # 더 진한 색상
+            
+            # 외곽선 4개 점을 순서대로 연결하는 선들 그리기
+            for i in range(len(canvas_points) // 2):
+                start_idx = i * 2
+                end_idx = ((i + 1) * 2) % len(canvas_points)
                 
-                # 세 점의 캔버스 좌표
-                pt1 = (center_canvas_x, center_canvas_y)
-                
-                iris_rel_x1 = (iris_coords[i][0] - img_width / 2) * scale_x
-                iris_rel_y1 = (iris_coords[i][1] - img_height / 2) * scale_y
-                pt2 = (pos_x + iris_rel_x1, pos_y + iris_rel_y1)
-                
-                iris_rel_x2 = (iris_coords[next_i][0] - img_width / 2) * scale_x
-                iris_rel_y2 = (iris_coords[next_i][1] - img_height / 2) * scale_y
-                pt3 = (pos_x + iris_rel_x2, pos_y + iris_rel_y2)
-                
-                # 반투명 삼각형 폴리곤
-                polygon_points = [pt1[0], pt1[1], pt2[0], pt2[1], pt3[0], pt3[1]]
-                
-                # 색상 설정 (왼쪽: 붉은색 계열, 오른쪽: 청록색 계열)
-                fill_color = "#FF6B6B20" if iris_side == 'left' else "#4ECDC420"  # 20% 투명도
-                
-                polygon_id = canvas.create_polygon(
-                    polygon_points,
-                    fill=fill_color,
-                    outline=connection_color,
-                    width=1,
-                    tags=("iris_connections", f"iris_polygon_{iris_side}_{i}")
+                line_id = canvas.create_line(
+                    canvas_points[start_idx], canvas_points[start_idx + 1],
+                    canvas_points[end_idx], canvas_points[end_idx + 1],
+                    fill=line_color,
+                    width=3,
+                    tags=("iris_connections", f"iris_outline_{iris_side}")
                 )
-                items_list.append(polygon_id)
+                items_list.append(line_id)
+            
+            print(f"Drawn {len(canvas_points)//2} outer points with connecting lines for {iris_side}")
+        else:
+            print(f"Not enough iris coords for {iris_side}: {len(iris_coords)} < 4")
     
     def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
@@ -552,10 +574,14 @@ class AllTabDrawerMixin:
             try:
                 LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
                 RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
+                print(f"MediaPipe LEFT_IRIS: {len(LEFT_IRIS)} connections")
+                print(f"MediaPipe RIGHT_IRIS: {len(RIGHT_IRIS)} connections")
             except AttributeError:
                 # 구버전 MediaPipe에서는 지원하지 않을 수 있음
-                LEFT_IRIS = []
-                RIGHT_IRIS = []
+                print("MediaPipe LEFT_IRIS/RIGHT_IRIS not available, using fallback")
+                # 수동으로 눈동자 연결 정의 (사각형)
+                LEFT_IRIS = [(0,1), (1,2), (2,3), (3,0)]
+                RIGHT_IRIS = [(0,1), (1,2), (2,3), (3,0)]
 
             # 모든 부위의 폴리곤 그리기 함수
             def draw_polygon_mesh(connections, tag_name, part_name, target_indices=None):
@@ -918,7 +944,12 @@ class AllTabDrawerMixin:
                     scale_factor = 1.0 # default
                     scale_factor = math.sqrt(scale_x*scale_y)/3
                                         
-                    center_radius = 8 * scale_factor                    
+                    center_radius = 8 * scale_factor
+                    
+                    # 고유한 ID 생성
+                    unique_id = f"{iris_side}_{int(time.time() * 1000)}"
+                    
+                    # 중심점 생성
                     center_id = canvas.create_oval(
                         canvas_x - center_radius,
                         canvas_y - center_radius,
@@ -927,9 +958,11 @@ class AllTabDrawerMixin:
                         fill="yellow",
                         outline="red",
                         width=2,
-                        tags=("landmarks_polygon", f"iris_center_{iris_side}")
+                        tags=("landmarks_polygon", f"iris_center_{unique_id}")
                     )
                     items_list.append(center_id)
+                    
+                    print(f"Created center point for {iris_side} with ID: {center_id}")
                     
                     if show_indices:
                         text_offset = center_radius + 5
@@ -944,11 +977,12 @@ class AllTabDrawerMixin:
                             text=index_text,
                             fill="red",
                             font=("Arial", 12, "bold"),
-                            tags=("landmarks_polygon", f"iris_center_{iris_side}_text", f"iris_center_{iris_side}")
+                            tags=("landmarks_polygon", f"iris_center_{unique_id}_text", f"iris_center_{unique_id}")
                         )
                         items_list.append(text_id)
                     
                     def on_iris_center_click(event):
+                        print(f"Clicked {iris_side} iris center!")
                         self.on_iris_center_drag_start(event, iris_side, canvas)
                         return "break"
                     
@@ -960,15 +994,71 @@ class AllTabDrawerMixin:
                         self.on_iris_center_drag_end(event, iris_side, canvas)
                         return "break"
                     
+                    # 기존 바인딩 제거 후 새로 바인딩
+                    canvas.tag_unbind(center_id, "<Button-1>")
+                    canvas.tag_unbind(center_id, "<B1-Motion>")
+                    canvas.tag_unbind(center_id, "<ButtonRelease-1>")
+                    
                     canvas.tag_bind(center_id, "<Button-1>", on_iris_center_click)
                     canvas.tag_bind(center_id, "<B1-Motion>", on_iris_center_drag)
                     canvas.tag_bind(center_id, "<ButtonRelease-1>", on_iris_center_release)
                     
+                    print(f"Bound events to {iris_side} center point (ID: {center_id})")
+                    
                     # 눈동자 중심점과 연결된 폴리곤 그리기
                     if hasattr(self, 'show_iris_connections') and self.show_iris_connections.get():
-                        self._draw_iris_connection_polygons(canvas, iris_side, center_x, center_y, 
-                                                          iris_coords, img_width, img_height, 
-                                                          scale_x, scale_y, pos_x, pos_y, items_list)
+                        print(f"Checking iris connections for {iris_side}")
+                        print(f"has_iris_landmarks: {has_iris_landmarks}")
+                        print(f"iris_landmarks: {iris_landmarks}")
+                        print(f"current iris_coords length: {len(iris_coords)}")
+                        
+                        # 눈동자 윤곽 좌표가 없으면 현재 랜드마크에서 추출
+                        if not iris_coords and has_iris_landmarks:
+                            print(f"Extracting iris coords from landmarks for {iris_side}")
+                            print(f"iris_connections: {iris_connections}")
+                            print(f"landmarks length: {len(landmarks)}")
+                            
+                            # iris_landmarks에서 직접 윤곽점 추출 (landmarks 배열이 아님)
+                            # iris_landmarks는 별도의 10개 좌표 배열
+                            if iris_landmarks:
+                                # 눈동자 좌표 구조 확인
+                                print(f"iris_landmarks structure: {iris_landmarks}")
+                                
+                                # 고정 분리: 처음 5개 = 오른쪽, 마지막 5개 = 왼쪽
+                                # MediaPipe 순서가 [오른쪽 눈동자 5개, 왼쪽 눈동자 5개]인 것으로 보임
+                                left_coords = iris_landmarks[5:]  # 마지막 5개 = 왼쪽
+                                right_coords = iris_landmarks[:5]  # 처음 5개 = 오른쪽
+                                
+                                print(f"Index-based split - Left coords ({len(left_coords)}): {left_coords}")
+                                print(f"Index-based split - Right coords ({len(right_coords)}): {right_coords}")
+                                
+                                # 해당 눈의 좌표 선택
+                                if iris_side == 'left':
+                                    iris_coords = left_coords
+                                else:
+                                    iris_coords = right_coords
+                                
+                                print(f"Final selected {len(iris_coords)} coords for {iris_side}: {iris_coords}")
+                            else:
+                                print("No iris_landmarks available")
+                        
+                        # 디버깅 출력
+                        print(f"Final iris_coords for {iris_side}: {len(iris_coords)} points")
+                        if iris_coords:
+                            print(f"First few coords: {iris_coords[:3]}")
+                            # 중심점을 먼저 그린 후 연결 폴리곤을 그리면 중심점이 위로 올라감
+                            # 따라서 연결 폴리곤을 먼저 그리고 중심점을 나중에 그려야 함
+                            # 하지만 이미 중심점을 그렸으므로, 태그 순서를 조정하여 중심점이 위로 오게 함
+                            self._draw_iris_connection_polygons(canvas, iris_side, center_x, center_y, 
+                                                              iris_coords, img_width, img_height, 
+                                                              scale_x, scale_y, pos_x, pos_y, items_list)
+                            
+                            # 중심점을 최상위로 올리기
+                            canvas.tag_raise(center_id)
+                            if show_indices:
+                                canvas.tag_raise(f"iris_center_{unique_id}_text")
+                        else:
+                            print(f"No iris coordinates found for {iris_side}")
 
             # 선택된 부위만 폴리곤 그리기
             if len(selected_regions) > 0:
@@ -1037,15 +1127,21 @@ class AllTabDrawerMixin:
             
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
             # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음
+            print(f"Checkbox states - Left iris: {hasattr(self, 'show_left_iris') and self.show_left_iris.get()}, Right iris: {hasattr(self, 'show_right_iris') and self.show_right_iris.get()}")
+            
             if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
+                print("Drawing left iris center")
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('left', LEFT_IRIS if LEFT_IRIS else [], '_left_iris_center_coord')
             
             if hasattr(self, 'show_right_iris') and self.show_right_iris.get():
+                print("Drawing right iris center")
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('right', RIGHT_IRIS if RIGHT_IRIS else [], '_right_iris_center_coord')
+            else:
+                print("Right iris checkbox not checked")
             
             # 선택된 부위가 없으면 아무것도 그리지 않음
 
