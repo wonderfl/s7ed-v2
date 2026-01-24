@@ -27,4 +27,7 @@ class PolygonRendererMixin(
     UtilsMixin
 ):
     """폴리곤 렌더링 기능 Mixin"""
-    pass
+    
+    def __init__(self):
+        # DrawingMixin 초기화 (AllTabDrawerMixin 포함)
+        DrawingMixin.__init__(self)

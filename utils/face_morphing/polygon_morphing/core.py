@@ -121,7 +121,7 @@ def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_he
     
     # 동적 마진 계산 (눈 크기에 따라 적응)
     # 눈이 작을수록 마진 비율을 줄여 더 넓은 움직임 허용
-    adaptive_margin_ratio = margin_ratio * min(1.0, (eye_width + eye_height) / 200.0)
+    adaptive_margin_ratio = margin_ratio * 0.2 * min(1.0, (eye_width + eye_height) / 200.0)
     margin_x = eye_width * adaptive_margin_ratio
     margin_y = eye_height * adaptive_margin_ratio
     
@@ -139,8 +139,8 @@ def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_he
     # 눈 중심으로부터의 거리 계산
     dist_from_center = math.sqrt((clamped_x - eye_center_x)**2 + (clamped_y - eye_center_y)**2)
     
-    # 최대 허용 반경 (눈 크기의 45%까지 허용 - 기존보다 확장)
-    max_allowed_radius = min(eye_width, eye_height) * 0.45
+    # 최대 허용 반경 (눈 크기의 120%까지 허용 - 거의 제한 없음)
+    max_allowed_radius = min(eye_width, eye_height) * 1.20
     
     if dist_from_center > max_allowed_radius:
         # 비율에 맞춰 부드럽게 조정 (경계에서 멈추는 대신)

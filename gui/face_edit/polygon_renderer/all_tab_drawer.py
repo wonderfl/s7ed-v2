@@ -37,6 +37,18 @@ class AllTabDrawerMixin:
         """
         # 성능 측정 시작
         start_time = time.time()
+        
+        # 성능 통계 속성이 없으면 초기화 (안전장치)
+        if not hasattr(self, '_performance_stats'):
+            self._performance_stats = {
+                'cache_hits': 0,
+                'cache_misses': 0,
+                'total_calls': 0,
+                'total_time': 0.0
+            }
+            self._iris_contour_cache = {}
+            self._cache_max_size = 100
+        
         self._performance_stats['total_calls'] += 1
         
         if not iris_center or not eye_landmarks or not original_iris_landmarks:
@@ -44,9 +56,12 @@ class AllTabDrawerMixin:
         
         # 캐시 키 생성 (입력값 기반)
         cache_key = (
-            round(iris_center[0], 2), round(iris_center[1], 2),
+            round(iris_center[0], 1), round(iris_center[1], 1),
             len(eye_landmarks), len(original_iris_landmarks),
-            round(img_width, 0), round(img_height, 0)
+            round(img_width, 0), round(img_height, 0),
+            # 눈꺼풀 랜드마크 일부를 포함하여 더 정밀한 캐싱
+            round(eye_landmarks[0][0] if eye_landmarks else 0, 1),
+            round(eye_landmarks[0][1] if eye_landmarks else 0, 1)
         )
         
         # 캐시 확인
@@ -71,7 +86,7 @@ class AllTabDrawerMixin:
         offset_y = iris_center[1] - original_center_y
         
         # 이동량이 거의 없으면 원본 반환 (불필요한 재계산 방지)
-        if abs(offset_x) < 1.0 and abs(offset_y) < 1.0:
+        if abs(offset_x) < 0.1 and abs(offset_y) < 0.1:
             return original_iris_landmarks
         
         # 눈꺼풀 경계 계산
@@ -101,6 +116,15 @@ class AllTabDrawerMixin:
             # 기본 이동 적용
             new_x = original_x + offset_x
             new_y = original_y + offset_y
+            
+            # 눈동자 형태 완전 유지 (상대적 위치 그대로 이동)
+            # 원본 중심점으로부터의 상대적 위치를 그대로 유지
+            rel_x = original_x - original_center_x
+            rel_y = original_y - original_center_y
+            
+            # 새로운 중심점에 상대적 위치를 그대로 적용
+            new_x = iris_center[0] + rel_x
+            new_y = iris_center[1] + rel_y
             
             # 최종 좌표를 이미지 상대 좌표로 변환
             final_x = new_x / img_width

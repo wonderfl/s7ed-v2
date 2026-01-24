@@ -88,8 +88,8 @@ class FaceEditPanel(
         self.left_eye_size = tk.DoubleVar(value=1.0)  # 왼쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.right_eye_size = tk.DoubleVar(value=1.0)  # 오른쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.eye_spacing = tk.BooleanVar(value=False)  # 눈 간격 조정 활성화 여부
-        self.iris_clamping_enabled = tk.BooleanVar(value=True)  # 눈동자 이동 범위 제한 활성화 여부
-        self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.3)
+        self.iris_clamping_enabled = tk.BooleanVar(value=False)  # 눈동자 이동 범위 제한 활성화 여부 (기본값: False)
+        self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.05)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.05)
         self.left_eye_position_y = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.right_eye_position_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.left_eye_position_x = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수평 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
