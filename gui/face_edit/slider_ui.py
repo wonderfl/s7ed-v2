@@ -1125,6 +1125,30 @@ class SliderUIMixin:
         info_label.pack(pady=10)
         
         # ==============================
+        # 눈동자 표시 옵션
+        # ==============================
+        iris_options_frame = tk.LabelFrame(tab_frame, text="눈동자 표시 옵션", padx=5, pady=5)
+        iris_options_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
+        
+        # 눈동자 중심점 연결 폴리곤 표시 체크박스
+        iris_connections_checkbox = tk.Checkbutton(
+            iris_options_frame,
+            text="눈동자 중심점 연결 폴리곤 표시",
+            variable=self.show_iris_connections,
+            command=self.on_morphing_change
+        )
+        iris_connections_checkbox.pack(anchor=tk.W, pady=(0, 2))
+        
+        # 눈동자-눈꺼풀 연결선 표시 체크박스
+        iris_eyelid_checkbox = tk.Checkbutton(
+            iris_options_frame,
+            text="눈동자-눈꺼풀 연결선 표시",
+            variable=self.show_iris_eyelid_connections,
+            command=self.on_morphing_change
+        )
+        iris_eyelid_checkbox.pack(anchor=tk.W, pady=(0, 5))
+        
+        # ==============================
         # 눈동자 이동 범위 제한 설정
         # ==============================
         iris_clamping_frame = tk.LabelFrame(tab_frame, text="눈동자 이동 범위 제한", padx=5, pady=5)
@@ -1189,97 +1213,6 @@ class SliderUIMixin:
             0.01,
             "0.3"
         )
-        
-        # ==============================
-        # 눈동자-눈꺼풀 상호작용 설정
-        # ==============================
-        eyelid_interaction_frame = tk.LabelFrame(tab_frame, text="눈동자-눈꺼풀 상호작용", padx=5, pady=5)
-        eyelid_interaction_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
-        
-        # 상호작용 활성화 체크박스
-        interaction_checkbox = tk.Checkbutton(
-            eyelid_interaction_frame,
-            text="눈동자-눈꺼풀 상호작용 활성화",
-            variable=self.iris_eyelid_interaction,
-            command=self.on_morphing_change
-        )
-        interaction_checkbox.pack(anchor=tk.W, pady=(0, 5))
-        
-        def create_intensity_slider(parent, label_text, variable, from_val, to_val, resolution, default_val):
-            """조정 강도 슬라이더 생성 함수"""
-            frame = tk.Frame(parent)
-            frame.pack(fill=tk.X, pady=2)
-            
-            label = tk.Label(frame, text=label_text, width=25, anchor=tk.W)
-            label.pack(side=tk.LEFT, padx=(0, 10))
-            
-            slider = tk.Scale(
-                frame,
-                from_=from_val,
-                to=to_val,
-                resolution=resolution,
-                orient=tk.HORIZONTAL,
-                variable=variable,
-                command=lambda v: self.on_morphing_change(),
-                length=200
-            )
-            slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            
-            value_label = tk.Label(frame, text=default_val, width=6)
-            value_label.pack(side=tk.LEFT, padx=(5, 0))
-            
-            def update_label(value):
-                value_label.config(text=f"{float(value):.2f}")
-            
-            variable.trace('w', lambda *args: update_label(variable.get()))
-            
-            return value_label
-        
-        # 조정 강도 슬라이더
-        self.eyelid_adjustment_intensity_label = create_intensity_slider(
-            eyelid_interaction_frame,
-            "조정 강도:",
-            self.eyelid_adjustment_intensity,
-            0.0,
-            1.0,
-            0.01,
-            "0.5"
-        )
-        
-        # 감지 민감도 슬라이더
-        self.eyelid_detection_sensitivity_label = create_intensity_slider(
-            eyelid_interaction_frame,
-            "감지 민감도 (픽셀):",
-            self.eyelid_detection_sensitivity,
-            1.0,
-            20.0,
-            0.5,
-            "8.0"
-        )
-        
-        # ==============================
-        # 눈동자 연결 폴리곤 표시 설정
-        # ==============================
-        connection_frame = tk.LabelFrame(tab_frame, text="눈동자 연결 폴리곤", padx=5, pady=5)
-        connection_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
-        
-        # 연결 폴리곤 표시 체크박스
-        connections_checkbox = tk.Checkbutton(
-            connection_frame,
-            text="눈동자 중심점 연결 폴리곤 표시",
-            variable=self.show_iris_connections,
-            command=self.on_morphing_change
-        )
-        connections_checkbox.pack(anchor=tk.W, pady=(0, 5))
-        
-        # 눈꺼풀 연결선 표시 체크박스
-        eyelid_connections_checkbox = tk.Checkbutton(
-            connection_frame,
-            text="눈동자-눈꺼풀 연결선 표시",
-            variable=self.show_iris_eyelid_connections,
-            command=self.on_morphing_change
-        )
-        eyelid_connections_checkbox.pack(anchor=tk.W, pady=(0, 5))
         
         return tab_frame
 

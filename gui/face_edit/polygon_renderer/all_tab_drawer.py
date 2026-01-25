@@ -6,6 +6,16 @@ import math
 import time
 from typing import List, Tuple, Optional, Dict, Any
 
+# 눈동자 렌더러 import
+try:
+    from ..iris_renderer import IrisRenderer
+except ImportError:
+    # 상대 import 실패 시 절대 import 시도
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from iris_renderer import IrisRenderer
+
 # 눈꺼풀 랜드마크 인덱스 정의 (MediaPipe Face Mesh)
 LEFT_EYELID_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
 RIGHT_EYELID_INDICES = [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382]
@@ -19,7 +29,16 @@ RIGHT_LOWER_EYELID_INDICES = [263, 249, 390, 373, 374, 380, 381, 382]
 class AllTabDrawerMixin:
     """전체 탭 폴리곤 그리기 믹스인"""
     
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        """초기화"""
+        super().__init__(*args, **kwargs)
+        # 눈동자 렌더러 초기화
+        try:
+            self.iris_renderer = IrisRenderer(self)
+        except Exception as e:
+            print(f"Failed to initialize IrisRenderer: {e}")
+            self.iris_renderer = None
+        
         # 눈동자 윤곽 재계산 캐시
         self._iris_contour_cache = {}
         self._cache_max_size = 100
@@ -422,103 +441,6 @@ class AllTabDrawerMixin:
         
         return adjusted_landmarks
     
-    def _draw_iris_connection_polygons(self, canvas, iris_side: str, center_x: float, center_y: float,
-                                     iris_coords: List[Tuple[float, float]], img_width: int, img_height: int,
-                                     scale_x: float, scale_y: float, pos_x: float, pos_y: float, items_list: List):
-        """눈동자 중심점과 연결된 폴리곤 그리기
-        
-        Args:
-            canvas: 캔버스 객체
-            iris_side: 'left' 또는 'right'
-            center_x, center_y: 눈동자 중심점 좌표
-            iris_coords: 눈동자 윤곽 좌표 리스트
-            img_width, img_height: 이미지 크기
-            scale_x, scale_y: 스케일
-            pos_x, pos_y: 위치
-            items_list: 아이템 리스트
-        """
-        if not iris_coords:
-            return
-        
-        # 중심점 캔버스 좌표 계산
-        center_rel_x = (center_x - img_width / 2) * scale_x
-        center_rel_y = (center_y - img_height / 2) * scale_y
-        center_canvas_x = pos_x + center_rel_x
-        center_canvas_y = pos_y + center_rel_y
-        
-        # 연결선 스타일 설정
-        connection_color = "#FF6B6B" if iris_side == 'left' else "#4ECDC4"
-        connection_width = 2
-        
-        # 눈동자 윤곽점과 중심점 연결
-        for i, (iris_x, iris_y) in enumerate(iris_coords):
-            # 눈동자 윤곽점 캔버스 좌표 계산
-            iris_rel_x = (iris_x - img_width / 2) * scale_x
-            iris_rel_y = (iris_y - img_height / 2) * scale_y
-            iris_canvas_x = pos_x + iris_rel_x
-            iris_canvas_y = pos_y + iris_rel_y
-            
-            # 연결선 그리기
-            line_id = canvas.create_line(
-                center_canvas_x, center_canvas_y,
-                iris_canvas_x, iris_canvas_y,
-                fill=connection_color,
-                width=connection_width,
-                dash=(5, 3),  # 점선 스타일
-                tags=("iris_connections", f"iris_connection_{iris_side}_{i}")
-            )
-            items_list.append(line_id)
-        
-        # 외곽선 4개 점을 연결하는 선만 그리기
-        if len(iris_coords) >= 4:
-            import math
-            
-            # 중심점 찾기 (가장 중앙에 있는 점)
-            center_x_avg = sum(coord[0] for coord in iris_coords) / len(iris_coords)
-            center_y_avg = sum(coord[1] for coord in iris_coords) / len(iris_coords)
-            
-            # 중심점에서 가장 가까운 점을 중심점으로 간주하고 제외
-            def distance_from_center(coord):
-                return math.sqrt((coord[0] - center_x_avg)**2 + (coord[1] - center_y_avg)**2)
-            
-            # 거리순으로 정렬하여 가장 가까운 점(중심점)을 찾음
-            sorted_by_distance = sorted(iris_coords, key=distance_from_center)
-            center_point = sorted_by_distance[0]  # 중심점
-            
-            # 중심점을 제외한 외곽선 점들
-            outer_points = [coord for coord in iris_coords if coord != center_point]
-            
-            # 외곽점을 각도순으로 정렬
-            def angle_from_point(coord):
-                return -math.atan2(coord[1] - center_y, coord[0] - center_x)  # 시계 반대 방향
-            
-            sorted_outer_points = sorted(outer_points, key=angle_from_point)
-            
-            # 외곽선 4개 점을 연결하는 선 그리기
-            canvas_points = []
-            for coord in sorted_outer_points[:4]:  # 외곽선 4개 점만 사용
-                rel_x = (coord[0] - img_width / 2) * scale_x
-                rel_y = (coord[1] - img_height / 2) * scale_y
-                canvas_pt = (pos_x + rel_x, pos_y + rel_y)
-                canvas_points.extend(canvas_pt)
-            
-            # 색상 설정 (왼쪽: 붉은색 계열, 오른쪽: 청록색 계열)
-            line_color = "#FF6B6B" if iris_side == 'left' else "#4ECDC4"  # 더 진한 색상
-            
-            # 외곽선 4개 점을 순서대로 연결하는 선들 그리기
-            for i in range(len(canvas_points) // 2):
-                start_idx = i * 2
-                end_idx = ((i + 1) * 2) % len(canvas_points)
-                
-                line_id = canvas.create_line(
-                    canvas_points[start_idx], canvas_points[start_idx + 1],
-                    canvas_points[end_idx], canvas_points[end_idx + 1],
-                    fill=line_color,
-                    width=3,
-                    tags=("iris_connections", f"iris_outline_{iris_side}")
-                )
-                items_list.append(line_id)
-    
     def _draw_all_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False, iris_landmarks=None, iris_centers=None, clamping_enabled=True, margin_ratio=0.3):
         """all 탭 폴리곤 그리기
         
@@ -869,192 +791,66 @@ class AllTabDrawerMixin:
                 for idx in iris_indices_list:
                     if idx < len(landmarks):
                         pt = landmarks[idx]
-                        if isinstance(pt, tuple):
-                            img_x, img_y = pt
-                        else:
-                            img_x = pt.x * img_width
-                            img_y = pt.y * img_height
-                        iris_coords.append((img_x, img_y))
-                
-                # 중앙 포인트 좌표 계산
-                center_x = None
-                center_y = None
-                
-                if iris_side == 'left':
-                    center_idx_offset = 2  # len-2
-                else:
-                    center_idx_offset = 1  # len-1
-
-                len_landmarks = len(landmarks)
-                # iris_centers 파라미터가 전달된 경우 우선 사용
-                # UI 라벨 "Left"/"Right"와 실제 눈 매핑
                 if iris_centers is not None and len(iris_centers) == 2:
                     if iris_side == 'left':
-                        center_pt = iris_centers[1]  # UI Left → landmarks[469]
+                        current_iris_center_coord = iris_centers[1]
                     else:
-                        center_pt = iris_centers[0]  # UI Right → landmarks[468]
-                    if isinstance(center_pt, tuple):
-                        center_x, center_y = center_pt
-                    else:
-                        center_x = center_pt.x * img_width
-                        center_y = center_pt.y * img_height
-                    
-                    setattr(self, iris_center_coord_attr, (center_x, center_y))
-                # Tesselation 모드: custom_landmarks에서 중앙 포인트 추출 (470개 구조만)
-                elif len_landmarks == 470:
-                    center_idx = len_landmarks - center_idx_offset
-                    if center_idx >= 0 and center_idx < len_landmarks:
-                        center_pt = landmarks[center_idx]
-                        if isinstance(center_pt, tuple):
-                            center_x, center_y = center_pt
-                        else:
-                            center_x = center_pt.x * img_width
-                            center_y = center_pt.y * img_height
-                        setattr(self, iris_center_coord_attr, (center_x, center_y))
-                # 468개는 얼굴 랜드마크만 있으므로 저장된 좌표 사용
-                elif hasattr(self, iris_center_coord_attr) and getattr(self, iris_center_coord_attr) is not None:
-                    center_x, center_y = getattr(self, iris_center_coord_attr)
-                elif hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center'):
-                    original = self.landmark_manager.get_original_landmarks()
-                    
-                    if original is not None:
-                        left_iris_indices, right_iris_indices = self._get_iris_indices()
-                        if iris_side == 'left':
-                            center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                        else:
-                            center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
-                        if center is not None:
-                            center_x, center_y = center
-                            setattr(self, iris_center_coord_attr, center)
-                else:
-                    if iris_coords:
-                        center_x = sum(c[0] for c in iris_coords) / len(iris_coords)
-                        center_y = sum(c[1] for c in iris_coords) / len(iris_coords)
+                        current_iris_center_coord = iris_centers[0]
+                elif hasattr(self, f'_{iris_side}_iris_center_coord'):
+                    current_iris_center_coord = getattr(self, f'_{iris_side}_iris_center_coord')
                 
-                if center_x is not None and center_y is not None:
-                    rel_x = (center_x - img_width / 2) * scale_x
-                    rel_y = (center_y - img_height / 2) * scale_y
-                    canvas_x = pos_x + rel_x
-                    canvas_y = pos_y + rel_y
-
-                    scale_factor = 1.0 # default
-                    scale_factor = math.sqrt(scale_x*scale_y)/3
-                                        
-                    center_radius = 8 * scale_factor
-                    
-                    # 고유한 ID 생성
-                    unique_id = f"{iris_side}_{int(time.time() * 1000)}"
-                    
-                    # 중심점 생성
-                    center_id = canvas.create_oval(
-                        canvas_x - center_radius,
-                        canvas_y - center_radius,
-                        canvas_x + center_radius,
-                        canvas_y + center_radius,
-                        fill="yellow",
-                        outline="red",
-                        width=2,
-                        tags=("landmarks_polygon", f"iris_center_{unique_id}")
-                    )
-                    items_list.append(center_id)
-                    
-                    print(f"Created center point for {iris_side} with ID: {center_id}")
-                    
-                    if show_indices:
-                        text_offset = center_radius + 5
-                        if len(landmarks) >= 2:
-                            center_idx = len(landmarks) - center_idx_offset
-                            index_text = str(center_idx)
+                if current_iris_center_coord is None:
+                    print(f"No iris center coordinate found for {iris_side}")
+                    return
+                
+                center_x, center_y = current_iris_center_coord
+                
+                # iris_renderer를 사용하여 중심점 그리기
+                try:
+                    # iris_coords 추출
+                    iris_coords = []
+                    if has_iris_landmarks:
+                        # 고정 분리: 처음 5개 = 오른쪽, 마지막 5개 = 왼쪽
+                        left_coords = iris_landmarks[5:]  # 마지막 5개 = 왼쪽
+                        right_coords = iris_landmarks[:5]  # 처음 5개 = 오른쪽
+                        
+                        if iris_side == 'left':
+                            iris_coords = left_coords
                         else:
-                            index_text = f"C-{'L' if iris_side == 'left' else 'R'}"
+                            iris_coords = right_coords
+                    
+                    center_id = self.iris_renderer.draw_iris_center(
+                        canvas, iris_side, center_x, center_y,
+                        center_radius=5, pos_x=pos_x, pos_y=pos_y, 
+                        scale_x=scale_x, scale_y=scale_y,
+                        img_width=img_width, img_height=img_height,
+                        iris_coords=iris_coords, items_list=items_list
+                    )
+                    
+                    # 인덱스 표시
+                    if show_indices:
+                        center_canvas_x = pos_x + (center_x - img_width / 2) * scale_x
+                        center_canvas_y = pos_y + (center_y - img_height / 2) * scale_y
+                        unique_id = f"{iris_side}_{int(time.time() * 1000)}"
                         text_id = canvas.create_text(
-                            canvas_x + text_offset,
-                            canvas_y - text_offset,
-                            text=index_text,
-                            fill="red",
-                            font=("Arial", 12, "bold"),
-                            tags=("landmarks_polygon", f"iris_center_{unique_id}_text", f"iris_center_{unique_id}")
+                            center_canvas_x, center_canvas_y - 10,
+                            text=f"{iris_side[0].upper()}",
+                            fill="white", font=("Arial", 8),
+                            tags=("landmarks_polygon", f"iris_center_{unique_id}_text")
                         )
                         items_list.append(text_id)
+                        # 텍스트도 최상위로 올리기
+                        canvas.tag_raise(text_id)
                     
-                    def on_iris_center_click(event):
-                        print(f"Clicked {iris_side} iris center!")
-                        self.on_iris_center_drag_start(event, iris_side, canvas)
-                        return "break"
+                    # 중심점을 최상위로 올리기 (연결선/외곽선 뒤에 가려지지 않도록)
+                    canvas.tag_raise(center_id)
                     
-                    def on_iris_center_drag(event):
-                        self.on_iris_center_drag(event, iris_side, canvas)
-                        return "break"
+                    print(f"Successfully drawn {iris_side} iris using IrisRenderer")
                     
-                    def on_iris_center_release(event):
-                        self.on_iris_center_drag_end(event, iris_side, canvas)
-                        return "break"
-                    
-                    # 기존 바인딩 제거 후 새로 바인딩
-                    canvas.tag_unbind(center_id, "<Button-1>")
-                    canvas.tag_unbind(center_id, "<B1-Motion>")
-                    canvas.tag_unbind(center_id, "<ButtonRelease-1>")
-                    
-                    canvas.tag_bind(center_id, "<Button-1>", on_iris_center_click)
-                    canvas.tag_bind(center_id, "<B1-Motion>", on_iris_center_drag)
-                    canvas.tag_bind(center_id, "<ButtonRelease-1>", on_iris_center_release)
-                    
-                    print(f"Bound events to {iris_side} center point (ID: {center_id})")
-                    
-                    # 눈동자 중심점과 연결된 폴리곤 그리기
-                    if hasattr(self, 'show_iris_connections') and self.show_iris_connections.get():
-                        print(f"Checking iris connections for {iris_side}")
-                        print(f"has_iris_landmarks: {has_iris_landmarks}")
-                        print(f"iris_landmarks: {iris_landmarks}")
-                        print(f"current iris_coords length: {len(iris_coords)}")
-                        
-                        # 눈동자 윤곽 좌표가 없으면 현재 랜드마크에서 추출
-                        if not iris_coords and has_iris_landmarks:
-                            print(f"Extracting iris coords from landmarks for {iris_side}")
-                            print(f"iris_connections: {iris_connections}")
-                            print(f"landmarks length: {len(landmarks)}")
-                            
-                            # iris_landmarks에서 직접 윤곽점 추출 (landmarks 배열이 아님)
-                            # iris_landmarks는 별도의 10개 좌표 배열
-                            if iris_landmarks:
-                                # 눈동자 좌표 구조 확인
-                                print(f"iris_landmarks structure: {iris_landmarks}")
-                                
-                                # 고정 분리: 처음 5개 = 오른쪽, 마지막 5개 = 왼쪽
-                                # MediaPipe 순서가 [오른쪽 눈동자 5개, 왼쪽 눈동자 5개]인 것으로 보임
-                                left_coords = iris_landmarks[5:]  # 마지막 5개 = 왼쪽
-                                right_coords = iris_landmarks[:5]  # 처음 5개 = 오른쪽
-                                
-                                print(f"Index-based split - Left coords ({len(left_coords)}): {left_coords}")
-                                print(f"Index-based split - Right coords ({len(right_coords)}): {right_coords}")
-                                
-                                # 해당 눈의 좌표 선택
-                                if iris_side == 'left':
-                                    iris_coords = left_coords
-                                else:
-                                    iris_coords = right_coords
-                                
-                                print(f"Final selected {len(iris_coords)} coords for {iris_side}: {iris_coords}")
-                            else:
-                                print("No iris_landmarks available")
-                        
-                        # 디버깅 출력
-                        print(f"Final iris_coords for {iris_side}: {len(iris_coords)} points")
-                        if iris_coords:
-                            print(f"First few coords: {iris_coords[:3]}")
-                            # 중심점을 먼저 그린 후 연결 폴리곤을 그리면 중심점이 위로 올라감
-                            # 따라서 연결 폴리곤을 먼저 그리고 중심점을 나중에 그려야 함
-                            # 하지만 이미 중심점을 그렸으므로, 태그 순서를 조정하여 중심점이 위로 오게 함
-                            self._draw_iris_connection_polygons(canvas, iris_side, center_x, center_y, 
-                                                              iris_coords, img_width, img_height, 
-                                                              scale_x, scale_y, pos_x, pos_y, items_list)
-                            
-                            # 중심점을 최상위로 올리기
-                            canvas.tag_raise(center_id)
-                            if show_indices:
-                                canvas.tag_raise(f"iris_center_{unique_id}_text")
-                        else:
-                            print(f"No iris coordinates found for {iris_side}")
+                except Exception as e:
+                    print(f"Error drawing {iris_side} iris with IrisRenderer: {e}")
+                    import traceback
+                    traceback.print_exc()
 
             # 선택된 부위만 폴리곤 그리기
             if len(selected_regions) > 0:

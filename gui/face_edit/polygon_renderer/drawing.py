@@ -23,6 +23,10 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
     def __init__(self):
         # AllTabDrawerMixin 초기화
         AllTabDrawerMixin.__init__(self)
+        
+        # TabDrawersMixin은 AllTabDrawerMixin의 iris_renderer를 사용함
+        # 별도로 초기화하지 않고 공유 인스턴스 사용
+        # self.iris_renderer는 AllTabDrawerMixin.__init__에서 이미 초기화됨
     
     def _draw_landmark_polygons(self, canvas, image, face_landmarks, pos_x, pos_y, items_list, color, current_tab, iris_landmarks=None, iris_centers=None, force_use_custom=False):
         """랜드마크 폴리곤 그리기 (해당 부위의 모든 랜드마크 포인트를 찾아서 폴리곤으로 그리기)

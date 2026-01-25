@@ -4,9 +4,69 @@
 """
 import math
 
+# 눈동자 렌더러 import
+try:
+    from ..iris_renderer import IrisRenderer
+except ImportError:
+    # 상대 import 실패 시 절대 import 시도
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from iris_renderer import IrisRenderer
+
 
 class TabDrawersMixin:
     """탭별 폴리곤 그리기 기능 Mixin (전체탭 제외)"""
+    
+    def _draw_iris_center_fallback(self, canvas, iris_side, center_x, center_y, pos_x, pos_y, scale_x, scale_y, img_width, img_height, show_indices, items_list):
+        """IrisRenderer 실패 시 fallback 중심점 그리기"""
+        rel_x = (center_x - img_width / 2) * scale_x
+        rel_y = (center_y - img_height / 2) * scale_y
+        canvas_x = pos_x + rel_x
+        canvas_y = pos_y + rel_y
+        
+        center_radius = 8
+        center_id = canvas.create_oval(
+            canvas_x - center_radius,
+            canvas_y - center_radius,
+            canvas_x + center_radius,
+            canvas_y + center_radius,
+            fill="yellow",
+            outline="red",
+            width=2,
+            tags=("landmarks_polygon", f"iris_center_{iris_side}")
+        )
+        items_list.append(center_id)
+        
+        if show_indices:
+            text_offset = center_radius + 5
+            index_text = f"C-{iris_side[0].upper()}"
+            text_id = canvas.create_text(
+                canvas_x + text_offset,
+                canvas_y - text_offset,
+                text=index_text,
+                fill="red",
+                font=("Arial", 12, "bold"),
+                tags=("landmarks_polygon", f"iris_center_{iris_side}_text", f"iris_center_{iris_side}")
+            )
+            items_list.append(text_id)
+        
+        # 이벤트 바인딩
+        def on_iris_center_click(event):
+            self.on_iris_center_drag_start(event, iris_side, canvas)
+            return "break"
+        
+        def on_iris_center_drag(event):
+            self.on_iris_center_drag(event, iris_side, canvas)
+            return "break"
+        
+        def on_iris_center_release(event):
+            self.on_iris_center_drag_end(event, iris_side, canvas)
+            return "break"
+        
+        canvas.tag_bind(center_id, "<Button-1>", on_iris_center_click)
+        canvas.tag_bind(center_id, "<B1-Motion>", on_iris_center_drag)
+        canvas.tag_bind(center_id, "<ButtonRelease-1>", on_iris_center_release)
     
     def _draw_eye_tab_polygons(self, canvas, image, landmarks, pos_x, pos_y, items_list, color, scale_x, scale_y, img_width, img_height, expansion_level, show_indices, bind_polygon_click_events, force_use_custom=False):
         """eye 탭 폴리곤 그리기"""
@@ -999,7 +1059,7 @@ class TabDrawersMixin:
                 items_list.append(polygon_id)
                 bind_polygon_click_events(polygon_id, list(right_iris_indices_set))
             
-            # 눈동자 중앙 포인트 표시 (전체탭과 동일한 로직)
+            # 눈동자 중앙 포인트 표시 (IrisRenderer 사용)
             # 왼쪽 눈동자 중앙 포인트
             center_x = None
             center_y = None
@@ -1041,52 +1101,58 @@ class TabDrawersMixin:
                 return
             
             if center_x is not None and center_y is not None:
-                rel_x = (center_x - img_width / 2) * scale_x
-                rel_y = (center_y - img_height / 2) * scale_y
-                canvas_x = pos_x + rel_x
-                canvas_y = pos_y + rel_y
-                
-                center_radius = 8
-                center_id = canvas.create_oval(
-                    canvas_x - center_radius,
-                    canvas_y - center_radius,
-                    canvas_x + center_radius,
-                    canvas_y + center_radius,
-                    fill="yellow",
-                    outline="red",
-                    width=2,
-                    tags=("landmarks_polygon", "iris_center_left")
-                )
-                items_list.append(center_id)
-                
-                if show_indices:
-                    text_offset = center_radius + 5
-                    index_text = "C-L"
-                    text_id = canvas.create_text(
-                        canvas_x + text_offset,
-                        canvas_y - text_offset,
-                        text=index_text,
-                        fill="red",
-                        font=("Arial", 12, "bold"),
-                        tags=("landmarks_polygon", "iris_center_left_text", "iris_center_left")
-                    )
-                    items_list.append(text_id)
-                
-                def on_left_iris_center_click(event):
-                    self.on_iris_center_drag_start(event, 'left', canvas)
-                    return "break"
-                
-                def on_left_iris_center_drag(event):
-                    self.on_iris_center_drag(event, 'left', canvas)
-                    return "break"
-                
-                def on_left_iris_center_release(event):
-                    self.on_iris_center_drag_end(event, 'left', canvas)
-                    return "break"
-                
-                canvas.tag_bind(center_id, "<Button-1>", on_left_iris_center_click)
-                canvas.tag_bind(center_id, "<B1-Motion>", on_left_iris_center_drag)
-                canvas.tag_bind(center_id, "<ButtonRelease-1>", on_left_iris_center_release)
+                # IrisRenderer를 사용하여 중심점 그리기
+                if self.iris_renderer is not None:
+                    try:
+                        # iris_coords 추출
+                        iris_coords = []
+                        if has_iris_landmarks:
+                            # 고정 분리: 처음 5개 = 오른쪽, 마지막 5개 = 왼쪽
+                            left_coords = iris_landmarks[5:]  # 마지막 5개 = 왼쪽
+                            right_coords = iris_landmarks[:5]  # 처음 5개 = 오른쪽
+                            
+                            # 왼쪽 눈동자이므로 왼쪽 좌표 사용
+                            iris_coords = left_coords
+                        
+                        center_id = self.iris_renderer.draw_iris_center(
+                            canvas, 'left', center_x, center_y,  # 명시적으로 'left' 전달
+                            center_radius=5, pos_x=pos_x, pos_y=pos_y,  # All 탭과 동일한 크기
+                            scale_x=scale_x, scale_y=scale_y,
+                            img_width=img_width, img_height=img_height,
+                            iris_coords=iris_coords, items_list=items_list
+                        )
+                        items_list.append(center_id)
+                        
+                        # 인덱스 표시
+                        if show_indices:
+                            rel_x = (center_x - img_width / 2) * scale_x
+                            rel_y = (center_y - img_height / 2) * scale_y
+                            canvas_x = pos_x + rel_x
+                            canvas_y = pos_y + rel_y
+                            
+                            text_offset = 8 + 5
+                            index_text = "C-L"
+                            text_id = canvas.create_text(
+                                canvas_x + text_offset,
+                                canvas_y - text_offset,
+                                text=index_text,
+                                fill="red",
+                                font=("Arial", 12, "bold"),
+                                tags=("landmarks_polygon", "iris_center_left_text", "iris_center_left")
+                            )
+                            items_list.append(text_id)
+                            # 텍스트도 최상위로 올리기
+                            canvas.tag_raise(text_id)
+                        
+                        print(f"[DEBUG] Successfully drawn left iris center using IrisRenderer in iris tab")
+                        
+                    except Exception as e:
+                        print(f"[DEBUG] Error drawing left iris center with IrisRenderer in iris tab: {e}")
+                        # Fallback to original method
+                        self._draw_iris_center_fallback(canvas, 'left', center_x, center_y, pos_x, pos_y, scale_x, scale_y, img_width, img_height, show_indices, items_list)
+                else:
+                    # Fallback to original method
+                    self._draw_iris_center_fallback(canvas, 'left', center_x, center_y, pos_x, pos_y, scale_x, scale_y, img_width, img_height, show_indices, items_list)
             
             # 오른쪽 눈동자 중앙 포인트
             center_x = None
@@ -1129,52 +1195,58 @@ class TabDrawersMixin:
                 return
             
             if center_x is not None and center_y is not None:
-                rel_x = (center_x - img_width / 2) * scale_x
-                rel_y = (center_y - img_height / 2) * scale_y
-                canvas_x = pos_x + rel_x
-                canvas_y = pos_y + rel_y
-                
-                center_radius = 8
-                center_id = canvas.create_oval(
-                    canvas_x - center_radius,
-                    canvas_y - center_radius,
-                    canvas_x + center_radius,
-                    canvas_y + center_radius,
-                    fill="yellow",
-                    outline="red",
-                    width=2,
-                    tags=("landmarks_polygon", "iris_center_right")
-                )
-                items_list.append(center_id)
-                
-                if show_indices:
-                    text_offset = center_radius + 5
-                    index_text = "C-R"
-                    text_id = canvas.create_text(
-                        canvas_x + text_offset,
-                        canvas_y - text_offset,
-                        text=index_text,
-                        fill="red",
-                        font=("Arial", 12, "bold"),
-                        tags=("landmarks_polygon", "iris_center_right_text", "iris_center_right")
-                    )
-                    items_list.append(text_id)
-                
-                def on_right_iris_center_click(event):
-                    self.on_iris_center_drag_start(event, 'right', canvas)
-                    return "break"
-                
-                def on_right_iris_center_drag(event):
-                    self.on_iris_center_drag(event, 'right', canvas)
-                    return "break"
-                
-                def on_right_iris_center_release(event):
-                    self.on_iris_center_drag_end(event, 'right', canvas)
-                    return "break"
-                
-                canvas.tag_bind(center_id, "<Button-1>", on_right_iris_center_click)
-                canvas.tag_bind(center_id, "<B1-Motion>", on_right_iris_center_drag)
-                canvas.tag_bind(center_id, "<ButtonRelease-1>", on_right_iris_center_release)
+                # IrisRenderer를 사용하여 중심점 그리기
+                if self.iris_renderer is not None:
+                    try:
+                        # iris_coords 추출
+                        iris_coords = []
+                        if has_iris_landmarks:
+                            # 고정 분리: 처음 5개 = 오른쪽, 마지막 5개 = 왼쪽
+                            left_coords = iris_landmarks[5:]  # 마지막 5개 = 왼쪽
+                            right_coords = iris_landmarks[:5]  # 처음 5개 = 오른쪽
+                            
+                            # 오른쪽 눈동자이므로 오른쪽 좌표 사용
+                            iris_coords = right_coords
+                        
+                        center_id = self.iris_renderer.draw_iris_center(
+                            canvas, 'right', center_x, center_y,  # 명시적으로 'right' 전달
+                            center_radius=5, pos_x=pos_x, pos_y=pos_y,  # All 탭과 동일한 크기
+                            scale_x=scale_x, scale_y=scale_y,
+                            img_width=img_width, img_height=img_height,
+                            iris_coords=iris_coords, items_list=items_list
+                        )
+                        items_list.append(center_id)
+                        
+                        # 인덱스 표시
+                        if show_indices:
+                            rel_x = (center_x - img_width / 2) * scale_x
+                            rel_y = (center_y - img_height / 2) * scale_y
+                            canvas_x = pos_x + rel_x
+                            canvas_y = pos_y + rel_y
+                            
+                            text_offset = 8 + 5
+                            index_text = "C-R"
+                            text_id = canvas.create_text(
+                                canvas_x + text_offset,
+                                canvas_y - text_offset,
+                                text=index_text,
+                                fill="red",
+                                font=("Arial", 12, "bold"),
+                                tags=("landmarks_polygon", "iris_center_right_text", "iris_center_right")
+                            )
+                            items_list.append(text_id)
+                            # 텍스트도 최상위로 올리기
+                            canvas.tag_raise(text_id)
+                        
+                        print(f"[DEBUG] Successfully drawn right iris center using IrisRenderer in iris tab")
+                        
+                    except Exception as e:
+                        print(f"[DEBUG] Error drawing right iris center with IrisRenderer in iris tab: {e}")
+                        # Fallback to original method
+                        self._draw_iris_center_fallback(canvas, 'right', center_x, center_y, pos_x, pos_y, scale_x, scale_y, img_width, img_height, show_indices, items_list)
+                else:
+                    # Fallback to original method
+                    self._draw_iris_center_fallback(canvas, 'right', center_x, center_y, pos_x, pos_y, scale_x, scale_y, img_width, img_height, show_indices, items_list)
         
         except ImportError:
             pass

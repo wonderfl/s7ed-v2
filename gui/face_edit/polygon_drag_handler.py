@@ -219,10 +219,14 @@ class PolygonDragHandlerMixin:
         """눈동자 중앙 포인트 드래그 시작
         iris_side: 'left' 또는 'right' (좌표 기반)
         """
+        print(f"[DEBUG] Starting iris drag: {iris_side} on {canvas_obj}")
+        
         # 드래그 시작
         self.dragging_polygon = True
         self.dragged_polygon_index = iris_side  # 'left' 또는 'right' 저장
         self.dragged_polygon_canvas = canvas_obj
+        
+        print(f"[DEBUG] Set dragging_polygon=True, dragged_polygon_index={iris_side}")
         
         # 드래그 시작 위치 저장
         self.polygon_drag_start_x = event.x
@@ -403,10 +407,66 @@ class PolygonDragHandlerMixin:
                         self.landmark_manager.set_custom_landmarks(custom, reason="on_iris_center_drag_create")
                         self.landmark_manager.set_iris_center_coords(left_center, right_center)
         
-        # 선택된 포인트 표시 업데이트
-        self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)
+        # 눈동자 중심점 드래그 중에는 선택된 포인트 표시 업데이트를 하지 않음 (자취 방지)
+        # 일반 랜드마크 드래그와 달리 눈동자 중심점은 별도로 처리됨
+        # self._update_selected_landmark_indicator(canvas_obj, event.x, event.y)  # 주석 처리
+        
+        # 드래그 중에 중심점 실시간 업데이트
+        try:
+            # iris_center 태그를 가진 모든 아이템 찾기
+            iris_centers = canvas_obj.find_withtag("iris_center")
+            for center_id in iris_centers:
+                # 해당 iris_side의 중심점만 업데이트
+                tags = canvas_obj.gettags(center_id)
+                if f"iris_center_{iris_side}" in tags:
+                    # 중심점 위치 업데이트
+                    center_radius = 5
+                    canvas_obj.coords(
+                        center_id,
+                        event.x - center_radius,
+                        event.y - center_radius,
+                        event.x + center_radius,
+                        event.y + center_radius
+                    )
+                    # 중심점을 최상위로 올리기
+                    canvas_obj.tag_raise(center_id)
+                    print(f"[DEBUG] Updated iris center position: {iris_side} at ({event.x}, {event.y})")
+                    break
+            
+            # 드래그 중에 연결선 실시간 업데이트
+            self._update_iris_connections_during_drag(canvas_obj, iris_side, event.x, event.y)
+            
+        except Exception as e:
+            print(f"[DEBUG] Error updating iris center position: {e}")
         
         return "break"
+    
+    def _update_iris_connections_during_drag(self, canvas_obj, iris_side, center_x, center_y):
+        """드래그 중에 연결선 실시간 업데이트"""
+        try:
+            # iris_connections 태그를 가진 모든 연결선 찾기
+            connection_lines = canvas_obj.find_withtag("iris_connections")
+            
+            # 해당 iris_side의 연결선만 업데이트
+            for line_id in connection_lines:
+                tags = canvas_obj.gettags(line_id)
+                if any(f"iris_connection_{iris_side}_" in tag for tag in tags):
+                    # 연결선의 끝점을 중심점 위치로 업데이트
+                    coords = canvas_obj.coords(line_id)
+                    if len(coords) == 4:  # 선은 4개 좌표 (x1, y1, x2, y2)
+                        # 첫 번째 점을 중심점 위치로 업데이트 (두 번째 점은 외곽점)
+                        canvas_obj.coords(line_id, center_x, center_y, coords[2], coords[3])
+            
+            # 외곽선도 업데이트
+            outline_lines = canvas_obj.find_withtag(f"iris_outline_{iris_side}")
+            for line_id in outline_lines:
+                # 외곽선은 현재 위치를 유지 (중심점이 아니라 외곽점들로 구성)
+                pass
+            
+            print(f"[DEBUG] Updated iris connections for {iris_side} during drag")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error updating iris connections: {e}")
     
     def on_iris_center_drag_end(self, event, iris_side, canvas_obj):
         """눈동자 중앙 포인트 드래그 종료"""

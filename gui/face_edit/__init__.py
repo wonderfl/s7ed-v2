@@ -45,6 +45,9 @@ class FaceEditPanel(
         self.title("얼굴 편집")
         self.resizable(True, True)  # 리사이즈 허용
         
+        # PolygonRendererMixin 초기화 (DrawingMixin 포함)
+        PolygonRendererMixin.__init__(self)
+        
         # 메인 창 캔버스 초기 크기 설정 (먼저 정의)
         self.canvas_initial_width = 384  # 캔버스 초기 너비
         self.canvas_initial_height = 480  # 캔버스 초기 높이
@@ -88,16 +91,8 @@ class FaceEditPanel(
         self.left_eye_size = tk.DoubleVar(value=1.0)  # 왼쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.right_eye_size = tk.DoubleVar(value=1.0)  # 오른쪽 눈 크기 (0.5 ~ 2.0, 기본값: 1.0)
         self.eye_spacing = tk.BooleanVar(value=False)  # 눈 간격 조정 활성화 여부
-        self.iris_clamping_enabled = tk.BooleanVar(value=False)  # 눈동자 이동 범위 제한 활성화 여부 (기본값: False)
-        self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.05)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.05)
-        self.iris_eyelid_interaction = tk.BooleanVar(value=True)  # 눈동자-눈꺼풀 상호작용 활성화 여부
-        self.eyelid_adjustment_intensity = tk.DoubleVar(value=0.5)  # 눈꺼풀 조정 강도 (0.0 ~ 1.0, 기본값: 0.5)
-        self.eyelid_detection_sensitivity = tk.DoubleVar(value=8.0)  # 눈꺼풀 경계 감지 민감도 (1 ~ 20픽셀, 기본값: 8.0)
-        
-        # 눈동자 연결 폴리곤 표시 제어
-        self.show_iris_connections = tk.BooleanVar(value=True)
-        self.show_iris_eyelid_connections = tk.BooleanVar(value=True)
-        
+        self.iris_clamping_enabled = tk.BooleanVar(value=True)  # 눈동자 이동 범위 제한 활성화 여부
+        self.iris_clamping_margin_ratio = tk.DoubleVar(value=0.3)  # 눈동자 이동 범위 제한 마진 비율 (0.0 ~ 1.0, 기본값: 0.3)
         self.left_eye_position_y = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.right_eye_position_y = tk.DoubleVar(value=0.0)  # 오른쪽 눈 수직 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
         self.left_eye_position_x = tk.DoubleVar(value=0.0)  # 왼쪽 눈 수평 위치 조정 (-10 ~ +10 픽셀, 기본값: 0)
@@ -122,6 +117,8 @@ class FaceEditPanel(
         self.show_lower_lips = tk.BooleanVar(value=False)  # Lower Lips 표시 여부
         self.show_left_iris = tk.BooleanVar(value=False)  # Left Iris 표시 여부 (refine_landmarks=True일 때만 사용 가능)
         self.show_right_iris = tk.BooleanVar(value=False)  # Right Iris 표시 여부 (refine_landmarks=True일 때만 사용 가능)
+        self.show_iris_connections = tk.BooleanVar(value=True)  # 눈동자 중심점 연결 폴리곤 표시 여부 (기본값: True)
+        self.show_iris_eyelid_connections = tk.BooleanVar(value=True)  # 눈동자-눈꺼풀 연결선 표시 여부 (기본값: True)
         self.show_contours = tk.BooleanVar(value=False)  # Contours 표시 여부
         self.show_tesselation = tk.BooleanVar(value=False)  # Tesselation 표시 여부
         self.polygon_expansion_level = tk.IntVar(value=1)  # 폴리곤 주변 확장 레벨 (0~5, 기본값: 1)
@@ -463,6 +460,11 @@ class FaceEditPanelV2(FaceEditPanel):
         self.title("얼굴 편집")
         # 랜드마크 기반 모핑을 기본값으로 활성화
         self.use_landmark_warping.set(True)
+        
+        # PolygonRendererMixin 초기화 (DrawingMixin 포함)
+        # super().__init__에서 호출되지 않으므로 여기서 명시적으로 호출
+        from .polygon_renderer import PolygonRendererMixin
+        PolygonRendererMixin.__init__(self)
     
     def _create_eye_tab(self, notebook):
         """눈 탭 UI 생성 (V2: 영역 설정 슬라이더 제거)"""
