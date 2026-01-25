@@ -14,6 +14,10 @@ class PolygonDragHandlerMixin:
     
     def on_polygon_drag_start(self, event, landmark_index, canvas_obj):
         """폴리곤에서 포인트를 찾아서 드래그 시작"""
+        # 드래그 시작 시 확대/축소 플래그 해제
+        if hasattr(self, '_skip_morphing_change'):
+            self._skip_morphing_change = False
+        
         # 고급 모드가 아니어도 드래그 가능
         # 드래그 종료 시 자동으로 고급 모드로 변형 적용
         
@@ -192,15 +196,23 @@ class PolygonDragHandlerMixin:
         if not self.dragging_polygon or self.dragged_polygon_index != landmark_index:
             return
         
+        # 드래그 종료 시 확대/축소 플래그 해제
+        if hasattr(self, '_skip_morphing_change'):
+            self._skip_morphing_change = False
+        
         # 드래그 종료 시 항상 변형 적용
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         
-        if custom is not None:
+        # 눈동자 중심점 드래그 여부 확인 (landmark_index가 'left' 또는 'right' 문자열)
+        is_iris_center_drag = isinstance(landmark_index, str) and landmark_index in ('left', 'right')
+        
+        # 일반 랜드마크 드래그 또는 눈동자 중심점 드래그 모두 적용
+        if custom is not None or is_iris_center_drag:
             self.apply_polygon_drag_final()
         
         # 마지막으로 선택한 포인트 인덱스 저장 (드래그 종료 후에도 유지)
-        # landmark_index는 정수이므로 그대로 저장
+        # landmark_index는 정수 또는 문자열('left'/'right')
         self.last_selected_landmark_index = landmark_index
         
         # 선택된 포인트 표시 제거
@@ -667,9 +679,8 @@ class PolygonDragHandlerMixin:
             
             # 마지막으로 선택한 포인트 인덱스 확인
             last_selected_index = getattr(self, 'last_selected_landmark_index', None)
-            # iris_center_only 플래그는 morph_face_by_polygons에서 삼각형 필터링에만 사용
-            # (눈동자 중심점 드래그 시 눈동자 영역만 변형하도록)
-            is_iris_center_only = isinstance(last_selected_index, str) and last_selected_index in ('left', 'right')
+            # iris_center_only 플래그는 morph_face_by_polygons에서 사용되지 않으므로 제거
+            # iris_mapping_method 파라미터만으로 충분히 구분 가능
             
             # 드래그된 포인트 백업 (슬라이더 적용 전에 저장)
             dragged_indices = self.landmark_manager.get_dragged_indices()
@@ -684,15 +695,16 @@ class PolygonDragHandlerMixin:
                             dragged_points_backup[idx] = custom_before_sliders[idx]  # 튜플 복사 (좌표값만)
             
             # 공통 슬라이더 적용 (morph_face_by_polygons 호출 전에 custom_landmarks 변환)
-            # 눈동자 중심점만 변경한 경우에는 슬라이더를 적용하지 않음 (다른 랜드마크 변형 방지)
+            # 옵션 변경 시(force_slider_mode=False)에는 슬라이더 적용 건너뛰기
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
             
-            # 공통 슬라이더는 항상 적용 (눈동자 드래그 여부와 무관)
-            if hasattr(self, '_apply_common_sliders'):
-                # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
-                # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
-                base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
-                temp_result = self._apply_common_sliders(self.current_image, base_image=base_image)
+            # 옵션 변경 시가 아니면 슬라이더 적용
+            if force_slider_mode != False:
+                if hasattr(self, '_apply_common_sliders'):
+                    # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
+                    # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
+                    base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
+                    temp_result = self._apply_common_sliders(self.current_image, base_image=base_image)
                 
                 # 드래그된 포인트 복원 (슬라이더 적용 후에도 드래그 변경 보존)
                 # 직접 참조를 유지하면서 드래그된 포인트만 복원
@@ -730,21 +742,23 @@ class PolygonDragHandlerMixin:
                                 changed_indices_after.append((i, diff))
             
             # 슬라이더가 모두 기본값이고 랜드마크가 변형되지 않았는지 확인
-            size_x = self.region_size_x.get()
-            size_y = self.region_size_y.get()
-            center_offset_x = self.region_center_offset_x.get()
-            center_offset_y = self.region_center_offset_y.get()
-            position_x = self.region_position_x.get()
-            position_y = self.region_position_y.get()
-            
-            size_x_condition = abs(size_x - 1.0) >= 0.01
-            size_y_condition = abs(size_y - 1.0) >= 0.01
-            size_condition = size_x_condition or size_y_condition
-            offset_x_condition = abs(center_offset_x) >= 0.1
-            offset_y_condition = abs(center_offset_y) >= 0.1
-            pos_x_condition = abs(position_x) >= 0.1
-            pos_y_condition = abs(position_y) >= 0.1
-            conditions_met = offset_x_condition or offset_y_condition or size_condition or pos_x_condition or pos_y_condition
+            # 옵션 변경 시(force_slider_mode=False)에는 이 체크를 건너뛰고 항상 morph_face_by_polygons 호출
+            if force_slider_mode != False:
+                size_x = self.region_size_x.get()
+                size_y = self.region_size_y.get()
+                center_offset_x = self.region_center_offset_x.get()
+                center_offset_y = self.region_center_offset_y.get()
+                position_x = self.region_position_x.get()
+                position_y = self.region_position_y.get()
+                
+                size_x_condition = abs(size_x - 1.0) >= 0.01
+                size_y_condition = abs(size_y - 1.0) >= 0.01
+                size_condition = size_x_condition or size_y_condition
+                offset_x_condition = abs(center_offset_x) >= 0.1
+                offset_y_condition = abs(center_offset_y) >= 0.1
+                pos_x_condition = abs(position_x) >= 0.1
+                pos_y_condition = abs(position_y) >= 0.1
+                conditions_met = offset_x_condition or offset_y_condition or size_condition or pos_x_condition or pos_y_condition
             
             # custom_landmarks 가져오기 (랜드마크 변형 확인용)
             custom_for_check = self.landmark_manager.get_custom_landmarks()
@@ -781,20 +795,22 @@ class PolygonDragHandlerMixin:
             result = None
             
             # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았으면 원본 이미지 반환
-            if not conditions_met:
-                # 랜드마크가 변형되지 않았을 때만 custom_landmarks를 원본으로 복원
-                # (드래그로 변경한 랜드마크는 보존해야 함)
-                if not landmarks_changed:
-                    # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았으면 custom_landmarks를 원본으로 복원
-                    original_face = self.landmark_manager.get_original_face_landmarks()
-                    if original_face is not None:
-                        self.landmark_manager.set_custom_landmarks(original_face, reason="슬라이더 초기화")
-                    
-                    result = base_image
-                else:
-                    # 랜드마크는 변형되었지만 슬라이더는 기본값이므로 morph_face_by_polygons 호출
-                    # custom_landmarks는 드래그로 변경된 상태를 유지해야 하므로 복원하지 않음
-                    result = None  # 아래에서 morph_face_by_polygons 호출
+            # 옵션 변경 시(force_slider_mode=False)에는 이 체크를 건너뛰고 항상 morph_face_by_polygons 호출
+            if force_slider_mode != False:
+                if not conditions_met:
+                    # 랜드마크가 변형되지 않았을 때만 custom_landmarks를 원본으로 복원
+                    # (드래그로 변경한 랜드마크는 보존해야 함)
+                    if not landmarks_changed:
+                        # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았으면 custom_landmarks를 원본으로 복원
+                        original_face = self.landmark_manager.get_original_face_landmarks()
+                        if original_face is not None:
+                            self.landmark_manager.set_custom_landmarks(original_face, reason="슬라이더 초기화")
+                        
+                        result = base_image
+                    else:
+                        # 랜드마크는 변형되었지만 슬라이더는 기본값이므로 morph_face_by_polygons 호출
+                        # custom_landmarks는 드래그로 변경된 상태를 유지해야 하므로 복원하지 않음
+                        result = None  # 아래에서 morph_face_by_polygons 호출
             
             # result가 None이면 morph_face_by_polygons 호출
             if result is None:
@@ -805,7 +821,7 @@ class PolygonDragHandlerMixin:
                 # 눈동자 중심점만 변경한 경우 (last_selected_index가 'left' 또는 'right')
                 # custom_landmarks_for_morph를 원본으로 설정 (얼굴 랜드마크 468개는 고정)
                 # 중앙 포인트만 파라미터로 전달하여 눈동자만 움직이게 함
-                if is_iris_center_only:
+                if isinstance(last_selected_index, str) and last_selected_index in ('left', 'right'):
                     # 원본 얼굴 랜드마크 사용 (468개, 중앙 포인트 제외)
                     original_face = self.landmark_manager.get_original_face_landmarks()
                     
@@ -890,7 +906,7 @@ class PolygonDragHandlerMixin:
                 
                 # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
                 # 눈동자 중심점만 변경한 경우, custom_landmarks_for_morph와 동일하게 원본 사용
-                if is_iris_center_only:
+                if isinstance(last_selected_index, str) and last_selected_index in ('left', 'right'):
                     # custom_landmarks_for_morph와 동일한 출처에서 가져오기 (원본 얼굴 랜드마크)
                     original_face_for_morph = self.landmark_manager.get_original_face_landmarks()
                     if original_face_for_morph is not None:
@@ -917,10 +933,10 @@ class PolygonDragHandlerMixin:
                     else:
                         print_info("얼굴편집", f"랜드마크 길이 불일치: custom={len(custom_landmarks_for_morph)}, original={len(original_landmarks_for_morph)}")
                 
-                # 디버깅: 중앙 포인트 좌표 확인
+                # 디버그: 중앙 포인트 좌표 확인
                 print_info("얼굴편집", f"중심점 드래그 적용: left_center={left_center}, right_center={right_center}")
                 print_info("얼굴편집", f"원본 중심점: left_orig={left_center_orig}, right_orig={right_center_orig}")
-                print_info("얼굴편집", f"눈동자 중심점만 변경: {is_iris_center_only}, last_selected_index={last_selected_index}")
+                print_info("얼굴편집", f"마지막 선택 인덱스: {last_selected_index}")
                 
                 # 캐시된 원본 바운딩 박스 가져오기
                 img_width, img_height = self.current_image.size
@@ -933,25 +949,28 @@ class PolygonDragHandlerMixin:
                 clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
                 margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
                 
-                # 디버깅: morph_face_by_polygons 호출 전 파라미터 확인
+                # 디버그: morph_face_by_polygons 호출 전 파라미터 확인
                 print_info("얼굴편집", f"morph_face_by_polygons 호출: original={len(original_landmarks_for_morph)}개, transformed={len(custom_landmarks_for_morph)}개")
                 print_info("얼굴편집", f"중앙 포인트: left={left_center}, right={right_center}, left_orig={left_center_orig}, right_orig={right_center_orig}")
                 print_info("얼굴편집", f"클램핑: enabled={clamping_enabled_val}, margin_ratio={margin_ratio_val}")
                 
                
                 # morph_face_by_polygons 호출 (폴리곤 모드)
-                # 눈동자 중심점만 드래그한 경우에도 Delaunay Triangulation 사용
-                # 단, is_iris_center_only 플래그를 전달하여 선택적 변형
+                # iris_mapping_method 파라미터로 맵핑 방법 구분
                 
                 # 맵핑 방법 파라미터 가져오기
                 iris_mapping_method = getattr(self, 'iris_mapping_method', None)
                 iris_mapping_method_val = iris_mapping_method.get() if iris_mapping_method is not None else "iris_outline"
                 
+                # 옵션 변경 시에는 현재 맵핑 방법에 해당하는 인덱스를 전달
+                # 선택적 변형 복잡성 제거하고 항상 전체 변형 사용
+                selected_indices = None
+                
                 result = face_morphing.morph_face_by_polygons(
                     self.current_image,  # 원본 이미지
                     original_landmarks_for_morph,  # 원본 랜드마크 (468개)
                     custom_landmarks_for_morph,  # 변형된 랜드마크 (468개, 중앙 포인트 제거됨)
-                    selected_point_indices=[last_selected_index] if isinstance(last_selected_index, int) and last_selected_index is not None else None,  # 선택한 포인트 인덱스 (중앙 포인트는 문자열이므로 제외)
+                    selected_point_indices=selected_indices,  # 선택한 포인트 인덱스
                     left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
                     right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
                     left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
@@ -960,9 +979,11 @@ class PolygonDragHandlerMixin:
                     blend_ratio=blend_ratio,  # 블렌딩 비율
                     clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
                     margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
-                    iris_center_only=is_iris_center_only,  # 눈동자 중심점만 드래그 플래그 (머리 변형 방지)
                     iris_mapping_method=iris_mapping_method_val  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
                 )
+                
+                # 디버그: 결과 확인
+                print_info("얼굴편집", f"morph_face_by_polygons 결과: {type(result)}, 크기: {result.size if result else 'None'}")
             
             if result is None:
                 print_error("얼굴편집", "랜드마크 변형 결과가 None입니다")
@@ -972,17 +993,26 @@ class PolygonDragHandlerMixin:
             self.edited_image = result
             self.face_landmarks = self.custom_landmarks  # 현재 편집된 랜드마크 저장 (표시용)
             
-            # UI 업데이트 최적화: 이미지가 변경되었을 때만 업데이트
+            # 이미지 해시 계산 및 업데이트 (옵션 변경 시에는 강제 업데이트)
             try:
                 import hashlib
-                current_hash = hashlib.md5(result.tobytes()).hexdigest()
-                if current_hash != getattr(self, '_last_edited_image_hash', None):
+                img_bytes = result.tobytes()
+                current_hash = hashlib.md5(img_bytes).hexdigest()
+                
+                # 옵션 변경 시(force_slider_mode=False)에는 강제로 화면 업데이트
+                if force_slider_mode == False:
+                    print_info("얼굴편집", f"옵션 변경으로 인한 강제 화면 업데이트")
                     self.show_edited_preview()
                     self._last_edited_image_hash = current_hash
+                elif current_hash != getattr(self, '_last_edited_image_hash', None):
+                    print_info("얼굴편집", f"이미지 해시 변경됨, show_edited_preview() 호출")
+                    self.show_edited_preview()
+                    self._last_edited_image_hash = current_hash
+                else:
+                    print_info("얼굴편집", f"이미지 해시 동일, show_edited_preview() 건너뜀")
             except Exception as e:
-                # 해시 계산 실패 시 안전하게 항상 업데이트
-                self.show_edited_preview()
-            
+                print_error("얼굴편집", f"이미지 해시 계산 실패: {e}")
+                self.show_edited_preview()  # 오류 시 무조건 업데이트       
             # 랜드마크 표시 업데이트 (이미 조건부 호출됨)
             if self.show_landmark_points.get():
                 self.update_face_features_display()
@@ -1320,16 +1350,26 @@ class PolygonDragHandlerMixin:
         center_y = sum(c[1] for c in iris_coords) / len(iris_coords)
         return (center_x, center_y)
     
-    def _get_iris_indices(self):
+    def _get_iris_indices(self, for_468_structure=False):
         """MediaPipe 눈동자 인덱스 반환 (공통 유틸리티 함수 사용)
         
+        Args:
+            for_468_structure: 468개 랜드마크 구조용 인덱스 반환 여부
+            
         Returns:
-            (left_iris_indices, right_iris_indices) 튜플
+            for_468_structure=False: (left_iris_indices, right_iris_indices) 튜플
+            for_468_structure=True: 468개 구조용 눈동자 주변 인덱스 리스트
         """
-        try:
-            from utils.face_morphing.region_extraction import get_iris_indices
-            return get_iris_indices()
-        except ImportError:
-            # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
-            return [474, 475, 476, 477], [469, 470, 471, 472]
+        if for_468_structure:
+            # 468개 구조용 눈동자 주변 인덱스 (IRIS_OUTLINE 맵핑용)
+            return [33, 7, 163, 144, 145, 173, 157, 158, 159, 160, 161, 246, 
+                   161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 
+                   163, 7, 33, 263, 249, 390, 373, 374, 380, 381, 382, 362]
+        else:
+            try:
+                from utils.face_morphing.region_extraction import get_iris_indices
+                return get_iris_indices()
+            except ImportError:
+                # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
+                return [474, 475, 476, 477], [469, 470, 471, 472]
     

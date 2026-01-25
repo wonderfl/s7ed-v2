@@ -256,6 +256,10 @@ class FaceEditPanel(
         # 확대/축소 최적화 변수
         self._zoom_update_pending = False  # 확대/축소 업데이트 대기 중 플래그
         self._is_zooming = False  # 확대/축소 중 플래그 (랜드마크 업데이트 지연용)
+        self._skip_morphing_change = False  # 확대/축소 시 on_morphing_change 건너뛰기 플래그
+        
+        # 확대/축소 플래그 자동 해제 타이머
+        self._zoom_timer = None
         
         # 캔버스 리사이즈 제어 플래그 (무한 루프 방지)
         self._resizing_canvas = False

@@ -298,6 +298,7 @@ class CanvasEventHandlerMixin:
         
         # 확대/축소 중 플래그 설정
         self._is_zooming = True
+        self._skip_morphing_change = True
         
         self.show_original_preview()
         self.show_edited_preview()
@@ -386,6 +387,7 @@ class CanvasEventHandlerMixin:
         
         # 확대/축소 중 플래그 설정
         self._is_zooming = True
+        self._skip_morphing_change = True
         
         self.show_original_preview()
         self.show_edited_preview()
@@ -433,7 +435,8 @@ class CanvasEventHandlerMixin:
         
         # 확대/축소 중 플래그 설정
         self._is_zooming = True
-        
+        self._skip_morphing_change = True
+
         self.show_original_preview()
         self.show_edited_preview()
 

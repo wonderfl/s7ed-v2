@@ -341,6 +341,8 @@ class PreviewManagerMixin:
     
     def show_edited_preview(self):
         """편집된 이미지 미리보기 표시"""
+        print("[편집된 이미지 미리보기] show_edited_preview() 호출됨, edited_image:", self.edited_image is not None)
+        
         if self.edited_image is None:
             if self.image_created_edited:
                 self.canvas_edited.delete(self.image_created_edited)
@@ -375,6 +377,8 @@ class PreviewManagerMixin:
             display_width = int(base_display_width * self.zoom_scale_original)
             display_height = int(base_display_height * self.zoom_scale_original)
             
+            print("[편집된 이미지 미리보기] 표시 크기:", f"{display_width}x{display_height}, 스케일: {self.zoom_scale_original}")
+            
             # 이미지 리사이즈 캐싱 (성능 최적화)
             cache_key = (id(self.edited_image), display_width, display_height)
             resize_cache = getattr(self, '_resize_cache', {})
@@ -403,6 +407,10 @@ class PreviewManagerMixin:
             
             # PhotoImage로 변환
             self.tk_image_edited = ImageTk.PhotoImage(resized)
+            
+            print("[편집된 이미지 미리보기] PhotoImage 생성됨:", type(self.tk_image_edited))
+            print("[편집된 이미지 미리보기] PhotoImage 유효성 확인:", self.tk_image_edited is not None)
+            print("[편집된 이미지 미리보기] PhotoImage 크기:", getattr(self.tk_image_edited, 'width', 'N/A'), getattr(self.tk_image_edited, 'height', 'N/A'))
             
             # Canvas에 표시
             # 위치 결정: 이미 설정된 위치를 절대 덮어쓰지 않음
@@ -460,12 +468,20 @@ class PreviewManagerMixin:
                     # 이미지가 캔버스보다 작으면 중앙 배치
                     self.canvas_edited_pos_y = preview_height // 2
             
+            print("[편집된 이미지 미리보기] Canvas 위치:", f"x={self.canvas_edited_pos_x}, y={self.canvas_edited_pos_y}")
+            
             self.image_created_edited = self.canvas_edited.create_image(
                 self.canvas_edited_pos_x,
                 self.canvas_edited_pos_y,
                 anchor=tk.CENTER,
                 image=self.tk_image_edited
             )
+            
+            print("[편집된 이미지 미리보기] Canvas 이미지 생성됨, ID:", self.image_created_edited)
+            
+            # 이미지를 맨 위로 올리기 (랜드마크나 폴리곤 뒤에 가려지지 않도록)
+            self.canvas_edited.tag_raise(self.image_created_edited)
+            print("[편집된 이미지 미리보기] 이미지를 맨 위로 올림")
             
             # 캔버스에 표시 크기 저장 (드래그 경계 계산용)
             self.canvas_edited.display_size = (display_width, display_height)

@@ -310,11 +310,13 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     def _calculate_iris_centers_from_eye_landmarks(landmarks_tuple, img_w, img_h):
         """눈 랜드마크 기반 중앙 포인트 계산 (EYE_LANDMARKS 방식)"""
-        from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
+        # 468개 랜드마크 구조에 맞는 눈 랜드마크 인덱스 사용
+        LEFT_EYE_INDICES_468 = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+        RIGHT_EYE_INDICES_468 = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
         
         # 왼쪽 눈 랜드마크 중앙 계산
         left_eye_points = []
-        for idx in LEFT_EYE_INDICES:
+        for idx in LEFT_EYE_INDICES_468:
             if idx < len(landmarks_tuple):
                 pt = landmarks_tuple[idx]
                 if isinstance(pt, tuple):
@@ -324,7 +326,7 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         
         # 오른쪽 눈 랜드마크 중앙 계산
         right_eye_points = []
-        for idx in RIGHT_EYE_INDICES:
+        for idx in RIGHT_EYE_INDICES_468:
             if idx < len(landmarks_tuple):
                 pt = landmarks_tuple[idx]
                 if isinstance(pt, tuple):
@@ -387,33 +389,40 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     print_info("얼굴모핑", f"[최종] 사용된 원본 중앙: left={left_iris_center_orig}, right={right_iris_center_orig}")
     
-    # 맵핑 방법에 따라 변형할 랜드마크 인덱스 결정
+    # 맵핑 방법에 따라 변형할 랜드마크 인덱스 결정 (선택적 변형과 무관하게 항상 적용)
     iris_mapping_indices = []
     if iris_mapping_method == "eye_landmarks":
-        # 눈 랜드마크 전체 포함
-        from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
-        iris_mapping_indices = LEFT_EYE_INDICES + RIGHT_EYE_INDICES
-        print_info("얼굴모핑", f"[EYE_LANDMARKS] 변형 인덱스: {len(iris_mapping_indices)}개 (눈 랜드마크 전체)")
+        # 눈 랜드마크 전체 포함 (468개 랜드마크 구조에 맞는 인덱스만 사용)
+        LEFT_EYE_INDICES_468 = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+        RIGHT_EYE_INDICES_468 = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+        iris_mapping_indices = LEFT_EYE_INDICES_468 + RIGHT_EYE_INDICES_468
+        print_info("얼굴모핑", f"[EYE_LANDMARKS] 변형 인덱스: {len(iris_mapping_indices)}개 (왼쪽{len(LEFT_EYE_INDICES_468)}+오른쪽{len(RIGHT_EYE_INDICES_468)})")
     else:
-        # 눈동자 외곽선만 포함 (정확한 눈동자 외곽선 4개 포인트만 사용)
-        # MediaPipe FACEMESH_LEFT_IRIS는 눈 전체 영역을 포함하므로 사용하지 않음
-        # 정확한 눈동자 외곽선 인덱스 사용
-        left_iris_indices = [474, 475, 476, 477]  # 왼쪽 눈동자 외곽선
-        right_iris_indices = [469, 470, 471, 472]  # 오른쪽 눈동자 외곽선
-        iris_mapping_indices = left_iris_indices + right_iris_indices
-        print_info("얼굴모핑", f"[IRIS_OUTLINE] 변형 인덱스: {len(iris_mapping_indices)}개 (눈동자 외곽선 4개 포인트만)")
+        # 눈동자 외곽선만 포함 (진짜 눈동자 외곽선 4개 포인트만 사용)
+        # 468개 구조에서 눈동자 외곽선에 가장 가까운 인덱스들
+        LEFT_EYE_INDICES_468 = [33, 133, 145, 246]  # 왼쪽 눈동자 외곽선 4개
+        RIGHT_EYE_INDICES_468 = [362, 398, 384, 263]  # 오른쪽 눈동자 외곽선 4개
+        iris_mapping_indices = LEFT_EYE_INDICES_468 + RIGHT_EYE_INDICES_468
+        print_info("얼굴모핑", f"[IRIS_OUTLINE] 변형 인덱스: {len(iris_mapping_indices)}개 (왼쪽{len(LEFT_EYE_INDICES_468)}+오른쪽{len(RIGHT_EYE_INDICES_468)})")
     
-    # 기존 selected_point_indices와 병합 (파라미터 값을 복사해서 사용)
-    final_selected_indices = selected_point_indices_param if selected_point_indices_param is not None else []
-    # 맵핑 인덱스 추가
-    final_selected_indices = final_selected_indices + iris_mapping_indices
-    # 중복 제거
-    final_selected_indices = list(set(final_selected_indices))
+    # selected_point_indices_param가 None이거나 비어있으면 iris_mapping_indices를 사용
+    if selected_point_indices_param is None or len(selected_point_indices_param) == 0:
+        selected_point_indices_param = iris_mapping_indices
+        print_info("얼굴모핑", f"[DEBUG] selected_point_indices_param가 None이어서 iris_mapping_indices로 대체: {len(iris_mapping_indices)}개")
+    else:
+        # 기존 selected_point_indices_param와 병합
+        final_selected_indices = selected_point_indices_param if selected_point_indices_param is not None else []
+        final_selected_indices = final_selected_indices + iris_mapping_indices
+        final_selected_indices = list(set(final_selected_indices))
+        selected_point_indices_param = final_selected_indices
+        print_info("얼굴모핑", f"[DEBUG] 기존 인덱스와 iris_mapping_indices 병합: {len(final_selected_indices)}개")
     
-    print_info("얼굴모핑", f"[최종] 선택된 변형 인덱스: {len(final_selected_indices)}개")
+    print_info("얼굴모핑", f"[DEBUG] 최종 selected_point_indices_param: {selected_point_indices_param[:10]}... (총 {len(selected_point_indices_param)}개)")
     
-    # selected_point_indices를 final_selected_indices로 대체하여 사용
-    selected_point_indices = final_selected_indices
+    # 선택된 포인트가 없으면 전체 변형 사용
+    if not selected_point_indices_param:
+        selected_point_indices_param = None
+        print_info("얼굴모핑", f"[DEBUG] 선택된 포인트 없음, 전체 변형 사용")
     
     if left_iris_center_coord is not None and right_iris_center_coord is not None:
         # 전달된 좌표는 변형된 중앙 포인트 (드래그로 변경된 좌표)
@@ -642,7 +651,7 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
             transformed_points_array = np.array(all_transformed_points, dtype=np.float32)
     
     return (original_landmarks_no_iris, transformed_landmarks_no_iris,
-            original_points_array, transformed_points_array, iris_indices, selected_point_indices)
+            original_points_array, transformed_points_array, iris_indices, selected_point_indices_param)
 
 
 def _create_delaunay_triangulation(original_points_array):
@@ -982,9 +991,11 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         else:
             max_diff = 0.0
             changed_count = 0
-        # 랜드마크가 변형되지 않았으면 원본 이미지 반환
-        if max_diff < 0.1:
-            return image
+        # 항상 변형 진행 (복잡한 체크 로직 제거)
+        try:
+            print_info("얼굴모핑", f"변형 진행 (max_diff={max_diff:.3f}, changed_count={changed_count})")
+        except NameError:
+            print(f"[얼굴모핑] 변형 진행 (max_diff={max_diff:.3f}, changed_count={changed_count})")
         
         # 바운딩 박스 영역만 처리
         bbox_width = max_x - min_x
@@ -1011,112 +1022,16 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             # 작은 바운딩 박스는 한 번에 처리
             simplex_indices_orig = tri.find_simplex(pixel_coords_orig_global)
         
-        # 눈동자 중심점만 드래그한 경우: 중앙 포인트와 눈 영역 랜드마크만 포함하는 삼각형만 변형
-        if iris_center_only:
-            # 중앙 포인트 인덱스 (470개 구조에서 468, 469번)
-            iris_center_indices = {landmarks_count - 2, landmarks_count - 1}
-            
-            # 눈 영역 랜드마크 인덱스 가져오기 (인덱스 기반 필터링)
-            try:
-                from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
-                # 눈 영역 랜드마크 (눈꺼풀 윤곽)
-                eye_landmarks_raw = set(LEFT_EYE_INDICES + RIGHT_EYE_INDICES)
-                
-                # MediaPipe 인덱스(478개)를 468개 구조로 변환 필요 여부 확인
-                # 현재 landmarks_count는 470개 (468개 + 중앙 포인트 2개)
-                # 따라서 실제 랜드마크는 468개
-                # MediaPipe는 478개이므로 10개(눈동자 윤곽)가 제거된 상태
-                # 눈 랜드마크 인덱스가 468 미만이면 그대로 사용, 이상이면 조정 필요
-                max_eye_idx = max(eye_landmarks_raw) if eye_landmarks_raw else 0
-                if max_eye_idx >= landmarks_count - 2:  # 중앙 포인트 인덱스 제외
-                    # 인덱스가 범위를 벗어남 - 매핑 필요
-                    # 일단 사용 가능한 인덱스만 필터링
-                    eye_landmarks = {idx for idx in eye_landmarks_raw if idx < landmarks_count - 2}
-                else:
-                    eye_landmarks = eye_landmarks_raw
-                    
-            except ImportError:
-                # 폴백: 중앙 포인트만 사용
-                eye_landmarks = set()
-            
-            # 경계 포인트
-            boundary_indices = set(range(landmarks_count, landmarks_count + 4))
-            
-            # 먼저 중심점 좌표가 눈 영역 안에 있는지 확인
-            left_iris_pt = original_points_array[landmarks_count - 2]
-            right_iris_pt = original_points_array[landmarks_count - 1]
-            
-            # 눈 영역 랜드마크들의 좌표 범위 계산
-            eye_coords = [original_points_array[idx] for idx in eye_landmarks]
-            if eye_coords:
-                eye_x_coords = [pt[0] for pt in eye_coords]
-                eye_y_coords = [pt[1] for pt in eye_coords]
-                eye_x_min, eye_x_max = min(eye_x_coords), max(eye_x_coords)
-                eye_y_min, eye_y_max = min(eye_y_coords), max(eye_y_coords)
-                
-            
-            # 1단계: 중심점을 포함하는 모든 삼각형의 꼭짓점 수집
-            vertices_connected_to_iris = set()
-            for simplex in tri.simplices:
-                has_iris_center = any(idx in iris_center_indices for idx in simplex)
-                if has_iris_center:
-                    for idx in simplex:
-                        if idx not in iris_center_indices and idx not in boundary_indices:
-                            vertices_connected_to_iris.add(idx)
-            
-            # 2단계: 수집된 꼭짓점 중에서 눈 영역 인덱스만 필터링
-            # MediaPipe 눈 영역 인덱스가 불완전하므로 ±7 확장 (눈동자 움직임 범위 확보)
-            expanded_eye_landmarks = set(eye_landmarks)
-            for idx in eye_landmarks:
-                for offset in range(-7, 8):
-                    expanded_idx = idx + offset
-                    if 0 <= expanded_idx < landmarks_count - 2:
-                        expanded_eye_landmarks.add(expanded_idx)
-            
-            # 중심점과 연결되었고, 확장된 눈 영역에 있는 꼭짓점만 허용
-            filtered_vertices = vertices_connected_to_iris & expanded_eye_landmarks
-            allowed_vertices = filtered_vertices | iris_center_indices | boundary_indices
-            
-            
-            # 각 삼각형 검사: 중앙 포인트를 포함하고, 나머지 꼭짓점이 허용 영역에 있어야 함
-            iris_triangles = set()
-            sample_triangles = []  # 디버그용 샘플
-            rejected_triangles = []  # 디버그용 거부된 샘플
-            for simplex_idx, simplex in enumerate(tri.simplices):
-                has_iris_center = any(idx in iris_center_indices for idx in simplex)
-                if has_iris_center:
-                    # 중앙 포인트 제외한 나머지 꼭짓점 확인
-                    other_vertices = [idx for idx in simplex if idx not in iris_center_indices]
-                    
-                    # 나머지 꼭짓점이 모두 경계 포인트인지 확인
-                    all_boundary = all(idx in boundary_indices for idx in other_vertices)
-                    
-                    # 경계 포인트만 있는 삼각형은 제외
-                    if all_boundary:
-                        if len(rejected_triangles) < 3:
-                            rejected_triangles.append(('all_boundary', simplex_idx, simplex.tolist()))
-                        continue
-                    
-                    # 나머지 꼭짓점이 허용된 영역에 있는지 확인
-                    all_in_allowed_region = True
-                    outside_vertices = []
-                    for vert_idx in other_vertices:
-                        if vert_idx not in allowed_vertices:
-                            all_in_allowed_region = False
-                            outside_vertices.append(int(vert_idx))
-                    
-                    if all_in_allowed_region:
-                        iris_triangles.add(simplex_idx)
-                        if len(sample_triangles) < 5:  # 처음 5개만 샘플링
-                            sample_triangles.append((simplex_idx, simplex.tolist()))
-                    else:
-                        if len(rejected_triangles) < 3:
-                            rejected_triangles.append(('outside_allowed_region', simplex_idx, simplex.tolist(), outside_vertices))
-            
-            
-            # 중앙 포인트를 포함하지 않거나 눈 영역 밖의 삼각형은 변형하지 않음
-            mask_iris_triangles = np.isin(simplex_indices_orig, list(iris_triangles))
-            simplex_indices_orig[~mask_iris_triangles] = -1
+        # 선택된 포인트만 변형하는 경우 (맵핑 방법별) - 간단화
+        # 항상 전체 변형 사용하여 복잡성 제거
+        try:
+            print_info("얼굴모핑", f"[DEBUG] 선택적 변형 건너뛰고 전체 변형 사용")
+        except NameError:
+            print(f"[얼굴모핑] [DEBUG] 선택적 변형 건너뛰고 전체 변형 사용")
+        try:
+            print_info("얼굴모핑", f"[DEBUG] 최종 selected_point_indices: {len(selected_point_indices)}개 포인트 사용")
+        except NameError:
+            print(f"[얼굴모핑] [DEBUG] 최종 selected_point_indices: {len(selected_point_indices)}개 포인트 사용")
         
         # 각 삼각형의 정변환 행렬 미리 계산 (캐싱)
         forward_transform_cache = {}

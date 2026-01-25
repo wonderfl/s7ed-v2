@@ -197,7 +197,14 @@ class CanvasDragHandlerMixin:
         """원본 이미지 캔버스 드래그 종료"""
         # 폴리곤에서 포인트 드래그 중이면 드래그 종료
         if getattr(self, 'dragging_polygon', False) and getattr(self, 'dragged_polygon_index', None) is not None:
-            self.on_polygon_drag_end(event, self.dragged_polygon_index, self.canvas_original)
+            dragged_index = self.dragged_polygon_index
+            # 눈동자 중심점 드래그 여부 확인
+            if isinstance(dragged_index, str) and dragged_index in ('left', 'right'):
+                # 눈동자 중심점 드래그 종료 함수 호출
+                self.on_iris_center_drag_end(event, dragged_index, self.canvas_original)
+            else:
+                # 일반 폴리곤 드래그 종료 함수 호출
+                self.on_polygon_drag_end(event, dragged_index, self.canvas_original)
             return
         # 드래그 종료 시 현재 위치를 저장만 하고 경계 제한은 적용하지 않음
         # 사용자가 드래그한 위치를 그대로 유지
@@ -446,7 +453,14 @@ class CanvasDragHandlerMixin:
         """편집된 이미지 캔버스 드래그 종료"""
         # 폴리곤에서 포인트 드래그 중이면 드래그 종료
         if getattr(self, 'dragging_polygon', False) and getattr(self, 'dragged_polygon_index', None) is not None:
-            self.on_polygon_drag_end(event, self.dragged_polygon_index, self.canvas_edited)
+            dragged_index = self.dragged_polygon_index
+            # 눈동자 중심점 드래그 여부 확인
+            if isinstance(dragged_index, str) and dragged_index in ('left', 'right'):
+                # 눈동자 중심점 드래그 종료 함수 호출
+                self.on_iris_center_drag_end(event, dragged_index, self.canvas_edited)
+            else:
+                # 일반 폴리곤 드래그 종료 함수 호출
+                self.on_polygon_drag_end(event, dragged_index, self.canvas_edited)
             return
         # 드래그 종료 시 현재 위치를 저장만 하고 경계 제한은 적용하지 않음
         # 사용자가 드래그한 위치를 그대로 유지

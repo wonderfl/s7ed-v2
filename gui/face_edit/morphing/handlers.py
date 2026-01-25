@@ -170,6 +170,14 @@ class HandlersMixin:
     
     def on_morphing_change(self, value=None):
         """얼굴 특징 보정 변경 시 호출 (슬라이더 드래그 종료 시 호출)"""
+        # 확대/축소 중이면 건너뛰기
+        if hasattr(self, '_skip_morphing_change') and self._skip_morphing_change:
+            # 50ms 후에 플래그 해제 (더 빠른 해제)
+            if hasattr(self, '_zoom_timer') and self._zoom_timer:
+                self.after_cancel(self._zoom_timer)
+            self._zoom_timer = self.after(50, lambda: setattr(self, '_skip_morphing_change', False))
+            return
+        
         # 라벨 업데이트
         self.update_labels_only()
         
@@ -178,17 +186,27 @@ class HandlersMixin:
         if hasattr(self, 'last_selected_landmark_index'):
             self.last_selected_landmark_index = None
         
-        # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
-        # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
+        # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
         if self.current_image is not None:
+            # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
+            # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
             use_warping = getattr(self, 'use_landmark_warping', None)
             if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
                 # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
                 if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                     # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
-                    # force_slider_mode=True로 호출하여 슬라이더가 적용되도록 함
+                    # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
                     if hasattr(self, 'apply_polygon_drag_final'):
-                        self.apply_polygon_drag_final(force_slider_mode=True)
+                        self.apply_polygon_drag_final(force_slider_mode=False)
+                        # 이미지 업데이트 후 랜드마크 표시도 업데이트
+                        if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+                            self.update_face_features_display()
+            else:
+                # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함
+                if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                    if hasattr(self, 'apply_polygon_drag_final'):
+                        # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
+                        self.apply_polygon_drag_final(force_slider_mode=False)
                         # 이미지 업데이트 후 랜드마크 표시도 업데이트
                         if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                             self.update_face_features_display()
