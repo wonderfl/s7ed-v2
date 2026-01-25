@@ -461,11 +461,6 @@ class FaceEditPanelV2(FaceEditPanel):
         self.title("얼굴 편집")
         # 랜드마크 기반 모핑을 기본값으로 활성화
         self.use_landmark_warping.set(True)
-        
-        # PolygonRendererMixin 초기화 (DrawingMixin 포함)
-        # super().__init__에서 호출되지 않으므로 여기서 명시적으로 호출
-        from .polygon_renderer import PolygonRendererMixin
-        PolygonRendererMixin.__init__(self)
     
     def _create_eye_tab(self, notebook):
         """눈 탭 UI 생성 (V2: 영역 설정 슬라이더 제거)"""
