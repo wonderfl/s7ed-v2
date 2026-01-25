@@ -2,11 +2,183 @@
 얼굴 편집 패널 - 폴리곤 드래그 처리 Mixin
 폴리곤 포인트 드래그 이벤트 처리를 담당
 """
+import numpy as np
 import math
 
 import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
 from utils.logger import print_info, print_debug, print_error, print_warning
+from PIL import Image, ImageDraw, ImageFilter
+
+
+def clamp_iris_position(center, eye_landmarks, margin_ratio=0.3):
+    """눈동자 위치를 눈 랜드마크 내로 클램핑"""
+    if center is None or not eye_landmarks:
+        return center
+    
+    x, y = center
+    
+    # 눈 랜드마크에서 경계 계산
+    eye_x = [pt[0] for pt in eye_landmarks]
+    eye_y = [pt[1] for pt in eye_landmarks]
+    
+    min_x, max_x = min(eye_x), max(eye_x)
+    min_y, max_y = min(eye_y), max(eye_y)
+    
+    # 마진 적용
+    width = max_x - min_x
+    height = max_y - min_y
+    margin_x = width * margin_ratio
+    margin_y = height * margin_ratio
+    
+    # 클램핑
+    clamped_x = max(min_x + margin_x, min(x, max_x - margin_x))
+    clamped_y = max(min_y + margin_y, min(y, max_y - margin_y))
+    
+    return (clamped_x, clamped_y)
+
+
+def crop_eye_region(image, eye_landmarks, padding=20):
+    """눈 영역 크롭"""
+    if image is None or not eye_landmarks:
+        return None, None, None
+    
+    # 눈 랜드마크 경계 계산
+    eye_x = [pt[0] for pt in eye_landmarks]
+    eye_y = [pt[1] for pt in eye_landmarks]
+    
+    min_x, max_x = min(eye_x), max(eye_x)
+    min_y, max_y = min(eye_y), max(eye_y)
+    
+    # 패딩 추가
+    crop_x1 = max(0, int(min_x - padding))
+    crop_y1 = max(0, int(min_y - padding))
+    crop_x2 = min(image.width, int(max_x + padding))
+    crop_y2 = min(image.height, int(max_y + padding))
+    
+    # 눈 영역 크롭
+    eye_region = image.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+    
+    # 오프셋 정보
+    offset_x = crop_x1
+    offset_y = crop_y1
+    
+    return eye_region, offset_x, offset_y
+
+
+def detect_precise_iris(image, eye_landmarks):
+    """정교한 눈동자 감지 (색상 기반)"""
+    if image is None or not eye_landmarks:
+        return None, None, None
+    
+    # 눈 영역 계산
+    eye_x = [pt[0] for pt in eye_landmarks]
+    eye_y = [pt[1] for pt in eye_landmarks]
+    min_x, max_x = min(eye_x), max(eye_x)
+    min_y, max_y = min(eye_y), max(eye_y)
+    
+    # 눈 영역 크롭 (여유 공간 포함)
+    padding = 10
+    crop_x1 = max(0, int(min_x - padding))
+    crop_y1 = max(0, int(min_y - padding))
+    crop_x2 = min(image.width, int(max_x + padding))
+    crop_y2 = min(image.height, int(max_y + padding))
+    
+    eye_region = image.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+    
+    # numpy 배열로 변환
+    eye_array = np.array(eye_region)
+    
+    # 눈동자 감지 (어두운 영역 찾기)
+    gray = np.mean(eye_array, axis=2)
+    
+    # 어두운 픽셀 마스크 (상위 20% 어두운 픽셀)
+    threshold = np.percentile(gray, 20)
+    dark_mask = gray < threshold
+    
+    # 가장 큰 어두운 영역 찾기 (눈동자 후보)
+    from scipy import ndimage
+    labeled, num_features = ndimage.label(dark_mask)
+    
+    if num_features == 0:
+        return None, None, None
+    
+    # 가장 큰 영역 선택
+    sizes = ndimage.sum(dark_mask, labeled, range(num_features + 1))
+    largest_label = np.argmax(sizes[1:]) + 1
+    
+    # 눈동자 중심 계산
+    iris_mask = labeled == largest_label
+    y_coords, x_coords = np.where(iris_mask)
+    iris_center_x = int(np.mean(x_coords)) + crop_x1
+    iris_center_y = int(np.mean(y_coords)) + crop_y1
+    
+    # 눈동자 반경 계산
+    distances = np.sqrt((x_coords - np.mean(x_coords))**2 + (y_coords - np.mean(y_coords))**2)
+    iris_radius = int(np.percentile(distances, 90))  # 90% 지점을 반경으로
+    
+    return (iris_center_x, iris_center_y), iris_radius, eye_region
+
+
+def extract_iris_image(image, eye_landmarks, iris_size=15):
+    """진짜 눈동자만 추출 - 눈이 아닌 눈동자"""
+    if image is None or not eye_landmarks:
+        return None, None
+    
+    # 눈 중심 계산
+    eye_x = [pt[0] for pt in eye_landmarks]
+    eye_y = [pt[1] for pt in eye_landmarks]
+    center_x = sum(eye_x) / len(eye_x)
+    center_y = sum(eye_y) / len(eye_y)
+    
+    # 눈동자만 작게 크롭 (눈이 아닌 눈동자만)
+    iris_only_size = 12  # 눈동자만의 크기 (작게)
+    
+    # 눈동자만 영역 크롭
+    x1 = max(0, int(center_x - iris_only_size))
+    y1 = max(0, int(center_y - iris_only_size))
+    x2 = min(image.width, int(center_x + iris_only_size))
+    y2 = min(image.height, int(center_y + iris_only_size))
+    
+    iris_image = image.crop((x1, y1, x2, y2))
+    
+    # 눈동자만 마스크 (작고 완벽한 원)
+    mask = Image.new('L', iris_image.size, 0)
+    draw = ImageDraw.Draw(mask)
+    center = (iris_image.width // 2, iris_image.height // 2)
+    radius = iris_only_size - 1  # 작은 반경 (눈동자만)
+    
+    # 완벽한 작은 원 (눈동자만)
+    draw.ellipse([center[0]-radius, center[1]-radius, 
+                  center[0]+radius, center[1]+radius], fill=255)
+    
+    return iris_image, mask
+
+
+def simple_iris_morph(image, left_center, right_center, left_eye_landmarks=None, right_eye_landmarks=None):
+    """간단한 눈동자 이동 - 복잡한 거 다 버림"""
+    if image is None:
+        return None
+    
+    # PIL 이미지로 변환
+    if not isinstance(image, Image.Image):
+        image = Image.fromarray(image)
+    
+    # 이미지 복사
+    result = image.copy()
+    draw = ImageDraw.Draw(result)
+    
+    # 왼쪽 눈동자 (그냥 검은 원)
+    if left_center:
+        x, y = int(left_center[0]), int(left_center[1])
+        draw.ellipse([x-10, y-10, x+10, y+10], fill='black')
+    
+    # 오른쪽 눈동자 (그냥 검은 원)
+    if right_center:
+        x, y = int(right_center[0]), int(right_center[1])
+        draw.ellipse([x-10, y-10, x+10, y+10], fill='black')
+    
+    return result
 
 
 class PolygonDragHandlerMixin:
@@ -967,20 +1139,20 @@ class PolygonDragHandlerMixin:
                 selected_indices = None
                 
                 result = face_morphing.morph_face_by_polygons(
-                    self.current_image,  # 원본 이미지
-                    original_landmarks_for_morph,  # 원본 랜드마크 (468개)
-                    custom_landmarks_for_morph,  # 변형된 랜드마크 (468개, 중앙 포인트 제거됨)
-                    selected_point_indices=selected_indices,  # 선택한 포인트 인덱스
-                    left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                    right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
-                    left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
-                    right_iris_center_orig=right_center_orig,  # 원본 오른쪽 중앙 포인트
-                    cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
-                    blend_ratio=blend_ratio,  # 블렌딩 비율
-                    clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
-                    margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
-                    iris_mapping_method=iris_mapping_method_val  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
-                )
+                        self.current_image,  # 원본 이미지
+                        original_landmarks_for_morph,  # 원본 랜드마크 (468개)
+                        custom_landmarks_for_morph,  # 변형된 랜드마크 (468개, 중앙 포인트 제거됨)
+                        selected_point_indices=selected_indices,  # 선택한 포인트 인덱스
+                        left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
+                        right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
+                        left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
+                        right_iris_center_orig=right_center_orig,  # 원본 오른쪽 중앙 포인트
+                        cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
+                        blend_ratio=blend_ratio,  # 블렌딩 비율
+                        clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
+                        margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
+                        iris_mapping_method=iris_mapping_method_val  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
+                    )
                 
                 # 디버그: 결과 확인
                 print_info("얼굴편집", f"morph_face_by_polygons 결과: {type(result)}, 크기: {result.size if result else 'None'}")
