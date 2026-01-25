@@ -11,11 +11,125 @@ import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
 import utils.style_transfer as style_transfer
 import utils.face_transform as face_transform
+from utils.face_morphing.region_extraction import _get_region_center
 
 
 
 class UtilsMixin:
     """유틸리티 기능 Mixin"""
+
+    def _expand_indices_with_tessellation(self, base_indices, max_len):
+        """선택된 부위 인덱스를 TESSELLATION 그래프로 확장"""
+        if not base_indices:
+            return set()
+        try:
+            import mediapipe as mp
+            mp_face_mesh = mp.solutions.face_mesh
+            tesselation = list(mp_face_mesh.FACEMESH_TESSELATION)
+        except Exception:
+            tesselation = []
+
+        graph = {}
+        for idx1, idx2 in tesselation:
+            if idx1 < max_len and idx2 < max_len:
+                graph.setdefault(idx1, set()).add(idx2)
+                graph.setdefault(idx2, set()).add(idx1)
+
+        expanded = {idx for idx in base_indices if 0 <= idx < max_len}
+        expansion_level = getattr(self, 'polygon_expansion_level', 0)
+        if hasattr(expansion_level, 'get'):
+            try:
+                expansion_level = expansion_level.get()
+            except Exception:
+                expansion_level = 0
+
+        current = set(expanded)
+        for _ in range(max(0, int(expansion_level))):
+            next_level = set()
+            for idx in current:
+                for neighbor in graph.get(idx, ()):  # neighbor already < max_len
+                    if neighbor not in expanded:
+                        next_level.add(neighbor)
+            if not next_level:
+                break
+            expanded.update(next_level)
+            current = next_level
+
+        return expanded
+
+    def _get_selected_region_index_groups(self, max_len):
+        """체크된 부위별로 (TESSELLATION 확장된) 인덱스 묶음을 반환"""
+        region_flags = [
+            ('show_face_oval', 'face_oval'),
+            ('show_left_eye', 'left_eye'),
+            ('show_right_eye', 'right_eye'),
+            ('show_left_eyebrow', 'left_eyebrow'),
+            ('show_right_eyebrow', 'right_eyebrow'),
+            ('show_nose', 'nose'),
+            ('show_lips', 'lips'),
+            ('show_left_iris', 'left_iris'),
+            ('show_right_iris', 'right_iris'),
+            ('show_contours', 'contours'),
+            ('show_tesselation', 'tesselation'),
+        ]
+
+        groups = {}
+        for attr_name, region_name in region_flags:
+            flag = getattr(self, attr_name, None)
+            if flag is None:
+                continue
+            try:
+                is_checked = flag.get()
+            except Exception:
+                is_checked = False
+            if not is_checked:
+                continue
+            try:
+                region_indices = self._get_region_indices(region_name)
+            except Exception:
+                region_indices = None
+            if not region_indices:
+                continue
+            expanded = self._expand_indices_with_tessellation(region_indices, max_len)
+            if expanded:
+                groups[region_name] = expanded
+        return groups if groups else None
+
+    def _compute_region_centers(self, region_names, reference_landmarks, center_offset_x, center_offset_y):
+        """부위별 중심점 계산"""
+        centers = {}
+        if reference_landmarks is None:
+            return centers
+        for region_name in region_names:
+            try:
+                center = _get_region_center(region_name, reference_landmarks, center_offset_x, center_offset_y)
+            except Exception:
+                center = None
+            if center is not None:
+                centers[region_name] = center
+        return centers
+
+    @staticmethod
+    def _apply_region_size_scaling(landmarks, region_groups, center_map, size_x, size_y):
+        """부위별 중심을 기준으로 크기 조정"""
+        if not landmarks or not region_groups or (abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01):
+            return landmarks
+        scaled = list(landmarks)
+        for region_name, indices in region_groups.items():
+            center = center_map.get(region_name)
+            if center is None:
+                continue
+            cx, cy = center
+            for idx in indices:
+                if 0 <= idx < len(scaled):
+                    x, y = scaled[idx]
+                    dx = x - cx
+                    dy = y - cy
+                    scaled[idx] = (
+                        cx + dx * size_x,
+                        cy + dy * size_y
+                    )
+        return scaled
     
     def update_labels_only(self):
         """라벨만 업데이트 (슬라이더 드래그 중 호출)"""
@@ -249,6 +363,28 @@ class UtilsMixin:
                     upper_lip_width=self.upper_lip_width.get(),
                     lower_lip_width=self.lower_lip_width.get()
                 )
+                
+                # 전체 탭 공통 사이즈 슬라이더 적용 (Size X/Y)
+                size_x = self.region_size_x.get() if hasattr(self, 'region_size_x') else 1.0
+                size_y = self.region_size_y.get() if hasattr(self, 'region_size_y') else 1.0
+                if abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
+                    current_tab = getattr(self, 'current_morphing_tab', '전체')
+                    center_offset_x = self.region_center_offset_x.get() if hasattr(self, 'region_center_offset_x') else 0.0
+                    center_offset_y = self.region_center_offset_y.get() if hasattr(self, 'region_center_offset_y') else 0.0
+                    region_groups = None
+                    if current_tab == '전체':
+                        region_groups = self._get_selected_region_index_groups(len(transformed))
+                    if region_groups:
+                        centers = self._compute_region_centers(region_groups.keys(), base_landmarks, center_offset_x, center_offset_y)
+                        transformed = self._apply_region_size_scaling(transformed, region_groups, centers, size_x, size_y)
+                    else:
+                        scaled = face_morphing.transform_points_for_face_size(
+                            transformed,
+                            face_width_ratio=size_x,
+                            face_height_ratio=size_y
+                        )
+                        if scaled is not None:
+                            transformed = scaled
                 
                 # custom_landmarks 업데이트 (드래그된 포인트 보존)
                 # 드래그된 포인트 인덱스 가져오기

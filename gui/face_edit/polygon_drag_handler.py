@@ -993,6 +993,7 @@ class PolygonDragHandlerMixin:
                 # 눈동자 중심점만 변경한 경우 (last_selected_index가 'left' 또는 'right')
                 # custom_landmarks_for_morph를 원본으로 설정 (얼굴 랜드마크 468개는 고정)
                 # 중앙 포인트만 파라미터로 전달하여 눈동자만 움직이게 함
+                original_landmarks_for_morph = None
                 if isinstance(last_selected_index, str) and last_selected_index in ('left', 'right'):
                     # 원본 얼굴 랜드마크 사용 (468개, 중앙 포인트 제외)
                     original_face = self.landmark_manager.get_original_face_landmarks()
@@ -1076,6 +1077,37 @@ class PolygonDragHandlerMixin:
                 if right_center is None and extracted_right_center is not None:
                     right_center = extracted_right_center
                 
+                # 전체 탭 공통 사이즈 슬라이더 적용 (Size X/Y)
+                size_x = self.region_size_x.get() if hasattr(self, 'region_size_x') else 1.0
+                size_y = self.region_size_y.get() if hasattr(self, 'region_size_y') else 1.0
+                current_tab = getattr(self, 'current_morphing_tab', '전체')
+                center_offset_x = self.region_center_offset_x.get() if hasattr(self, 'region_center_offset_x') else 0.0
+                center_offset_y = self.region_center_offset_y.get() if hasattr(self, 'region_center_offset_y') else 0.0
+                region_groups = None
+                if current_tab == '전체' and custom_landmarks_for_morph is not None:
+                    region_groups = self._get_selected_region_index_groups(len(custom_landmarks_for_morph))
+                if (custom_landmarks_for_morph is not None and
+                        (abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01)):
+                    if region_groups:
+                        reference_landmarks = original_landmarks_for_morph if original_landmarks_for_morph is not None else original_landmarks
+                        centers = self._compute_region_centers(region_groups.keys(), reference_landmarks, center_offset_x, center_offset_y)
+                        custom_landmarks_for_morph = self._apply_region_size_scaling(
+                            custom_landmarks_for_morph,
+                            region_groups,
+                            centers,
+                            size_x,
+                            size_y
+                        )
+                    else:
+                        scaled = face_morphing.transform_points_for_face_size(
+                            custom_landmarks_for_morph,
+                            face_width_ratio=size_x,
+                            face_height_ratio=size_y
+                        )
+                        if scaled is not None:
+                            custom_landmarks_for_morph = scaled
+                    print_info("얼굴편집", f"apply_polygon_drag_final: Size 슬라이더 적용 - X:{size_x:.3f}, Y:{size_y:.3f}")
+                
                 # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
                 # 눈동자 중심점만 변경한 경우, custom_landmarks_for_morph와 동일하게 원본 사용
                 if isinstance(last_selected_index, str) and last_selected_index in ('left', 'right'):
@@ -1135,8 +1167,29 @@ class PolygonDragHandlerMixin:
                 iris_mapping_method_val = iris_mapping_method.get() if iris_mapping_method is not None else "iris_outline"
                 
                 # 옵션 변경 시에는 현재 맵핑 방법에 해당하는 인덱스를 전달
-                # 선택적 변형 복잡성 제거하고 항상 전체 변형 사용
+                # draw_polygon_mesh의 _force_use_indices 사용 + 선택된 부위 필터링
                 selected_indices = None
+                region_filter = None
+                if current_tab == '전체' and region_groups:
+                    region_filter = set().union(*region_groups.values()) if region_groups else None
+                    if region_filter:
+                        region_filter = {idx for idx in region_filter if 0 <= idx < 468}
+                if hasattr(self, '_force_use_indices') and self._force_use_indices:
+                    base_indices = list(self._force_use_indices)
+                    if region_filter:
+                        filtered = [idx for idx in base_indices if idx in region_filter]
+                        if filtered:
+                            selected_indices = filtered
+                        else:
+                            selected_indices = base_indices
+                    else:
+                        selected_indices = base_indices
+                    print(f"[DEBUG] morph_handler _force_use_indices 사용: {len(selected_indices)}개")
+                elif region_filter:
+                    selected_indices = sorted(region_filter)
+                    print(f"[DEBUG] morph_handler 선택 부위 인덱스 사용: {len(selected_indices)}개")
+                else:
+                    print(f"[DEBUG] morph_handler _force_use_indices 없음, 전체 변형 사용")
                 
                 result = face_morphing.morph_face_by_polygons(
                         self.current_image,  # 원본 이미지
