@@ -119,6 +119,7 @@ class FaceEditPanel(
         self.show_right_iris = tk.BooleanVar(value=False)  # Right Iris 표시 여부 (refine_landmarks=True일 때만 사용 가능)
         self.show_iris_connections = tk.BooleanVar(value=True)  # 눈동자 중심점 연결 폴리곤 표시 여부 (기본값: True)
         self.show_iris_eyelid_connections = tk.BooleanVar(value=True)  # 눈동자-눈꺼풀 연결선 표시 여부 (기본값: True)
+        self.iris_mapping_method = tk.StringVar(value="iris_outline")  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
         self.show_contours = tk.BooleanVar(value=False)  # Contours 표시 여부
         self.show_tesselation = tk.BooleanVar(value=False)  # Tesselation 표시 여부
         self.polygon_expansion_level = tk.IntVar(value=1)  # 폴리곤 주변 확장 레벨 (0~5, 기본값: 1)

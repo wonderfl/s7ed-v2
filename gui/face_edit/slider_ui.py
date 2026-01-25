@@ -1127,26 +1127,42 @@ class SliderUIMixin:
         # ==============================
         # 눈동자 표시 옵션
         # ==============================
-        iris_options_frame = tk.LabelFrame(tab_frame, text="눈동자 표시 옵션", padx=5, pady=5)
+        iris_options_frame = tk.LabelFrame(tab_frame, text="눈동자 중심점 연결 방법", padx=5, pady=5)
         iris_options_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
         
-        # 눈동자 중심점 연결 폴리곤 표시 체크박스
-        iris_connections_checkbox = tk.Checkbutton(
-            iris_options_frame,
-            text="눈동자 중심점 연결 폴리곤 표시",
-            variable=self.show_iris_connections,
-            command=self.on_morphing_change
-        )
-        iris_connections_checkbox.pack(anchor=tk.W, pady=(0, 2))
+        # 눈동자 맵핑 방법 선택 라디오 버튼
+        def on_iris_mapping_change():
+            method = self.iris_mapping_method.get()
+            print(f"[DEBUG] Iris mapping method changed to: {method}")
+            
+            # 체크박스 상태 업데이트
+            if method == "iris_outline":
+                self.show_iris_connections.set(True)
+                self.show_iris_eyelid_connections.set(False)
+            else:  # eye_landmarks
+                self.show_iris_connections.set(False)
+                self.show_iris_eyelid_connections.set(True)
+            
+            self.on_morphing_change()
         
-        # 눈동자-눈꺼풀 연결선 표시 체크박스
-        iris_eyelid_checkbox = tk.Checkbutton(
+        # 라디오 버튼 생성
+        iris_outline_radio = tk.Radiobutton(
             iris_options_frame,
-            text="눈동자-눈꺼풀 연결선 표시",
-            variable=self.show_iris_eyelid_connections,
-            command=self.on_morphing_change
+            text="눈동자 외곽선 중심점 연결",
+            variable=self.iris_mapping_method,
+            value="iris_outline",
+            command=on_iris_mapping_change
         )
-        iris_eyelid_checkbox.pack(anchor=tk.W, pady=(0, 5))
+        iris_outline_radio.pack(anchor=tk.W, pady=(0, 2))
+        
+        eye_landmarks_radio = tk.Radiobutton(
+            iris_options_frame,
+            text="눈 랜드마크 중심점 연결",
+            variable=self.iris_mapping_method,
+            value="eye_landmarks",
+            command=on_iris_mapping_change
+        )
+        eye_landmarks_radio.pack(anchor=tk.W, pady=(0, 5))
         
         # ==============================
         # 눈동자 이동 범위 제한 설정

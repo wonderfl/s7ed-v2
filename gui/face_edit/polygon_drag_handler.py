@@ -942,6 +942,11 @@ class PolygonDragHandlerMixin:
                 # morph_face_by_polygons 호출 (폴리곤 모드)
                 # 눈동자 중심점만 드래그한 경우에도 Delaunay Triangulation 사용
                 # 단, is_iris_center_only 플래그를 전달하여 선택적 변형
+                
+                # 맵핑 방법 파라미터 가져오기
+                iris_mapping_method = getattr(self, 'iris_mapping_method', None)
+                iris_mapping_method_val = iris_mapping_method.get() if iris_mapping_method is not None else "iris_outline"
+                
                 result = face_morphing.morph_face_by_polygons(
                     self.current_image,  # 원본 이미지
                     original_landmarks_for_morph,  # 원본 랜드마크 (468개)
@@ -955,7 +960,8 @@ class PolygonDragHandlerMixin:
                     blend_ratio=blend_ratio,  # 블렌딩 비율
                     clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
                     margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
-                    iris_center_only=is_iris_center_only  # 눈동자 중심점만 드래그 플래그 (머리 변형 방지)
+                    iris_center_only=is_iris_center_only,  # 눈동자 중심점만 드래그 플래그 (머리 변형 방지)
+                    iris_mapping_method=iris_mapping_method_val  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
                 )
             
             if result is None:

@@ -158,7 +158,8 @@ def clamp_iris_to_eye_region(iris_center_coord, eye_landmarks, img_width, img_he
 def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                          left_iris_center_coord, right_iris_center_coord,
                          left_iris_center_orig, right_iris_center_orig,
-                         img_width, img_height, clamping_enabled=True, margin_ratio=0.3):    
+                         img_width, img_height, clamping_enabled=True, margin_ratio=0.3,
+                         iris_mapping_method="iris_outline", selected_point_indices_param=None):    
     """눈동자 포인트 처리 및 중앙 포인트 준비
     Args:
         original_landmarks: 원본 랜드마크 포인트 리스트
@@ -169,10 +170,14 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         right_iris_center_orig: 오른쪽 눈동자 중앙 포인트 좌표 (원본)
         img_width: 이미지 너비
         img_height: 이미지 높이
+        clamping_enabled: 눈동자 이동 범위 제한 활성화 여부
+        margin_ratio: 눈동자 이동 범위 제한 마진 비율
+        iris_mapping_method: 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
+        selected_point_indices_param: 선택된 포인트 인덱스 (외부에서 전달)
     
     Returns:
         tuple: (original_landmarks_no_iris, transformed_landmarks_no_iris,
-                original_points_array, transformed_points_array, iris_indices)
+                original_points_array, transformed_points_array, iris_indices, final_selected_indices)
     """
     
     # 눈동자 포인트 제거 및 중앙 포인트 추가
@@ -267,7 +272,7 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     # 중앙 포인트 계산 함수 정의
     def _calculate_iris_centers_from_contour(landmarks_tuple, left_iris_indices, right_iris_indices, img_w, img_h):
-        """contour 포인트의 평균으로 중앙 포인트 계산"""
+        """contour 포인트의 평균으로 중앙 포인트 계산 (IRIS_OUTLINE 방식)"""
         # 왼쪽 눈동자 중앙 포인트 계산
         left_iris_points = []
         for idx in left_iris_indices:
@@ -288,22 +293,59 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                 elif hasattr(pt, 'x') and hasattr(pt, 'y'):
                     right_iris_points.append((pt.x * img_w, pt.y * img_h))
         
-        # 중앙 포인트 계산 (평균)
+        # 평균 계산
         if left_iris_points:
-            left_center_x = sum(p[0] for p in left_iris_points) / len(left_iris_points)
-            left_center_y = sum(p[1] for p in left_iris_points) / len(left_iris_points)
-            left_iris_center = (left_center_x, left_center_y)
+            left_center = (sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                          sum(p[1] for p in left_iris_points) / len(left_iris_points))
         else:
-            left_iris_center = None
-        
+            left_center = None
+            
         if right_iris_points:
-            right_center_x = sum(p[0] for p in right_iris_points) / len(right_iris_points)
-            right_center_y = sum(p[1] for p in right_iris_points) / len(right_iris_points)
-            right_iris_center = (right_center_x, right_center_y)
+            right_center = (sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                           sum(p[1] for p in right_iris_points) / len(right_iris_points))
         else:
-            right_iris_center = None
+            right_center = None
+            
+        return left_center, right_center
+    
+    def _calculate_iris_centers_from_eye_landmarks(landmarks_tuple, img_w, img_h):
+        """눈 랜드마크 기반 중앙 포인트 계산 (EYE_LANDMARKS 방식)"""
+        from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
         
-        return left_iris_center, right_iris_center
+        # 왼쪽 눈 랜드마크 중앙 계산
+        left_eye_points = []
+        for idx in LEFT_EYE_INDICES:
+            if idx < len(landmarks_tuple):
+                pt = landmarks_tuple[idx]
+                if isinstance(pt, tuple):
+                    left_eye_points.append(pt)
+                elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                    left_eye_points.append((pt.x * img_w, pt.y * img_h))
+        
+        # 오른쪽 눈 랜드마크 중앙 계산
+        right_eye_points = []
+        for idx in RIGHT_EYE_INDICES:
+            if idx < len(landmarks_tuple):
+                pt = landmarks_tuple[idx]
+                if isinstance(pt, tuple):
+                    right_eye_points.append(pt)
+                elif hasattr(pt, 'x') and hasattr(pt, 'y'):
+                    right_eye_points.append((pt.x * img_w, pt.y * img_h))
+        
+        # 평균 계산
+        if left_eye_points:
+            left_center = (sum(p[0] for p in left_eye_points) / len(left_eye_points),
+                          sum(p[1] for p in left_eye_points) / len(left_eye_points))
+        else:
+            left_center = None
+            
+        if right_eye_points:
+            right_center = (sum(p[0] for p in right_eye_points) / len(right_eye_points),
+                           sum(p[1] for p in right_eye_points) / len(right_eye_points))
+        else:
+            right_center = None
+            
+        return left_center, right_center
     
     # 디버깅: 전달된 중앙 포인트 좌표 확인
     try:
@@ -314,6 +356,64 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
     
     print_info("얼굴모핑", f"morph_face_by_polygons 호출: left_iris_center_coord={left_iris_center_coord}, right_iris_center_coord={right_iris_center_coord}")
     print_info("얼굴모핑", f"원본 중앙 포인트: left_orig={left_iris_center_orig}, right_orig={right_iris_center_orig}")
+    print_info("얼굴모핑", f"맵핑 방법: {iris_mapping_method}")
+    
+    # 맵핑 방법에 따라 원본 중앙 포인트 계산
+    if left_iris_center_orig is None or right_iris_center_orig is None:
+        if iris_mapping_method == "eye_landmarks":
+            # 눈 랜드마크 기반 계산
+            calculated_left_orig, calculated_right_orig = _calculate_iris_centers_from_eye_landmarks(
+                original_landmarks_tuple, img_width, img_height
+            )
+            print_info("얼굴모핑", f"[EYE_LANDMARKS] 계산된 원본 중앙: left={calculated_left_orig}, right={calculated_right_orig}")
+            if left_iris_center_orig is None:
+                left_iris_center_orig = calculated_left_orig
+            if right_iris_center_orig is None:
+                right_iris_center_orig = calculated_right_orig
+        else:
+            # 기본 방식 (iris_outline): 눈동자 외곽선 기반 계산
+            # 정확한 눈동자 외곽선 4개 포인트만 사용
+            left_iris_indices = [474, 475, 476, 477]  # 왼쪽 눈동자 외곽선
+            right_iris_indices = [469, 470, 471, 472]  # 오른쪽 눈동자 외곽선
+            
+            calculated_left_orig, calculated_right_orig = _calculate_iris_centers_from_contour(
+                original_landmarks_tuple, left_iris_indices, right_iris_indices, img_width, img_height
+            )
+            print_info("얼굴모핑", f"[IRIS_OUTLINE] 계산된 원본 중앙: left={calculated_left_orig}, right={calculated_right_orig}")
+            if left_iris_center_orig is None:
+                left_iris_center_orig = calculated_left_orig
+            if right_iris_center_orig is None:
+                right_iris_center_orig = calculated_right_orig
+    
+    print_info("얼굴모핑", f"[최종] 사용된 원본 중앙: left={left_iris_center_orig}, right={right_iris_center_orig}")
+    
+    # 맵핑 방법에 따라 변형할 랜드마크 인덱스 결정
+    iris_mapping_indices = []
+    if iris_mapping_method == "eye_landmarks":
+        # 눈 랜드마크 전체 포함
+        from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
+        iris_mapping_indices = LEFT_EYE_INDICES + RIGHT_EYE_INDICES
+        print_info("얼굴모핑", f"[EYE_LANDMARKS] 변형 인덱스: {len(iris_mapping_indices)}개 (눈 랜드마크 전체)")
+    else:
+        # 눈동자 외곽선만 포함 (정확한 눈동자 외곽선 4개 포인트만 사용)
+        # MediaPipe FACEMESH_LEFT_IRIS는 눈 전체 영역을 포함하므로 사용하지 않음
+        # 정확한 눈동자 외곽선 인덱스 사용
+        left_iris_indices = [474, 475, 476, 477]  # 왼쪽 눈동자 외곽선
+        right_iris_indices = [469, 470, 471, 472]  # 오른쪽 눈동자 외곽선
+        iris_mapping_indices = left_iris_indices + right_iris_indices
+        print_info("얼굴모핑", f"[IRIS_OUTLINE] 변형 인덱스: {len(iris_mapping_indices)}개 (눈동자 외곽선 4개 포인트만)")
+    
+    # 기존 selected_point_indices와 병합 (파라미터 값을 복사해서 사용)
+    final_selected_indices = selected_point_indices_param if selected_point_indices_param is not None else []
+    # 맵핑 인덱스 추가
+    final_selected_indices = final_selected_indices + iris_mapping_indices
+    # 중복 제거
+    final_selected_indices = list(set(final_selected_indices))
+    
+    print_info("얼굴모핑", f"[최종] 선택된 변형 인덱스: {len(final_selected_indices)}개")
+    
+    # selected_point_indices를 final_selected_indices로 대체하여 사용
+    selected_point_indices = final_selected_indices
     
     if left_iris_center_coord is not None and right_iris_center_coord is not None:
         # 전달된 좌표는 변형된 중앙 포인트 (드래그로 변경된 좌표)
@@ -542,7 +642,7 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
             transformed_points_array = np.array(all_transformed_points, dtype=np.float32)
     
     return (original_landmarks_no_iris, transformed_landmarks_no_iris,
-            original_points_array, transformed_points_array, iris_indices)
+            original_points_array, transformed_points_array, iris_indices, selected_point_indices)
 
 
 def _create_delaunay_triangulation(original_points_array):
@@ -672,7 +772,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                            left_iris_center_coord=None, right_iris_center_coord=None,
                            left_iris_center_orig=None, right_iris_center_orig=None,
                            cached_original_bbox=None, blend_ratio=1.0,
-                           clamping_enabled=True, margin_ratio=0.3, iris_center_only=False):
+                           clamping_enabled=True, margin_ratio=0.3, iris_center_only=False,
+                           iris_mapping_method="iris_outline"):
     """
     Delaunay Triangulation을 사용하여 폴리곤(랜드마크 포인트) 기반 얼굴 변형을 수행합니다.
     뒤집힌 삼각형이 발생하면 변형을 점진적으로 줄여서 재시도합니다.
@@ -686,6 +787,12 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         right_iris_center_coord: 오른쪽 눈동자 중앙 포인트 좌표 (변형된, 선택적, 사용자 관점)
         left_iris_center_orig: 왼쪽 눈동자 중앙 포인트 좌표 (원본, 선택적, 사용자 관점)
         right_iris_center_orig: 오른쪽 눈동자 중앙 포인트 좌표 (원본, 선택적, 사용자 관점)
+        cached_original_bbox: 캐시된 원본 바운딩 박스 (선택적)
+        blend_ratio: 블렌딩 비율 (0.0 ~ 1.0, 기본값: 1.0)
+        clamping_enabled: 눈동자 이동 범위 제한 활성화 여부 (기본값: True)
+        margin_ratio: 눈동자 이동 범위 제한 마진 비율 (기본값: 0.3)
+        iris_center_only: 눈동자 중심점만 드래그 플래그 (기본값: False)
+        iris_mapping_method: 눈동자 맵핑 방법 (iris_outline/eye_landmarks, 기본값: "iris_outline")
     
     Returns:
         PIL.Image: 변형된 이미지
@@ -705,10 +812,12 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             left_iris_center_coord, right_iris_center_coord,
             left_iris_center_orig, right_iris_center_orig,
             img_width, img_height,
-            clamping_enabled=clamping_enabled, margin_ratio=margin_ratio
+            clamping_enabled=clamping_enabled, margin_ratio=margin_ratio,
+            iris_mapping_method=iris_mapping_method,
+            selected_point_indices_param=selected_point_indices
         )
         original_landmarks_no_iris, transformed_landmarks_no_iris, \
-        original_points_array, transformed_points_array, iris_indices = iris_result        
+        original_points_array, transformed_points_array, iris_indices, selected_point_indices = iris_result        
         
         # Delaunay Triangulation 캐싱 (성능 최적화)
         # 랜드마크 포인트의 해시를 키로 사용

@@ -5,6 +5,7 @@ All 탭과 눈동자 탭에서 공통으로 사용하는 눈동자 그리기 로
 
 import math
 from .iris_drag_handler import IrisDragHandler
+from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
 
 
 class IrisRenderer:
@@ -76,27 +77,38 @@ class IrisRenderer:
         
         # 연결선과 외곽선 그리기 (옵션 확인) - 중심점보다 아래에 그리기
         if iris_coords and items_list is not None:
-            # 옵션 확인
-            show_connections = hasattr(self.parent, 'show_iris_connections') and self.parent.show_iris_connections.get()
-            
-            if show_connections:
-                print(f"[DEBUG] Drawing iris connections for {iris_side} (public module)")
-                # 연결선 그리기
-                self.draw_iris_connections(
-                    canvas, iris_side, center_x, center_y,
-                    iris_coords, img_width, img_height, 
-                    scale_x, scale_y, pos_x, pos_y, items_list
-                )
+            # 맵핑 방법 확인
+            mapping_method = getattr(self.parent, 'iris_mapping_method', None)
+            if mapping_method:
+                method = mapping_method.get()
+                print(f"[DEBUG] Iris mapping method: {method} for {iris_side}")
                 
-                # 외곽선 그리기
-                if len(iris_coords) >= 4:
-                    self.draw_iris_outline(
-                        canvas, iris_side, iris_coords, 
+                if method == "eye_landmarks":
+                    print(f"[DEBUG] Drawing eye landmarks connections for {iris_side}")
+                    # 눈 랜드마크 연결선 그리기
+                    self.draw_eye_landmarks_connections(
+                        canvas, iris_side, center_x, center_y,
                         img_width, img_height, scale_x, scale_y, 
                         pos_x, pos_y, items_list
                     )
+                else:  # iris_outline (기본값)
+                    print(f"[DEBUG] Drawing iris connections for {iris_side}")
+                    # 기존 연결선 그리기
+                    self.draw_iris_connections(
+                        canvas, iris_side, center_x, center_y,
+                        iris_coords, img_width, img_height, 
+                        scale_x, scale_y, pos_x, pos_y, items_list
+                    )
+                    
+                    # 외곽선 그리기
+                    if len(iris_coords) >= 4:
+                        self.draw_iris_outline(
+                            canvas, iris_side, iris_coords, 
+                            img_width, img_height, scale_x, scale_y, 
+                            pos_x, pos_y, items_list
+                        )
             else:
-                print(f"[DEBUG] Skipping iris connections for {iris_side} - checkbox not checked")
+                print(f"[DEBUG] No mapping method found for {iris_side}")
         
         # 중심점을 다시 최상위로 올리기 (연결선 그린 후)
         canvas.tag_raise(center_id)
@@ -221,3 +233,70 @@ class IrisRenderer:
                 tags=("iris_connections", f"iris_outline_{iris_side}")
             )
             items_list.append(line_id)
+    
+    def draw_eye_landmarks_connections(self, canvas, iris_side, center_x, center_y,
+                                      img_width, img_height, scale_x, scale_y, 
+                                      pos_x, pos_y, items_list):
+        """
+        눈동자 중심점과 눈 랜드마크 연결선 그리기
+        
+        Args:
+            canvas: 캔버스 객체
+            iris_side: 'left' 또는 'right'
+            center_x: 중심점 X 좌표
+            center_y: 중심점 Y 좌표
+            img_width: 이미지 너비
+            img_height: 이미지 높이
+            scale_x: X 스케일
+            scale_y: Y 스케일
+            pos_x: 캔버스 내 X 위치
+            pos_y: 캔버스 내 Y 위치
+            items_list: 캔버스 아이템 리스트
+        """
+        # 눈 랜드마크 인덱스 선택 (좌우 반전 수정)
+        eye_indices = RIGHT_EYE_INDICES if iris_side == 'left' else LEFT_EYE_INDICES
+        print(f"[DEBUG] {iris_side} eye using indices: {eye_indices[:5]}... (total: {len(eye_indices)})")
+        
+        # 랜드마크 좌표 가져오기
+        landmarks = getattr(self.parent, 'landmarks', None)
+        if not landmarks:
+            # 다른 가능한 랜드마크 소스 확인
+            landmarks = getattr(self.parent, 'current_landmarks', None)
+        if not landmarks:
+            # landmark_manager에서 가져오기 시도
+            if hasattr(self.parent, 'landmark_manager'):
+                landmarks = self.parent.landmark_manager.get_original_face_landmarks()
+        
+        print(f"[DEBUG] Landmarks for {iris_side}: {type(landmarks)}, length: {len(landmarks) if landmarks else 'None'}")
+        
+        if not landmarks:
+            print(f"[DEBUG] No landmarks found for {iris_side} eye landmarks connections")
+            return
+        
+        # 중심점을 캔버스 좌표로 변환
+        center_canvas_x = pos_x + (center_x - img_width / 2) * scale_x
+        center_canvas_y = pos_y + (center_y - img_height / 2) * scale_y
+        
+        # 연결선 색상 및 너비 설정
+        connection_color = "#FFD700" if iris_side == 'left' else "#00CED1"  # 왼쪽: 금색, 오른쪽: 다크시안
+        connection_width = 2
+        
+        # 각 눈 랜드마크와 중심점 연결
+        connected_count = 0
+        for i, landmark_idx in enumerate(eye_indices):
+            if landmark_idx < len(landmarks):
+                landmark = landmarks[landmark_idx]
+                landmark_canvas_x = pos_x + (landmark[0] - img_width / 2) * scale_x
+                landmark_canvas_y = pos_y + (landmark[1] - img_height / 2) * scale_y
+                
+                line_id = canvas.create_line(
+                    center_canvas_x, center_canvas_y,
+                    landmark_canvas_x, landmark_canvas_y,
+                    fill=connection_color,
+                    width=connection_width,
+                    tags=("eye_landmarks_connections", f"eye_landmark_connection_{iris_side}_{i}")
+                )
+                items_list.append(line_id)
+                connected_count += 1
+        
+        print(f"Drew {connected_count} eye landmarks connections for {iris_side}")
