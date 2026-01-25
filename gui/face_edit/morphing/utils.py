@@ -130,6 +130,24 @@ class UtilsMixin:
                         cy + dy * size_y
                     )
         return scaled
+
+    @staticmethod
+    def _apply_region_translation(landmarks, region_groups, delta_x, delta_y):
+        """선택된 부위를 통째로 이동"""
+        if not landmarks or (abs(delta_x) < 0.1 and abs(delta_y) < 0.1):
+            return landmarks
+        translated = list(landmarks)
+        if region_groups:
+            for indices in region_groups.values():
+                for idx in indices:
+                    if 0 <= idx < len(translated):
+                        x, y = translated[idx]
+                        translated[idx] = (x + delta_x, y + delta_y)
+        else:
+            for idx in range(len(translated)):
+                x, y = translated[idx]
+                translated[idx] = (x + delta_x, y + delta_y)
+        return translated
     
     def update_labels_only(self):
         """라벨만 업데이트 (슬라이더 드래그 중 호출)"""
@@ -385,6 +403,20 @@ class UtilsMixin:
                         )
                         if scaled is not None:
                             transformed = scaled
+
+                # 위치/오프셋 슬라이더 적용 (선택된 부위 중심 이동)
+                position_x = self.region_position_x.get() if hasattr(self, 'region_position_x') else 0.0
+                position_y = self.region_position_y.get() if hasattr(self, 'region_position_y') else 0.0
+                center_offset_x = self.region_center_offset_x.get() if hasattr(self, 'region_center_offset_x') else 0.0
+                center_offset_y = self.region_center_offset_y.get() if hasattr(self, 'region_center_offset_y') else 0.0
+                if abs(position_x) >= 0.1 or abs(position_y) >= 0.1 or abs(center_offset_x) >= 0.1 or abs(center_offset_y) >= 0.1:
+                    current_tab = getattr(self, 'current_morphing_tab', '전체')
+                    region_groups = None
+                    if current_tab == '전체':
+                        region_groups = self._get_selected_region_index_groups(len(transformed))
+                    delta_x = position_x + center_offset_x
+                    delta_y = position_y + center_offset_y
+                    transformed = self._apply_region_translation(transformed, region_groups, delta_x, delta_y)
                 
                 # custom_landmarks 업데이트 (드래그된 포인트 보존)
                 # 드래그된 포인트 인덱스 가져오기
