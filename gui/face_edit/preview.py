@@ -240,31 +240,19 @@ class PreviewManagerMixin:
             if self.original_image_base_size is None:
                 self.original_image_base_size = (base_display_width, base_display_height)
             
-            # 이미지 리사이즈 캐싱 (성능 최적화)
-            cache_key = (id(self.current_image), display_width, display_height)
-            resize_cache = getattr(self, '_resize_cache', {})
-            
-            if cache_key in resize_cache:
-                resized = resize_cache[cache_key]
-            else:
-                # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
-                # 성능 최적화: 확대 시에는 BILINEAR 사용 (LANCZOS는 너무 느림)
-                # 축소 시에만 LANCZOS 사용하여 품질 유지
+            # 성능 최적화된 이미지 리사이즈
+            try:
+                from .performance_optimization import performance_optimizer
+                scale_factor = self.zoom_scale_original
+                resized = performance_optimizer.optimized_resize(
+                    self.current_image, (display_width, display_height), scale_factor
+                )
+            except ImportError:
+                # 폴백: 기존 방식
                 if display_width > self.current_image.size[0] or display_height > self.current_image.size[1]:
-                    # 확대: BILINEAR 사용 (빠름)
                     resized = self.current_image.resize((display_width, display_height), Image.BILINEAR)
                 else:
-                    # 축소: LANCZOS 사용 (고품질)
                     resized = self.current_image.resize((display_width, display_height), Image.LANCZOS)
-                
-                # LRU 캐시 관리
-                resize_cache_max_size = getattr(self, '_resize_cache_max_size', 10)
-                if len(resize_cache) >= resize_cache_max_size:
-                    # 가장 오래된 항목 제거 (FIFO)
-                    oldest_key = next(iter(resize_cache))
-                    del resize_cache[oldest_key]
-                resize_cache[cache_key] = resized
-                self._resize_cache = resize_cache
             
             # PhotoImage로 변환
             self.tk_image_original = ImageTk.PhotoImage(resized)
@@ -378,31 +366,19 @@ class PreviewManagerMixin:
             
             print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {self.zoom_scale_original}")
             
-            # 이미지 리사이즈 캐싱 (성능 최적화)
-            cache_key = (id(self.edited_image), display_width, display_height)
-            resize_cache = getattr(self, '_resize_cache', {})
-            
-            if cache_key in resize_cache:
-                resized = resize_cache[cache_key]
-            else:
-                # 이미지 리사이즈 (비율 유지, 확대/축소 적용)
-                # 성능 최적화: 확대 시에는 BILINEAR 사용 (LANCZOS는 너무 느림)
-                # 축소 시에만 LANCZOS 사용하여 품질 유지
+            # 성능 최적화된 이미지 리사이즈
+            try:
+                from .performance_optimization import performance_optimizer
+                scale_factor = self.zoom_scale_original
+                resized = performance_optimizer.optimized_resize(
+                    self.edited_image, (display_width, display_height), scale_factor
+                )
+            except ImportError:
+                # 폴백: 기존 방식
                 if display_width > self.edited_image.size[0] or display_height > self.edited_image.size[1]:
-                    # 확대: BILINEAR 사용 (빠름)
                     resized = self.edited_image.resize((display_width, display_height), Image.BILINEAR)
                 else:
-                    # 축소: LANCZOS 사용 (고품질)
                     resized = self.edited_image.resize((display_width, display_height), Image.LANCZOS)
-                
-                # LRU 캐시 관리
-                resize_cache_max_size = getattr(self, '_resize_cache_max_size', 10)
-                if len(resize_cache) >= resize_cache_max_size:
-                    # 가장 오래된 항목 제거 (FIFO)
-                    oldest_key = next(iter(resize_cache))
-                    del resize_cache[oldest_key]
-                resize_cache[cache_key] = resized
-                self._resize_cache = resize_cache
             
             # PhotoImage로 변환
             self.tk_image_edited = ImageTk.PhotoImage(resized)
