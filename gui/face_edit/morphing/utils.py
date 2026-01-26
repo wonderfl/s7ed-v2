@@ -409,13 +409,14 @@ class UtilsMixin:
                 position_y = self.region_position_y.get() if hasattr(self, 'region_position_y') else 0.0
                 center_offset_x = self.region_center_offset_x.get() if hasattr(self, 'region_center_offset_x') else 0.0
                 center_offset_y = self.region_center_offset_y.get() if hasattr(self, 'region_center_offset_y') else 0.0
-                if abs(position_x) >= 0.1 or abs(position_y) >= 0.1 or abs(center_offset_x) >= 0.1 or abs(center_offset_y) >= 0.1:
+                if abs(position_x) >= 0.1 or abs(position_y) >= 0.1:
                     current_tab = getattr(self, 'current_morphing_tab', '전체')
                     region_groups = None
                     if current_tab == '전체':
                         region_groups = self._get_selected_region_index_groups(len(transformed))
-                    delta_x = position_x + center_offset_x
-                    delta_y = position_y + center_offset_y
+                    # Center offsets shift scaling pivots only; translations follow Position sliders
+                    delta_x = position_x
+                    delta_y = position_y
                     transformed = self._apply_region_translation(transformed, region_groups, delta_x, delta_y)
                 
                 # custom_landmarks 업데이트 (드래그된 포인트 보존)

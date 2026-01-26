@@ -913,7 +913,7 @@ class PolygonDragHandlerMixin:
                             if diff > 0.1:
                                 changed_indices_after.append((i, diff))
             
-            # 슬라이더가 모두 기본값이고 랜드마크가 변형되지 않았는지 확인
+            # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았는지 확인
             # 옵션 변경 시(force_slider_mode=False)에는 이 체크를 건너뛰고 항상 morph_face_by_polygons 호출
             if force_slider_mode != False:
                 size_x = self.region_size_x.get()
@@ -926,11 +926,10 @@ class PolygonDragHandlerMixin:
                 size_x_condition = abs(size_x - 1.0) >= 0.01
                 size_y_condition = abs(size_y - 1.0) >= 0.01
                 size_condition = size_x_condition or size_y_condition
-                offset_x_condition = abs(center_offset_x) >= 0.1
-                offset_y_condition = abs(center_offset_y) >= 0.1
                 pos_x_condition = abs(position_x) >= 0.1
                 pos_y_condition = abs(position_y) >= 0.1
-                conditions_met = offset_x_condition or offset_y_condition or size_condition or pos_x_condition or pos_y_condition
+                # Center offset sliders only shift the scaling pivot; treat them as no-op without size changes
+                conditions_met = size_condition or pos_x_condition or pos_y_condition
             
             # custom_landmarks 가져오기 (랜드마크 변형 확인용)
             custom_for_check = self.landmark_manager.get_custom_landmarks()
