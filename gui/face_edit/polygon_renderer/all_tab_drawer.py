@@ -488,12 +488,13 @@ class AllTabDrawerMixin:
                 selected_regions.append(('contours', CONTOURS))
             if hasattr(self, 'show_tesselation') and self.show_tesselation.get():
                 selected_regions.append(('tesselation', TESSELATION))
+                
             # 눈동자 연결 정보 (refine_landmarks=True일 때 사용 가능)
             try:
                 LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
                 RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
-                print(f"MediaPipe LEFT_IRIS: {len(LEFT_IRIS)} connections")
-                print(f"MediaPipe RIGHT_IRIS: {len(RIGHT_IRIS)} connections")
+                print(f"MediaPipe LEFT_IRIS: {len(LEFT_IRIS)} {hasattr(self, 'show_left_iris') and self.show_left_iris.get()}, RIGHT_IRIS: {len(RIGHT_IRIS)} connections {hasattr(self, 'show_right_iris') and self.show_right_iris.get()}")
+
             except AttributeError:
                 # 구버전 MediaPipe에서는 지원하지 않을 수 있음
                 print("MediaPipe LEFT_IRIS/RIGHT_IRIS not available, using fallback")
@@ -845,8 +846,6 @@ class AllTabDrawerMixin:
                     # 중심점을 최상위로 올리기 (연결선/외곽선 뒤에 가려지지 않도록)
                     canvas.tag_raise(center_id)
                     
-                    print(f"Successfully drawn {iris_side} iris using IrisRenderer")
-                    
                 except Exception as e:
                     print(f"Error drawing {iris_side} iris with IrisRenderer: {e}")
                     import traceback
@@ -918,22 +917,18 @@ class AllTabDrawerMixin:
                     iris_centers = [landmarks[468], landmarks[469]]
             
             # 눈동자 체크박스가 선택되었을 때 중심점 그리기
-            # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음
-            print(f"Checkbox states - Left iris: {hasattr(self, 'show_left_iris') and self.show_left_iris.get()}, Right iris: {hasattr(self, 'show_right_iris') and self.show_right_iris.get()}")
-            
+            # iris_centers가 있으면 LEFT_IRIS/RIGHT_IRIS가 없어도 중심점을 그릴 수 있음            
             if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
-                print("Drawing left iris center")
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('left', LEFT_IRIS if LEFT_IRIS else [], '_left_iris_center_coord')
             
             if hasattr(self, 'show_right_iris') and self.show_right_iris.get():
-                print("Drawing right iris center")
                 # Tesselation 모드가 아닐 때는 폴리곤도 그리지만, Tesselation 모드일 때는 중심점만 그리기
                 # draw_iris 함수 호출
                 draw_iris('right', RIGHT_IRIS if RIGHT_IRIS else [], '_right_iris_center_coord')
             else:
-                print("Right iris checkbox not checked")
+                pass
             
             # 선택된 부위가 없으면 아무것도 그리지 않음
 

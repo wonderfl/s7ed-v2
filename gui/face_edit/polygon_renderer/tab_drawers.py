@@ -1144,8 +1144,6 @@ class TabDrawersMixin:
                             # 텍스트도 최상위로 올리기
                             canvas.tag_raise(text_id)
                         
-                        print(f"[DEBUG] Successfully drawn left iris center using IrisRenderer in iris tab")
-                        
                     except Exception as e:
                         print(f"[DEBUG] Error drawing left iris center with IrisRenderer in iris tab: {e}")
                         # Fallback to original method
@@ -1237,8 +1235,6 @@ class TabDrawersMixin:
                             items_list.append(text_id)
                             # 텍스트도 최상위로 올리기
                             canvas.tag_raise(text_id)
-                        
-                        print(f"[DEBUG] Successfully drawn right iris center using IrisRenderer in iris tab")
                         
                     except Exception as e:
                         print(f"[DEBUG] Error drawing right iris center with IrisRenderer in iris tab: {e}")

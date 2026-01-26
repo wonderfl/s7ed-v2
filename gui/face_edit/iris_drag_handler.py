@@ -26,19 +26,19 @@ class IrisDragHandler:
         """
         def on_iris_center_click(event):
             """눈동자 중심점 클릭 이벤트"""
-            print(f"[DEBUG] Iris center clicked: {iris_side} at ({event.x}, {event.y})")
+            #print(f"[DEBUG] Iris center clicked: {iris_side} at ({event.x}, {event.y})")
             self.parent.on_iris_center_drag_start(event, iris_side, canvas)
             return "break"
         
         def on_iris_center_drag(event):
             """눈동자 중심점 드래그 이벤트"""
-            print(f"[DEBUG] Iris center dragging: {iris_side} at ({event.x}, {event.y})")
+            #print(f"[DEBUG] Iris center dragging: {iris_side} at ({event.x}, {event.y})")
             self.parent.on_iris_center_drag(event, iris_side, canvas)
             return "break"
         
         def on_iris_center_release(event):
             """눈동자 중심점 드래그 종료 이벤트"""
-            print(f"[DEBUG] Iris center released: {iris_side} at ({event.x}, {event.y})")
+            #print(f"[DEBUG] Iris center released: {iris_side} at ({event.x}, {event.y})")
             self.parent.on_iris_center_drag_end(event, iris_side, canvas)
             return "break"
         

@@ -614,7 +614,7 @@ class PolygonDragHandlerMixin:
                     )
                     # 중심점을 최상위로 올리기
                     canvas_obj.tag_raise(center_id)
-                    print(f"[DEBUG] Updated iris center position: {iris_side} at ({event.x}, {event.y})")
+                    #print(f"[DEBUG] Updated iris center position: {iris_side} at ({event.x}, {event.y})")
                     break
             
             # 드래그 중에 연결선 실시간 업데이트
@@ -645,9 +645,8 @@ class PolygonDragHandlerMixin:
             outline_lines = canvas_obj.find_withtag(f"iris_outline_{iris_side}")
             for line_id in outline_lines:
                 # 외곽선은 현재 위치를 유지 (중심점이 아니라 외곽점들로 구성)
-                pass
-            
-            print(f"[DEBUG] Updated iris connections for {iris_side} during drag")
+                pass            
+
             
         except Exception as e:
             print(f"[DEBUG] Error updating iris connections: {e}")

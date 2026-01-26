@@ -341,8 +341,7 @@ class PreviewManagerMixin:
     
     def show_edited_preview(self):
         """편집된 이미지 미리보기 표시"""
-        print("[편집된 이미지 미리보기] show_edited_preview() 호출됨, edited_image:", self.edited_image is not None)
-        
+
         if self.edited_image is None:
             if self.image_created_edited:
                 self.canvas_edited.delete(self.image_created_edited)
@@ -377,7 +376,7 @@ class PreviewManagerMixin:
             display_width = int(base_display_width * self.zoom_scale_original)
             display_height = int(base_display_height * self.zoom_scale_original)
             
-            print("[편집된 이미지 미리보기] 표시 크기:", f"{display_width}x{display_height}, 스케일: {self.zoom_scale_original}")
+            print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {self.zoom_scale_original}")
             
             # 이미지 리사이즈 캐싱 (성능 최적화)
             cache_key = (id(self.edited_image), display_width, display_height)
@@ -407,8 +406,6 @@ class PreviewManagerMixin:
             
             # PhotoImage로 변환
             self.tk_image_edited = ImageTk.PhotoImage(resized)
-            
-            print("[편집된 이미지 미리보기] PhotoImage 생성됨:", self.tk_image_edited is not None, type(self.tk_image_edited), )
             
             # Canvas에 표시
             # 위치 결정: 이미 설정된 위치를 절대 덮어쓰지 않음
@@ -475,7 +472,7 @@ class PreviewManagerMixin:
                 image=self.tk_image_edited
             )
             
-            print("[편집된 이미지 미리보기] Canvas 이미지 ID:", self.image_created_edited, f"x={self.canvas_edited_pos_x}, y={self.canvas_edited_pos_y}")
+            print(f"[편집된 이미지 미리보기] Canvas Image ID: {self.image_created_edited}, x={self.canvas_edited_pos_x}, y={self.canvas_edited_pos_y}")
             
             # 이미지를 맨 위로 올리기 (랜드마크나 폴리곤 뒤에 가려지지 않도록)
             self.canvas_edited.tag_raise(self.image_created_edited)

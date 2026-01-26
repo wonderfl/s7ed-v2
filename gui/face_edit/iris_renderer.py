@@ -81,10 +81,10 @@ class IrisRenderer:
             mapping_method = getattr(self.parent, 'iris_mapping_method', None)
             if mapping_method:
                 method = mapping_method.get()
-                print(f"[DEBUG] Iris mapping method: {method} for {iris_side}")
+                #print(f"[DEBUG] Iris mapping method: {method} for {iris_side}")
                 
                 if method == "eye_landmarks":
-                    print(f"[DEBUG] Drawing eye landmarks connections for {iris_side}")
+                    #print(f"[DEBUG] Drawing eye landmarks connections for {iris_side}")
                     # 눈 랜드마크 연결선 그리기
                     self.draw_eye_landmarks_connections(
                         canvas, iris_side, center_x, center_y,
@@ -92,7 +92,7 @@ class IrisRenderer:
                         pos_x, pos_y, items_list
                     )
                 else:  # iris_outline (기본값)
-                    print(f"[DEBUG] Drawing iris connections for {iris_side}")
+                    #print(f"[DEBUG] Drawing iris connections for {iris_side}")
                     # 기존 연결선 그리기
                     self.draw_iris_connections(
                         canvas, iris_side, center_x, center_y,
@@ -165,8 +165,6 @@ class IrisRenderer:
             )
             items_list.append(line_id)
         
-        print(f"Drew {len(iris_coords)} connection lines for {iris_side}")
-    
     def draw_iris_outline(self, canvas, iris_side, iris_coords, 
                          img_width, img_height, scale_x, scale_y, 
                          pos_x, pos_y, items_list):
