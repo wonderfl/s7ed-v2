@@ -898,12 +898,12 @@ class SliderUIMixin:
         adjustment_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
         
         # 공통 슬라이더 6개 생성 (Size X, Size Y 분리)
-        self.region_center_offset_x_label = create_slider(adjustment_frame, "Center Offset X:", self.region_center_offset_x, -100, 100, 1, "0", default_value=0.0)
-        self.region_center_offset_y_label = create_slider(adjustment_frame, "Center Offset Y:", self.region_center_offset_y, -100, 100, 1, "0", default_value=0.0)
+        self.region_center_offset_x_label = create_slider(adjustment_frame, "Pivot X:", self.region_center_offset_x, -100, 100, 1, "0", default_value=0.0)
+        self.region_center_offset_y_label = create_slider(adjustment_frame, "Pivot Y:", self.region_center_offset_y, -100, 100, 1, "0", default_value=0.0)
         self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 1.5, 0.01, "100%", default_value=1.0)
         self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 1.5, 0.01, "100%", default_value=1.0)
-        self.region_position_x_label = create_slider(adjustment_frame, "Position X:", self.region_position_x, -100, 100, 1, "0", default_value=0.0)
-        self.region_position_y_label = create_slider(adjustment_frame, "Position Y:", self.region_position_y, -100, 100, 1, "0", default_value=0.0)
+        self.region_position_x_label = create_slider(adjustment_frame, "Move X:", self.region_position_x, -100, 100, 1, "0", default_value=0.0)
+        self.region_position_y_label = create_slider(adjustment_frame, "Move Y:", self.region_position_y, -100, 100, 1, "0", default_value=0.0)
         
         # 블렌딩 비율 슬라이더 추가
         self.blend_ratio_label = create_slider(adjustment_frame, "Blend Ratio:", self.blend_ratio, 0.0, 1.0, 0.01, "100%", default_value=1.0)
