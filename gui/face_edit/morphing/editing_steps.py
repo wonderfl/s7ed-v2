@@ -139,6 +139,17 @@ class EditingStepsMixin:
         import utils.face_landmarks as face_landmarks
         import utils.face_morphing as face_morphing
 
+        base_image = None
+        if getattr(self, 'edited_image', None) is not None:
+            base_image = self.edited_image
+        elif getattr(self, 'aligned_image', None) is not None:
+            base_image = self.aligned_image
+        elif getattr(self, 'current_image', None) is not None:
+            base_image = self.current_image
+
+        if base_image is None:
+            return
+
         # 원본 랜드마크 가져오기 (LandmarkManager 사용)
         if not self.landmark_manager.has_original_landmarks():
             if self.current_image is not None:
@@ -236,6 +247,28 @@ class EditingStepsMixin:
             else:
                 transformed_landmarks = base_landmarks
                 has_size_change = False
+
+            # 눈 영역 파라미터 (apply_all_adjustments 전달 값과 동일하게 구성)
+            if self.use_individual_eye_region.get():
+                eye_region_padding = None
+                eye_region_offset_x = None
+                eye_region_offset_y = None
+                left_eye_region_padding = self.left_eye_region_padding.get()
+                right_eye_region_padding = self.right_eye_region_padding.get()
+                left_eye_region_offset_x = self.left_eye_region_offset_x.get()
+                left_eye_region_offset_y = self.left_eye_region_offset_y.get()
+                right_eye_region_offset_x = self.right_eye_region_offset_x.get()
+                right_eye_region_offset_y = self.right_eye_region_offset_y.get()
+            else:
+                eye_region_padding = self.left_eye_region_padding.get()
+                eye_region_offset_x = self.left_eye_region_offset_x.get()
+                eye_region_offset_y = self.left_eye_region_offset_y.get()
+                left_eye_region_padding = None
+                right_eye_region_padding = None
+                left_eye_region_offset_x = None
+                left_eye_region_offset_y = None
+                right_eye_region_offset_x = None
+                right_eye_region_offset_y = None
 
             # 변형된 랜드마크 저장 (폴리곤 표시용)
             self.face_landmarks = transformed_landmarks
@@ -368,11 +401,11 @@ class EditingStepsMixin:
             result = base_image
 
         # 코, 입, 턱, 얼굴 크기 등 나머지 편집 적용 (눈 크기는 이미 처리됨)
-        result = face_morphing.apply_all_adjustments(
-            result,  # 이미 처리된 이미지 (눈 크기 조정 포함)
-            eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
-            left_eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
-            right_eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
+            result = face_morphing.apply_all_adjustments(
+                result,  # 이미 처리된 이미지 (눈 크기 조정 포함)
+                eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
+                left_eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
+                right_eye_size=None,  # 이미 morph_face_by_polygons로 처리됨
             eye_spacing=self.eye_spacing.get(),  # Boolean: 눈 간격 조정 활성화 여부
             left_eye_position_y=self.left_eye_position_y.get(),
             right_eye_position_y=self.right_eye_position_y.get(),

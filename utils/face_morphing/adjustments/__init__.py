@@ -26,7 +26,8 @@ from .face_adjustments import (
 )
 from .region_adjustments import (
     adjust_region_size,
-    adjust_region_position
+    adjust_region_position,
+    adjust_region_size_with_axis,
 )
 
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     'adjust_lip_vertical_move',
     'adjust_region_size',
     'adjust_region_position',
+    'adjust_region_size_with_axis',
 ]
