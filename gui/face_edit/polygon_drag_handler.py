@@ -787,10 +787,16 @@ class PolygonDragHandlerMixin:
         Args:
             force_slider_mode: (사용 안 함, 하위 호환성 유지용)
         """
+        self._ensure_polygon_apply_guard_state()
+        polygon_signature = self._build_polygon_apply_signature(force_slider_mode)
+        if polygon_signature == getattr(self, '_last_polygon_apply_signature', None):
+            return
+
         # custom_landmarks 확인 (LandmarkManager 사용)
         custom = self.landmark_manager.get_custom_landmarks()
         
         # 중앙 포인트가 설정되어 있으면 custom_landmarks가 None이어도 적용
+        # (on_iris_center_drag에서 custom_landmarks를 생성했을 수 있음)
         left_center = self.landmark_manager.get_left_iris_center_coord()
         right_center = self.landmark_manager.get_right_iris_center_coord()
         has_iris_centers = left_center is not None or right_center is not None
@@ -1240,11 +1246,106 @@ class PolygonDragHandlerMixin:
             if self.show_landmark_points.get():
                 self.update_face_features_display()
             
+            self._last_polygon_apply_signature = polygon_signature
+
         except Exception as e:
             print_error("얼굴편집", f"랜드마크 드래그 최종 적용 실패: {e}", e)
             import traceback
             traceback.print_exc()
+            self._last_polygon_apply_signature = None
     
+    def _ensure_polygon_apply_guard_state(self):
+        if not hasattr(self, '_last_polygon_apply_signature'):
+            self._last_polygon_apply_signature = None
+
+    def _get_var_value_for_signature(self, attr_name, default=0.0):
+        var = getattr(self, attr_name, None)
+        if var is None:
+            return round(default, 4)
+        if hasattr(var, 'get'):
+            try:
+                return round(float(var.get()), 4)
+            except Exception:
+                return round(default, 4)
+        try:
+            return round(float(var), 4)
+        except Exception:
+            return round(default, 4)
+
+    def _normalize_point_for_signature(self, point):
+        if not point:
+            return None
+        try:
+            return (round(float(point[0]), 4), round(float(point[1]), 4))
+        except Exception:
+            return None
+
+    def _build_polygon_apply_signature(self, force_slider_mode=False):
+        landmark_manager = getattr(self, 'landmark_manager', None)
+        custom_signature = None
+        left_center = None
+        right_center = None
+        if landmark_manager is not None:
+            get_sig = getattr(landmark_manager, 'get_custom_landmarks_signature', None)
+            if callable(get_sig):
+                try:
+                    custom_signature = get_sig()
+                except Exception:
+                    custom_signature = None
+            left_center = self._normalize_point_for_signature(
+                landmark_manager.get_left_iris_center_coord())
+            right_center = self._normalize_point_for_signature(
+                landmark_manager.get_right_iris_center_coord())
+
+        slider_values = (
+            self._get_var_value_for_signature('region_size_x', 1.0),
+            self._get_var_value_for_signature('region_size_y', 1.0),
+            self._get_var_value_for_signature('region_position_x', 0.0),
+            self._get_var_value_for_signature('region_position_y', 0.0),
+            self._get_var_value_for_signature('region_center_offset_x', 0.0),
+            self._get_var_value_for_signature('region_center_offset_y', 0.0),
+            self._get_var_value_for_signature('blend_ratio', 1.0),
+        )
+
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        use_warping_flag = False
+        if use_warping is not None and hasattr(use_warping, 'get'):
+            try:
+                use_warping_flag = bool(use_warping.get())
+            except Exception:
+                use_warping_flag = False
+
+        iris_mapping_method = getattr(self, 'iris_mapping_method', None)
+        iris_mapping_val = None
+        if iris_mapping_method is not None and hasattr(iris_mapping_method, 'get'):
+            try:
+                iris_mapping_val = iris_mapping_method.get()
+            except Exception:
+                iris_mapping_val = None
+
+        region_flags = None
+        if hasattr(self, '_get_region_selection_flags'):
+            try:
+                region_flags = self._get_region_selection_flags()
+            except Exception:
+                region_flags = None
+
+        current_tab = getattr(self, 'current_morphing_tab', '전체')
+        last_selected = getattr(self, 'last_selected_landmark_index', None)
+
+        return (
+            custom_signature,
+            left_center,
+            right_center,
+            slider_values,
+            use_warping_flag,
+            iris_mapping_val,
+            region_flags,
+            current_tab,
+            last_selected,
+            bool(force_slider_mode),
+        )
+
     def _find_nearest_landmark_for_drag(self, event, landmarks, current_tab, canvas_obj):
         """캔버스 레벨에서 가장 가까운 랜드마크 포인트 찾기 (화면에 보이는 모든 포인트 중에서)"""
         if landmarks is None or len(landmarks) == 0:

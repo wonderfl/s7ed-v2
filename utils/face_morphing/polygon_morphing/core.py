@@ -45,6 +45,21 @@ except ImportError:
 
 from .utils import _get_neighbor_points, _check_triangles_flipped
 
+# 공통 로거 헬퍼 (모듈 전역)
+try:
+    from utils.logger import print_info, print_warning, print_error, print_debug
+except ImportError:  # Fallback: IDE나 테스트 환경에서 logger 미존재 시
+    def print_info(module, msg):
+        print(f"[{module}] {msg}")
+
+    def print_warning(module, msg):
+        print(f"[{module}] WARNING: {msg}")
+
+    def print_error(module, msg):
+        print(f"[{module}] ERROR: {msg}")
+
+    def print_debug(module, msg):
+        print(f"[{module}] DEBUG: {msg}")
 
 
 def _validate_and_prepare_inputs(image, original_landmarks, transformed_landmarks):
@@ -159,7 +174,8 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
                          left_iris_center_coord, right_iris_center_coord,
                          left_iris_center_orig, right_iris_center_orig,
                          img_width, img_height, clamping_enabled=True, margin_ratio=0.3,
-                         iris_mapping_method="iris_outline", selected_point_indices_param=None):    
+                         iris_mapping_method="iris_outline", selected_point_indices_param=None,
+                         preserve_selected_indices=False):    
     """눈동자 포인트 처리 및 중앙 포인트 준비
     Args:
         original_landmarks: 원본 랜드마크 포인트 리스트
@@ -174,6 +190,7 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         margin_ratio: 눈동자 이동 범위 제한 마진 비율
         iris_mapping_method: 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
         selected_point_indices_param: 선택된 포인트 인덱스 (외부에서 전달)
+        preserve_selected_indices: True면 전달된 인덱스를 그대로 사용하고 iris 인덱스를 병합하지 않음
     
     Returns:
         tuple: (original_landmarks_no_iris, transformed_landmarks_no_iris,
@@ -405,18 +422,24 @@ def _prepare_iris_centers(original_landmarks, transformed_landmarks,
         iris_mapping_indices = LEFT_EYE_INDICES_468 + RIGHT_EYE_INDICES_468
         print_info("얼굴모핑", f"[IRIS_OUTLINE] 변형 인덱스: {len(iris_mapping_indices)}개 (왼쪽{len(LEFT_EYE_INDICES_468)}+오른쪽{len(RIGHT_EYE_INDICES_468)})")
     
-    # selected_point_indices_param가 None이거나 비어있으면 iris_mapping_indices를 사용
-    if selected_point_indices_param is None or len(selected_point_indices_param) == 0:
-        selected_point_indices_param = iris_mapping_indices
-        print_info("얼굴모핑", f"[DEBUG] selected_point_indices_param가 None이어서 iris_mapping_indices로 대체: {len(iris_mapping_indices)}개")
+    final_selected_indices = selected_point_indices_param
+    if preserve_selected_indices and final_selected_indices:
+        # 전달된 인덱스를 그대로 사용 (순서 유지)
+        final_selected_indices = list(dict.fromkeys(final_selected_indices))
+        print_info("얼굴모핑", f"[DEBUG] preserve_selected_indices 적용: 전달된 인덱스 {len(final_selected_indices)}개만 사용")
     else:
-        # 기존 selected_point_indices_param와 병합
-        final_selected_indices = selected_point_indices_param if selected_point_indices_param is not None else []
-        final_selected_indices = final_selected_indices + iris_mapping_indices
-        final_selected_indices = list(set(final_selected_indices))
-        selected_point_indices_param = final_selected_indices
-        print_info("얼굴모핑", f"[DEBUG] 기존 인덱스와 iris_mapping_indices 병합: {len(final_selected_indices)}개")
+        # selected_point_indices_param가 None이거나 비어있으면 iris_mapping_indices를 사용
+        if final_selected_indices is None or len(final_selected_indices) == 0:
+            final_selected_indices = iris_mapping_indices
+            print_info("얼굴모핑", f"[DEBUG] selected_point_indices_param가 None이어서 iris_mapping_indices로 대체: {len(iris_mapping_indices)}개")
+        else:
+            # 기존 selected_point_indices_param와 병합 (중복 제거)
+            merged_indices = set(final_selected_indices)
+            merged_indices.update(iris_mapping_indices)
+            final_selected_indices = list(merged_indices)
+            print_info("얼굴모핑", f"[DEBUG] 기존 인덱스와 iris_mapping_indices 병합: {len(final_selected_indices)}개")
     
+    selected_point_indices_param = final_selected_indices
     print_info("얼굴모핑", f"[DEBUG] 최종 selected_point_indices_param: {selected_point_indices_param[:10]}... (총 {len(selected_point_indices_param)}개)")
     
     # 선택된 포인트가 없으면 전체 변형 사용
@@ -823,10 +846,26 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             img_width, img_height,
             clamping_enabled=clamping_enabled, margin_ratio=margin_ratio,
             iris_mapping_method=iris_mapping_method,
-            selected_point_indices_param=selected_point_indices
+            selected_point_indices_param=selected_point_indices,
+            preserve_selected_indices=bool(selected_point_indices)
         )
         original_landmarks_no_iris, transformed_landmarks_no_iris, \
         original_points_array, transformed_points_array, iris_indices, selected_point_indices = iris_result        
+        try:
+            if selected_point_indices:
+                selected_sample = list(selected_point_indices)[:5]
+                used_orig = []
+                used_trans = []
+                for idx in selected_sample:
+                    if idx < len(original_landmarks_no_iris) and idx < len(transformed_landmarks_no_iris):
+                        used_orig.append(original_landmarks_no_iris[idx])
+                        used_trans.append(transformed_landmarks_no_iris[idx])
+                print_info("얼굴모핑", f"사용 인덱스 샘플: {selected_sample}")
+                print_info("얼굴모핑", f"사용 원본 좌표 샘플: {used_orig}")
+                print_info("얼굴모핑", f"사용 변형 좌표 샘플: {used_trans}")
+        except NameError:
+            print_error("얼굴모핑", f"모핑 샘플 Not found..")
+            pass
         
         # Delaunay Triangulation 캐싱 (성능 최적화)
         # 랜드마크 포인트의 해시를 키로 사용
@@ -870,6 +909,17 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             min_y = min(bbox_orig[1], bbox_trans[1])
             max_x = max(bbox_orig[2], bbox_trans[2])
             max_y = max(bbox_orig[3], bbox_trans[3])
+            try:
+                print_info(
+                    "얼굴모핑",
+                    f"bbox_orig={bbox_orig}, bbox_trans={bbox_trans}"
+                )
+            except NameError:
+                print_error(
+                    "얼굴모핑",
+                    f"bbox_orig, bbox_trans not found"
+                )                
+                pass
             
             # 원본 바운딩 박스 위치 저장
             min_x_orig_bbox = min_x
@@ -1039,6 +1089,13 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         # 성능 최적화: 바운딩 박스와 겹치는 삼각형만 처리
         # simplex_indices_orig에서 실제로 사용된 삼각형 인덱스만 추출
         valid_simplex_indices = np.unique(simplex_indices_orig[simplex_indices_orig >= 0])
+        try:
+            print_info(
+                "얼굴모핑",
+                f"모핑 영역: bbox=({min_x},{min_y})~({max_x},{max_y}), 적용 삼각형={len(valid_simplex_indices)}개"
+            )
+        except NameError:
+            pass
         
         # 각 픽셀에 대해 정변환 적용
         # 주의: 바운딩 박스와 겹치는 삼각형만 순회합니다 (성능 최적화)

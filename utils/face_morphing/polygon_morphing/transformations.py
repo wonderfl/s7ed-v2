@@ -17,8 +17,12 @@
 3. 폴리곤 포인트 변형: transform_points_* 함수로 포인트 변형
 4. 폴리곤 모핑: morph_face_by_polygons 함수로 변형된 포인트를 사용하여 이미지 변형
 """
+import math
 import numpy as np
 from PIL import Image
+
+# 디버그 출력 제어
+DEBUG_GUIDE_SCALING = False
 
 from ..constants import _cv2_available, _cv2_cuda_available, _scipy_available, _landmarks_available, _delaunay_cache, _delaunay_cache_max_size
 
@@ -42,19 +46,192 @@ except ImportError:
     RIGHT_EYE_INDICES = []
 
 
+# 전역 플래그 변수
+_GUIDE_SCALING_ENABLED = False
+
+def set_guide_scaling_enabled(enabled):
+    """지시선 스케일링 활성화 상태 설정"""
+    global _GUIDE_SCALING_ENABLED
+    _GUIDE_SCALING_ENABLED = enabled
+    if DEBUG_GUIDE_SCALING:
+        print(f"[전역 플래그] 지시선 스케일링 상태 설정: {enabled}")
+
+def transform_points_for_eye_size_centered(landmarks, left_eye_center=None, right_eye_center=None, 
+                                          left_eye_size_ratio=1.0, right_eye_size_ratio=1.0, 
+                                          guide_line_angle=None):
+    """
+    지시선 기반 중심점 스케일링을 사용한 눈 크기 조정
+    
+    Args:
+        landmarks: 원본 랜드마크 포인트 리스트
+        left_eye_center: 왼쪽 눈 중심점 (x, y)
+        right_eye_center: 오른쪽 눈 중심점 (x, y)
+        left_eye_size_ratio: 왼쪽 눈 크기 비율
+        right_eye_size_ratio: 오른쪽 눈 크기 비율
+        guide_line_angle: 지시선 각도 (라디안)
+    
+    Returns:
+        transformed_landmarks: 변형된 랜드마크 포인트 리스트
+    """
+    if DEBUG_GUIDE_SCALING:
+        print(f"[지시선 스케일링] 함수 호출됨! left_center={left_eye_center}, right_center={right_eye_center}, angle={guide_line_angle}")
+        print(f"[지시선 스케일링] 비율: left={left_eye_size_ratio}, right={right_eye_size_ratio}")
+    
+    if landmarks is None or len(landmarks) == 0:
+        return landmarks
+    
+    try:
+        from utils.face_landmarks import LEFT_EYE_INDICES, RIGHT_EYE_INDICES
+        
+        transformed_landmarks = list(landmarks)
+        
+        # 눈 중심점이 제공되지 않은 경우, 기존 방식으로 계산
+        if left_eye_center is None or right_eye_center is None:
+            from utils.face_landmarks import get_key_landmarks
+            key_landmarks = get_key_landmarks(landmarks)
+            if key_landmarks is None:
+                return landmarks
+            left_eye_center = key_landmarks.get('left_eye')
+            right_eye_center = key_landmarks.get('right_eye')
+        
+        # 왼쪽 눈 스케일링
+        if left_eye_center is not None and abs(left_eye_size_ratio - 1.0) >= 0.01:
+            # 지시선 각도를 고려한 회전 행렬 계산
+            if guide_line_angle is not None:
+                cos_angle = math.cos(guide_line_angle)
+                sin_angle = math.sin(guide_line_angle)
+                if DEBUG_GUIDE_SCALING:
+                    print(f"[지시선 스케일링] 왼쪽 눈 회전: angle={math.degrees(guide_line_angle):.1f}°, cos={cos_angle:.3f}, sin={sin_angle:.3f}")
+            else:
+                cos_angle, sin_angle = 1.0, 0.0  # 기본값 (수평)
+                if DEBUG_GUIDE_SCALING:
+                    print(f"[지시선 스케일링] 왼쪽 눈: 수평 스케일링 적용")
+            
+            # 왼쪽 눈 영역 변형
+            transformed_count = 0
+            for idx in LEFT_EYE_INDICES:
+                if idx < len(landmarks):
+                    x, y = landmarks[idx]
+                    
+                    # 눈 중심을 기준으로 상대 좌표 계산
+                    dx = x - left_eye_center[0]
+                    dy = y - left_eye_center[1]
+                    
+                    # 지시선 각도를 고려한 회전 좌표로 변환
+                    rotated_x = dx * cos_angle + dy * sin_angle
+                    rotated_y = -dx * sin_angle + dy * cos_angle
+                    
+                    # 스케일링 적용 (중심점 기준)
+                    scaled_x = rotated_x * left_eye_size_ratio
+                    scaled_y = rotated_y * left_eye_size_ratio
+                    
+                    # 다시 원래 각도로 회전
+                    final_dx = scaled_x * cos_angle - scaled_y * sin_angle
+                    final_dy = scaled_x * sin_angle + scaled_y * cos_angle
+                    
+                    # 최종 좌표 계산
+                    transformed_landmarks[idx] = (
+                        left_eye_center[0] + final_dx,
+                        left_eye_center[1] + final_dy
+                    )
+                    transformed_count += 1
+            
+            if DEBUG_GUIDE_SCALING:
+                print(f"[지시선 스케일링] 왼쪽 눈 변형 완료: {transformed_count}개 포인트")
+        
+        # 오른쪽 눈 스케일링
+        if right_eye_center is not None and abs(right_eye_size_ratio - 1.0) >= 0.01:
+            # 지시선 각도를 고려한 회전 행렬 계산
+            if guide_line_angle is not None:
+                cos_angle = math.cos(guide_line_angle)
+                sin_angle = math.sin(guide_line_angle)
+            else:
+                cos_angle, sin_angle = 1.0, 0.0  # 기본값 (수평)
+            
+            # 오른쪽 눈 영역 변형
+            for idx in RIGHT_EYE_INDICES:
+                if idx < len(landmarks):
+                    x, y = landmarks[idx]
+                    
+                    # 눈 중심을 기준으로 상대 좌표 계산
+                    dx = x - right_eye_center[0]
+                    dy = y - right_eye_center[1]
+                    
+                    # 지시선 각도를 고려한 회전 좌표로 변환
+                    rotated_x = dx * cos_angle + dy * sin_angle
+                    rotated_y = -dx * sin_angle + dy * cos_angle
+                    
+                    # 스케일링 적용 (중심점 기준)
+                    scaled_x = rotated_x * right_eye_size_ratio
+                    scaled_y = rotated_y * right_eye_size_ratio
+                    
+                    # 다시 원래 각도로 회전
+                    final_dx = scaled_x * cos_angle - scaled_y * sin_angle
+                    final_dy = scaled_x * sin_angle + scaled_y * cos_angle
+                    
+                    # 최종 좌표 계산
+                    transformed_landmarks[idx] = (
+                        right_eye_center[0] + final_dx,
+                        right_eye_center[1] + final_dy
+                    )
+        
+        return transformed_landmarks
+        
+    except Exception as e:
+        if DEBUG_GUIDE_SCALING:
+            print(f"지시선 기반 눈 크기 조정 오류: {e}")
+        return landmarks
+
+
 def transform_points_for_eye_size(landmarks, eye_size_ratio=1.0, left_eye_size_ratio=None, right_eye_size_ratio=None):
     """
     눈 크기 조정을 랜드마크 변형으로 변환합니다 (눈 주변 영역 포함).
     
     Args:
         landmarks: 원본 랜드마크 포인트 리스트
-        eye_size_ratio: 기본 눈 크기 비율
-        left_eye_size_ratio: 왼쪽 눈 크기 비율 (None이면 eye_size_ratio 사용)
-        right_eye_size_ratio: 오른쪽 눈 크기 비율 (None이면 eye_size_ratio 사용)
+        eye_size_ratio: 전체 눈 크기 비율
+        left_eye_size_ratio: 왼쪽 눈 크기 비율
+        right_eye_size_ratio: 오른쪽 눈 크기 비율
     
     Returns:
         transformed_landmarks: 변형된 랜드마크 포인트 리스트
     """
+    if DEBUG_GUIDE_SCALING:
+        print(f"[일반 스케일링] 함수 호출됨! eye_size_ratio={eye_size_ratio}, left={left_eye_size_ratio}, right={right_eye_size_ratio}")
+    
+    # 전역 플래그 확인
+    global _GUIDE_SCALING_ENABLED
+    if DEBUG_GUIDE_SCALING:
+        print(f"[전역 플래그] 지시선 스케일링 상태: {_GUIDE_SCALING_ENABLED}")
+    
+    if _GUIDE_SCALING_ENABLED:
+        if DEBUG_GUIDE_SCALING:
+            print(f"[강제 적용] 전역 플래그 감지! 지시선 스케일링 적용")
+        try:
+            # 지시선 정보 가져오기
+            from utils.face_landmarks import get_key_landmarks
+            key_landmarks = get_key_landmarks(landmarks)
+            if key_landmarks:
+                left_center = key_landmarks.get('left_eye')
+                right_center = key_landmarks.get('right_eye')
+                
+                # 지시선 각도 계산
+                if left_center and right_center:
+                    import math
+                    dx = right_center[0] - left_center[0]
+                    dy = right_center[1] - left_center[1]
+                    angle = math.atan2(dy, dx)
+                    
+                    if DEBUG_GUIDE_SCALING:
+                        print(f"[강제 적용] 지시선 각도 계산: {math.degrees(angle):.1f}°")
+                    return transform_points_for_eye_size_centered(
+                        landmarks, left_center, right_center,
+                        left_eye_size_ratio, right_eye_size_ratio, angle
+                    )
+        except Exception as e:
+            if DEBUG_GUIDE_SCALING:
+                print(f"[강제 적용] 오류: {e}")
+    
     if landmarks is None or len(landmarks) == 0:
         return landmarks
     

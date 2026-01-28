@@ -182,14 +182,54 @@ class EditingStepsMixin:
                 has_size_change = (abs(left_ratio - 1.0) >= 0.01 or abs(right_ratio - 1.0) >= 0.01)
                 
                 if has_size_change:
-                    # transform_points_for_eye_size는 내부에서 복사본을 생성하므로 직접 참조 전달 (불필요한 복사본 생성 제거)
-                    # 원본을 기준으로 변환 (드래그된 포인트도 원본 위치에서 변환)
-                    transformed_landmarks = face_morphing.transform_points_for_eye_size(
-                        base_landmarks,
-                        eye_size_ratio=1.0,
-                        left_eye_size_ratio=left_eye_size,
-                        right_eye_size_ratio=right_eye_size
-                    )
+                    # 지시선 기반 스케일링 선택 여부 확인
+                    if hasattr(self.parent, 'use_guide_line_scaling') and self.parent.use_guide_line_scaling.get() and hasattr(self.parent, 'guide_lines_manager'):
+                        # 지시선 기반 스케일링
+                        try:
+                            # 지시선 정보 가져오기
+                            img_width = getattr(self.parent, 'preview_width', 800)
+                            img_height = getattr(self.parent, 'preview_height', 1000)
+                            left_center, right_center, angle = self.parent.guide_lines_manager.get_eye_centers_and_angle(
+                                base_landmarks, img_width, img_height
+                            )
+                            
+                            if left_center and right_center and angle is not None:
+                                # 지시선 기반 스케일링 적용
+                                transformed_landmarks = face_morphing.transform_points_for_eye_size_centered(
+                                    base_landmarks,
+                                    left_eye_center=left_center,
+                                    right_eye_center=right_center,
+                                    left_eye_size_ratio=left_eye_size,
+                                    right_eye_size_ratio=right_eye_size,
+                                    guide_line_angle=angle
+                                )
+                            else:
+                                # 지시선 정보 없으면 기존 방식 사용
+                                transformed_landmarks = face_morphing.transform_points_for_eye_size(
+                                    base_landmarks,
+                                    eye_size_ratio=1.0,
+                                    left_eye_size_ratio=left_eye_size,
+                                    right_eye_size_ratio=right_eye_size
+                                )
+                        except Exception as e:
+                            print(f"지시선 기반 스케일링 오류: {e}")
+                            # 오류 시 기존 방식 사용
+                            transformed_landmarks = face_morphing.transform_points_for_eye_size(
+                                base_landmarks,
+                                eye_size_ratio=1.0,
+                                left_eye_size_ratio=left_eye_size,
+                                right_eye_size_ratio=right_eye_size
+                            )
+                    else:
+                        # 기존 X/Y 스케일링 방식
+                        # transform_points_for_eye_size는 내부에서 복사본을 생성하므로 직접 참조 전달 (불필요한 복사본 생성 제거)
+                        # 원본을 기준으로 변환 (드래그된 포인트도 원본 위치에서 변환)
+                        transformed_landmarks = face_morphing.transform_points_for_eye_size(
+                            base_landmarks,
+                            eye_size_ratio=1.0,
+                            left_eye_size_ratio=left_eye_size,
+                            right_eye_size_ratio=right_eye_size
+                        )
                 else:
                     transformed_landmarks = base_landmarks
                     has_size_change = False

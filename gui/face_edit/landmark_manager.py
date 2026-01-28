@@ -27,6 +27,7 @@ class LandmarkManager:
         
         # 사용자 수정 랜드마크 (드래그, 슬라이더 등)
         self._custom_landmarks: Optional[List[Tuple[float, float]]] = None
+        self._custom_landmarks_signature: Optional[Tuple[int, Tuple[float, ...]]] = None
         
         # 사용자 수정 눈동자 중앙 포인트 (2개, Tesselation용)
         self._custom_iris_centers: Optional[List[Tuple[float, float]]] = None
@@ -242,12 +243,25 @@ class LandmarkManager:
             reason: 설정 이유 (디버깅용)
         """
         if landmarks is not None:
+            new_signature = self._compute_landmark_signature(landmarks)
+            if (self._custom_landmarks is not None and
+                    self._custom_landmarks_signature == new_signature):
+                # 동일한 내용이면 중복 갱신을 피한다
+                return
+
             # 항상 직접 참조로 저장 (복사본 생성 안 함)
             self._custom_landmarks = landmarks
+            self._custom_landmarks_signature = new_signature
             self._log_change("set_custom", len(landmarks), reason)
         else:
             self._custom_landmarks = None
+            self._custom_landmarks_signature = None
             self._log_change("set_custom", 0, reason)
+
+    def get_custom_landmarks_signature(self):
+        """최근 custom 랜드마크 시그니처 반환 (중복 갱신 여부 확인용)"""
+        return self._custom_landmarks_signature
+
     
     # ========== Custom 눈동자 중앙 포인트 (Tesselation용) ==========
     
@@ -361,6 +375,35 @@ class LandmarkManager:
         """중앙 포인트 좌표 존재 여부"""
         return (self._left_iris_center_coord is not None and 
                 self._right_iris_center_coord is not None)
+
+    # ========== 내부 유틸리티 ==========
+
+    def _compute_landmark_signature(self, landmarks: Optional[List[Tuple[float, float]]]):
+        if not landmarks:
+            return None
+
+        length = len(landmarks)
+        if length == 0:
+            return None
+
+        sample_indices = [0, length // 2, length - 1]
+        samples: List[float] = []
+        for idx in sample_indices:
+            if idx < 0 or idx >= length:
+                continue
+            point = landmarks[idx]
+            if isinstance(point, (tuple, list)) and len(point) >= 2:
+                x, y = point[:2]
+            else:
+                x = getattr(point, 'x', 0.0)
+                y = getattr(point, 'y', 0.0)
+            try:
+                samples.append(round(float(x), 3))
+                samples.append(round(float(y), 3))
+            except (TypeError, ValueError):
+                samples.extend([0.0, 0.0])
+
+        return (length, tuple(samples))
     
     # ========== 드래그 추적 ==========
     
@@ -394,7 +437,7 @@ class LandmarkManager:
         """드래그 표시 초기화"""
         self._dragged_indices.clear()
         self._log_change("clear_dragged_indices")
-    
+
     def is_dragged(self, index: int) -> bool:
         """특정 인덱스가 드래그로 변경되었는지 확인
         

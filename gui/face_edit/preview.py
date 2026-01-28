@@ -6,14 +6,38 @@ import math
 import tkinter as tk
 from PIL import Image, ImageTk
 
+# 디버그용 플래그 (필요 시 True로 전환)
+DEBUG_PREVIEW = False
+
 import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
 from .polygon_renderer import PolygonRendererMixin
 from .landmark_display import LandmarkDisplayMixin
+from .guide_lines import GuideLinesManager
 
 
 class PreviewManagerMixin:
     """미리보기 관리 기능 Mixin"""
+    _REGION_FLAG_ATTRS = (
+        'show_face_oval', 'show_left_eye', 'show_right_eye', 'show_left_eyebrow',
+        'show_right_eyebrow', 'show_nose', 'show_lips', 'show_upper_lips',
+        'show_lower_lips', 'show_left_iris', 'show_right_iris', 'show_contours',
+        'show_tesselation'
+    )
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 지시선 관리자 초기화
+        self.guide_lines_manager = GuideLinesManager(self)
+        self._initialize_face_feature_cache_state()
+
+    def _initialize_face_feature_cache_state(self):
+        if not hasattr(self, '_face_feature_update_in_progress'):
+            self._face_feature_update_in_progress = False
+        if not hasattr(self, '_face_feature_update_requested'):
+            self._face_feature_update_requested = False
+        if not hasattr(self, '_last_face_feature_signature'):
+            self._last_face_feature_signature = None
     
     def _create_preview_ui(self, parent):
         """미리보기 UI 생성"""
@@ -209,6 +233,8 @@ class PreviewManagerMixin:
             self.canvas_original_pos_x = None
             self.canvas_original_pos_y = None
             return
+
+        print("show_original_preview: called..")
         
         try:
             # 캔버스 크기
@@ -323,6 +349,19 @@ class PreviewManagerMixin:
             if not getattr(self, '_is_zooming', False):
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
                     self.update_face_features_display()
+            
+            # 지시선 그리기
+            try:
+                landmarks = self.landmark_manager.get_face_landmarks()
+                if landmarks:
+                    self.guide_lines_manager.draw_guide_lines(
+                        self.canvas_original, landmarks, img_width, img_height,
+                        display_width / img_width, display_height / img_height,
+                        self.canvas_original_pos_x, self.canvas_original_pos_y, 'original'
+                    )
+            except Exception as e:
+                print(f"지시선 그리기 오류: {e}")
+                
         except Exception as e:
             print(f"[원본 이미지 미리보기] 오류 발생: {e}")
             pass
@@ -364,7 +403,8 @@ class PreviewManagerMixin:
             display_width = int(base_display_width * self.zoom_scale_original)
             display_height = int(base_display_height * self.zoom_scale_original)
             
-            print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {self.zoom_scale_original}")
+            if DEBUG_PREVIEW:
+                print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {self.zoom_scale_original}")
             
             # 성능 최적화된 이미지 리사이즈
             try:
@@ -396,23 +436,24 @@ class PreviewManagerMixin:
                         saved_pos_x = old_coords[0]
                         saved_pos_y = old_coords[1]
                 except Exception as e:
-                    print(f"[편집된 이미지 미리보기] 기존 이미지의 위치를 가져오는 중 오류 발생: {e}")
+                    if DEBUG_PREVIEW:
+                        print(f"[편집된 이미지 미리보기] 기존 이미지의 위치를 가져오는 중 오류 발생: {e}")
                     pass
                 
                 self.canvas_edited.delete(self.image_created_edited)
             
-            # 위치 결정: 이미 설정된 위치가 있으면 그대로 사용, 없으면 캔버스에서 가져온 위치 사용
-            if self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
+            # 위치 결정: 원본 이미지 위치와 강제 동기화 (확대/축소 시)
+            if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
+                # 확대/축소 중이거나 원본 위치가 있으면 항상 원본 위치와 동기화
+                self.canvas_edited_pos_x = self.canvas_original_pos_x
+                self.canvas_edited_pos_y = self.canvas_original_pos_y
+            elif self.canvas_edited_pos_x is not None and self.canvas_edited_pos_y is not None:
                 # 이미 설정된 위치가 있으면 그대로 사용 (절대 변경하지 않음)
                 pass
             elif saved_pos_x is not None and saved_pos_y is not None:
                 # 캔버스에서 가져온 위치 사용
                 self.canvas_edited_pos_x = saved_pos_x
                 self.canvas_edited_pos_y = saved_pos_y
-            elif self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
-                # 원본 이미지 위치와 동기화
-                self.canvas_edited_pos_x = self.canvas_original_pos_x
-                self.canvas_edited_pos_y = self.canvas_original_pos_y
             else:
                 # 위치가 없으면 중앙 배치
                 if self.canvas_edited_pos_x is None:
@@ -448,7 +489,11 @@ class PreviewManagerMixin:
                 image=self.tk_image_edited
             )
             
-            print(f"[편집된 이미지 미리보기] Canvas Image ID: {self.image_created_edited}, x={self.canvas_edited_pos_x}, y={self.canvas_edited_pos_y}")
+            if DEBUG_PREVIEW:
+                print(
+                    f"[편집된 이미지 미리보기] Canvas Image ID: {self.image_created_edited}, "
+                    f"x={self.canvas_edited_pos_x}, y={self.canvas_edited_pos_y}"
+                )
             
             # 이미지를 맨 위로 올리기 (랜드마크나 폴리곤 뒤에 가려지지 않도록)
             self.canvas_edited.tag_raise(self.image_created_edited)
@@ -467,9 +512,68 @@ class PreviewManagerMixin:
             if not getattr(self, '_is_zooming', False):
                 if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
                     self.update_face_features_display()
+            
+            # 지시선 그리기 (편집된 이미지)
+            try:
+                landmarks = self.landmark_manager.get_face_landmarks()
+                if landmarks:
+                    self.guide_lines_manager.draw_guide_lines(
+                        self.canvas_edited, landmarks, img_width, img_height,
+                        display_width / img_width, display_height / img_height,
+                        self.canvas_edited_pos_x, self.canvas_edited_pos_y, 'edited'
+                    )
+            except Exception as e:
+                print(f"편집된 이미지 지시선 그리기 오류: {e}")
+                
         except Exception as e:
             print(f"[편집된 이미지 미리보기] 오류 발생: {e}")
             pass
+    
+    def toggle_guide_lines(self):
+        """지시선 토글"""
+        # 지시선 관리자가 없는 경우 초기화
+        if not hasattr(self, 'guide_lines_manager'):
+            from .guide_lines import GuideLinesManager
+            self.guide_lines_manager = GuideLinesManager(self)
+        
+        # 체크박스 상태에 따라 지시선 설정
+        show_lines = self.show_guide_lines.get()
+        
+        # 지시선 설정 업데이트
+        for key in self.guide_lines_manager.guide_line_settings:
+            if key.endswith('_line'):
+                self.guide_lines_manager.guide_line_settings[key] = show_lines
+        
+        # 미리보기 업데이트
+        if self.current_image:
+            self.show_original_preview()
+        if self.edited_image:
+            self.show_edited_preview()
+    
+    def update_guide_lines(self):
+        """지시선 업데이트 (확대/축소 시 호출)"""
+        if hasattr(self, 'guide_lines_manager'):
+            # 체크박스 상태 확인
+            show_lines = getattr(self, 'show_guide_lines', None)
+            if show_lines is None:
+                return
+                
+            # 체크박스 상태에 따라 지시선 설정 업데이트
+            for key in self.guide_lines_manager.guide_line_settings:
+                if key.endswith('_line'):
+                    self.guide_lines_manager.guide_line_settings[key] = show_lines.get()
+            
+            # 미리보기 업데이트
+            if self.current_image:
+                self.show_original_preview()
+            if self.edited_image:
+                self.show_edited_preview()
+    
+    def clear_guide_lines(self):
+        """지시선 제거"""
+        if hasattr(self, 'guide_lines_manager'):
+            self.guide_lines_manager.clear_guide_lines(self.canvas_original, 'original')
+            self.guide_lines_manager.clear_guide_lines(self.canvas_edited, 'edited')
     
     def clear_eye_region_display(self):
         """눈 영역 표시 제거"""
@@ -1110,78 +1214,107 @@ class PreviewManagerMixin:
     
     def update_face_features_display(self):
         """얼굴 특징 표시 업데이트 (랜드마크 포인트, 연결선, 폴리곤)"""
-        # 랜드마크, 연결선, 폴리곤 중 하나라도 체크되어 있으면 랜드마크 감지 필요
-        show_landmarks = self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False
-        show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
-        show_polygons = self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False
-        
-        if (not show_landmarks and not show_lines and not show_polygons) or self.current_image is None:
-            # 둘 다 체크 해제되어 있으면 랜드마크 제거
-            if not show_landmarks:
-                self.clear_landmarks_display()
-            if not show_lines and not show_polygons:
-                # 연결선 및 폴리곤 제거
-                # 원본 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items['original']:
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                # 폴리곤 포인트 맵도 초기화
-                self.polygon_point_map_original.clear()
-                # 편집된 이미지의 연결선/폴리곤 제거
-                for item_id in self.landmark_polygon_items['edited']:
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['edited'].clear()
-                # 폴리곤 포인트 맵도 초기화
-                self.polygon_point_map_edited.clear()
-                # 연결선 태그로도 제거 시도
-                for item_id in self.canvas_original.find_withtag("landmarks_polygon"):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                for item_id in self.canvas_edited.find_withtag("landmarks_polygon"):
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-            # 폴리곤이 체크 해제되면 바운딩 박스도 제거
-            if not show_polygons and hasattr(self, 'clear_bbox_display'):
-                self.clear_bbox_display()
+        self._initialize_face_feature_cache_state()
+        if getattr(self, '_face_feature_update_in_progress', False):
+            self._face_feature_update_requested = True
             return
+        print("update_face_features_display: called..")
+
+        self._face_feature_update_in_progress = True
+        self._face_feature_update_requested = False
 
         try:
-            # 탭 변경 시 기존 폴리곤과 연결선을 먼저 제거 (항상 제거 후 다시 그리기)
-            # 중심점 제거
+            show_landmarks = self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False
+            show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
+            show_polygons = self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False
+
+            if (not show_landmarks and not show_lines and not show_polygons) or self.current_image is None:
+                base_signature = self._build_face_feature_signature(None, show_landmarks, show_lines, show_polygons)
+                if self._last_face_feature_signature == base_signature:
+                    return
+                # 둘 다 체크 해제되어 있으면 랜드마크 제거
+                if not show_landmarks:
+                    self.clear_landmarks_display()
+                if not show_lines and not show_polygons:
+                    for item_id in self.landmark_polygon_items['original']:
+                        try:
+                            self.canvas_original.delete(item_id)
+                        except Exception:
+                            pass
+                    self.landmark_polygon_items['original'].clear()
+                    self.polygon_point_map_original.clear()
+                    for item_id in self.landmark_polygon_items['edited']:
+                        try:
+                            self.canvas_edited.delete(item_id)
+                        except Exception:
+                            pass
+                    self.landmark_polygon_items['edited'].clear()
+                    self.polygon_point_map_edited.clear()
+                    for item_id in self.canvas_original.find_withtag("landmarks_polygon"):
+                        try:
+                            self.canvas_original.delete(item_id)
+                        except Exception:
+                            pass
+                    for item_id in self.canvas_edited.find_withtag("landmarks_polygon"):
+                        try:
+                            self.canvas_edited.delete(item_id)
+                        except Exception:
+                            pass
+                if not show_polygons and hasattr(self, 'clear_bbox_display'):
+                    self.clear_bbox_display()
+                self._last_face_feature_signature = base_signature
+                return
+
+            signature = self._build_face_feature_signature(None, show_landmarks, show_lines, show_polygons)
+            if self._last_face_feature_signature == signature:
+                return
+            self._last_face_feature_signature = signature
+
+            # 랜드마크 감지 (원본 이미지) - 연결선만 표시해도 랜드마크 좌표 필요
+            # 커스텀 랜드마크가 있으면 사용, 없으면 새로 감지
+            detected = False
+            if self.custom_landmarks is not None:
+                landmarks = self.custom_landmarks
+                detected = True
+            elif self.face_landmarks is not None:
+                landmarks = self.face_landmarks
+                detected = True
+            else:
+                landmarks, detected = face_landmarks.detect_face_landmarks(self.current_image)
+                if detected and landmarks is not None:
+                    self.face_landmarks = landmarks
+
+            if not detected or landmarks is None:
+                if show_lines or show_polygons:
+                    from utils.logger import print_warning
+                    print_warning("얼굴편집", "연결선/폴리곤 표시를 위해 랜드마크가 필요하지만 감지되지 않음")
+                return
+
+            signature = self._build_face_feature_signature(landmarks, show_landmarks, show_lines, show_polygons)
+            if self._last_face_feature_signature == signature:
+                return
+            self._last_face_feature_signature = signature
+
+            # 탭 변경 시 기존 폴리곤과 연결선을 먼저 제거 (실제 업데이트가 필요할 때만)
             try:
                 self.canvas_original.delete("region_center")
             except Exception:
                 pass
             
-            # 원본 이미지의 연결선/폴리곤 제거
             for item_id in self.landmark_polygon_items['original']:
                 try:
                     self.canvas_original.delete(item_id)
                 except Exception:
                     pass
             self.landmark_polygon_items['original'].clear()
-            # 폴리곤 포인트 맵도 초기화
             self.polygon_point_map_original.clear()
-            # 편집된 이미지의 연결선/폴리곤 제거
             for item_id in self.landmark_polygon_items['edited']:
                 try:
                     self.canvas_edited.delete(item_id)
                 except Exception:
                     pass
             self.landmark_polygon_items['edited'].clear()
-            # 폴리곤 포인트 맵도 초기화
             self.polygon_point_map_edited.clear()
-            # 연결선 태그로도 제거 시도
             for item_id in self.canvas_original.find_withtag("landmarks_polygon"):
                 try:
                     self.canvas_original.delete(item_id)
@@ -1193,31 +1326,23 @@ class PreviewManagerMixin:
                 except Exception:
                     pass
             
-            # 기존 연결선과 폴리곤 제거 (체크박스가 해제된 경우)
             if not show_lines and not show_polygons:
-                # 원본 이미지의 연결선/폴리곤 제거
                 for item_id in self.landmark_polygon_items['original']:
                     try:
                         self.canvas_original.delete(item_id)
                     except Exception:
                         pass
                 self.landmark_polygon_items['original'].clear()
-                # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_original.clear()
-                # 편집된 이미지의 연결선/폴리곤 제거
                 for item_id in self.landmark_polygon_items['edited']:
                     try:
                         self.canvas_edited.delete(item_id)
                     except Exception:
                         pass
                 self.landmark_polygon_items['edited'].clear()
-                # 폴리곤 포인트 맵도 초기화
                 self.polygon_point_map_edited.clear()
             
-            # 기존 랜드마크 포인트만 제거 (랜드마크 체크박스가 해제된 경우에만)
-            # 연결선과 폴리곤은 clear_landmarks_display에서 제거하지 않음 (독립적으로 관리)
             if not show_landmarks:
-                # 랜드마크 포인트만 제거 (연결선/폴리곤은 유지)
                 for item_id in self.landmarks_items_original:
                     try:
                         self.canvas_original.delete(item_id)
@@ -1234,7 +1359,6 @@ class PreviewManagerMixin:
                 self.landmarks_items_edited.clear()
                 self.polygon_point_map_edited.clear()
                 
-                # 변형된 랜드마크도 제거
                 if hasattr(self, 'landmarks_items_transformed'):
                     for item_id in self.landmarks_items_transformed:
                         try:
@@ -1242,27 +1366,6 @@ class PreviewManagerMixin:
                         except Exception:
                             pass
                     self.landmarks_items_transformed.clear()
-
-            # 랜드마크 감지 (원본 이미지) - 연결선만 표시해도 랜드마크 좌표 필요
-            # 커스텀 랜드마크가 있으면 사용, 없으면 새로 감지
-            if self.custom_landmarks is not None:
-                landmarks = self.custom_landmarks
-                detected = True
-
-            elif self.face_landmarks is not None:
-                landmarks = self.face_landmarks
-                detected = True
-
-            else:
-                landmarks, detected = face_landmarks.detect_face_landmarks(self.current_image)
-                if detected and landmarks is not None:
-                    self.face_landmarks = landmarks
-
-            if not detected or landmarks is None:
-                if show_lines or show_polygons:
-                    from utils.logger import print_warning
-                    print_warning("얼굴편집", "연결선/폴리곤 표시를 위해 랜드마크가 필요하지만 감지되지 않음")
-                return
 
             # 현재 탭 가져오기
             current_tab = getattr(self, 'current_morphing_tab', '눈')
@@ -1334,9 +1437,67 @@ class PreviewManagerMixin:
             # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
             if show_polygons and hasattr(self, 'update_bbox_display'):
                 self.update_bbox_display()
-        
         except Exception as e:
             import traceback
             traceback.print_exc()
-    
-    
+        finally:
+            self._face_feature_update_in_progress = False
+            if getattr(self, '_face_feature_update_requested', False):
+                self._face_feature_update_requested = False
+
+    def _build_face_feature_signature(self, landmarks, show_landmarks, show_lines, show_polygons):
+        region_state = tuple(self._get_var_value(name) for name in self._REGION_FLAG_ATTRS)
+        tab = getattr(self, 'current_morphing_tab', None)
+        zoom = round(getattr(self, 'zoom_scale_original', 1.0), 4)
+        pos_x = round(self.canvas_original_pos_x or 0, 2) if getattr(self, 'canvas_original_pos_x', None) is not None else None
+        pos_y = round(self.canvas_original_pos_y or 0, 2) if getattr(self, 'canvas_original_pos_y', None) is not None else None
+        landmark_sig = self._compute_landmark_checksum(landmarks)
+        show_centers = self._get_var_value('show_region_centers')
+        return (
+            tab,
+            show_landmarks,
+            show_lines,
+            show_polygons,
+            show_centers,
+            region_state,
+            zoom,
+            pos_x,
+            pos_y,
+            landmark_sig,
+        )
+
+    def _compute_landmark_checksum(self, landmarks):
+        if not landmarks:
+            return None
+        length = len(landmarks)
+        if length == 0:
+            return None
+        sample_indices = [0, length // 2, length - 1]
+        samples = []
+        for idx in sample_indices:
+            if idx < 0 or idx >= length:
+                continue
+            point = landmarks[idx]
+            if isinstance(point, tuple):
+                x, y = point[:2]
+            else:
+                x = getattr(point, 'x', 0)
+                y = getattr(point, 'y', 0)
+            try:
+                x_val = float(x)
+                y_val = float(y)
+            except (TypeError, ValueError):
+                x_val, y_val = 0.0, 0.0
+            samples.append(round(x_val, 3))
+            samples.append(round(y_val, 3))
+        return (length, tuple(samples))
+
+    def _get_var_value(self, attr_name):
+        var = getattr(self, attr_name, None)
+        if var is None or not hasattr(var, 'get'):
+            return None
+        try:
+            return var.get()
+        except Exception:
+            return None
+

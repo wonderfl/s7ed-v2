@@ -2,6 +2,7 @@
 얼굴 편집 패널 - 얼굴 특징 보정 Mixin
 얼굴 특징 보정 관리 및 편집 적용 로직을 담당
 """
+import math
 import os
 import tkinter as tk
 from tkinter import ttk
@@ -30,23 +31,37 @@ class LogicMixin(EditingStepsMixin):
                 result.append((landmark.x * img_width, landmark.y * img_height))
         return result
     
-    def _transform_eye_center(self, orig_eye_center, center_x, center_y, size_x, size_y, position_x, position_y):
+    def _transform_eye_center(
+        self,
+        orig_eye_center,
+        center_x,
+        center_y,
+        size_x,
+        size_y,
+        position_x,
+        position_y,
+        scale_relative_fn=None,
+    ):
         """원본 눈 중심점을 얼굴 전체 중심점 기준으로 변형"""
-        orig_rel_eye_x = orig_eye_center[0] - center_x
-        orig_rel_eye_y = orig_eye_center[1] - center_y
-        # 크기 조절
-        if abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
-            orig_rel_eye_x *= size_x
-            orig_rel_eye_y *= size_y
+        rel_x = orig_eye_center[0] - center_x
+        rel_y = orig_eye_center[1] - center_y
+
+        size_condition = abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01
+        if scale_relative_fn is not None:
+            rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+        elif size_condition:
+            rel_x *= size_x
+            rel_y *= size_y
+
         # 위치 이동
-        orig_rel_eye_x += position_x
-        orig_rel_eye_y += position_y
-        # 변형된 눈 중심점
-        return (center_x + orig_rel_eye_x, center_y + orig_rel_eye_y)
+        rel_x += position_x
+        rel_y += position_y
+
+        return center_x + rel_x, center_y + rel_y
     
     def _calculate_and_update_iris_center(self, eye_side, orig_eye_center, trans_eye_center, 
                                          original_landmarks, img_width, img_height, 
-                                         size_x, size_y, iris_indices_in_all, updated_landmarks):
+                                         size_x, size_y, iris_indices_in_all, updated_landmarks, scale_relative_fn=None):
         """눈동자 중심점 계산 및 업데이트
         
         Args:
@@ -93,9 +108,16 @@ class LogicMixin(EditingStepsMixin):
         orig_rel_iris_x = orig_iris_center_x - orig_eye_center[0]
         orig_rel_iris_y = orig_iris_center_y - orig_eye_center[1]
         
-        # 눈 중심점 기준으로 변형 (Tesselation과 동일한 크기/위치 비율)
-        new_rel_iris_x = orig_rel_iris_x * size_x
-        new_rel_iris_y = orig_rel_iris_y * size_y
+        # 눈 중심점 기준으로 변형 (가이드 축 스케일 사용 가능)
+        size_condition = abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01
+        if scale_relative_fn is not None:
+            new_rel_iris_x, new_rel_iris_y = scale_relative_fn(orig_rel_iris_x, orig_rel_iris_y)
+        elif size_condition:
+            new_rel_iris_x = orig_rel_iris_x * size_x
+            new_rel_iris_y = orig_rel_iris_y * size_y
+        else:
+            new_rel_iris_x = orig_rel_iris_x
+            new_rel_iris_y = orig_rel_iris_y
         
         # 변형된 눈 중심점 기준 새로운 좌표
         new_iris_center_x = trans_eye_center[0] + new_rel_iris_x
@@ -127,7 +149,7 @@ class LogicMixin(EditingStepsMixin):
     
     def _apply_tesselation_transform(self, updated_landmarks, face_indices, iris_indices_in_all,
                                     center_offset_x, center_offset_y, size_x, size_y,
-                                    position_x, position_y, image):
+                                    position_x, position_y, image, scale_relative_fn=None):
         """Tesselation 선택 시 전체 얼굴 변형 적용"""
         # 전체 얼굴 중심점 계산 (눈동자 제외)
         if not face_indices:
@@ -169,8 +191,10 @@ class LogicMixin(EditingStepsMixin):
             rel_x = point_x - center_x
             rel_y = point_y - center_y
             
-            # 크기 조절
-            if abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
+            # 크기 조절 (가이드 축 스케일 사용 가능)
+            if scale_relative_fn is not None:
+                rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+            elif abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
                 rel_x *= size_x
                 rel_y *= size_y
             
@@ -200,7 +224,8 @@ class LogicMixin(EditingStepsMixin):
                 if original_key_landmarks.get('left_eye'):
                     orig_left_eye = original_key_landmarks['left_eye']
                     trans_left_eye = self._transform_eye_center(
-                        orig_left_eye, center_x, center_y, size_x, size_y, position_x, position_y
+                        orig_left_eye, center_x, center_y, size_x, size_y, position_x, position_y,
+                        scale_relative_fn=scale_relative_fn
                     )
                     self._calculate_and_update_iris_center(
                         'left', orig_left_eye, trans_left_eye,
@@ -212,7 +237,8 @@ class LogicMixin(EditingStepsMixin):
                 if original_key_landmarks.get('right_eye'):
                     orig_right_eye = original_key_landmarks['right_eye']
                     trans_right_eye = self._transform_eye_center(
-                        orig_right_eye, center_x, center_y, size_x, size_y, position_x, position_y
+                        orig_right_eye, center_x, center_y, size_x, size_y, position_x, position_y,
+                        scale_relative_fn=scale_relative_fn
                     )
                     self._calculate_and_update_iris_center(
                         'right', orig_right_eye, trans_right_eye,
@@ -263,196 +289,468 @@ class LogicMixin(EditingStepsMixin):
     
     def _apply_common_sliders(self, image, base_image=None):
         """공통 슬라이더(Size, Position, Center Offset) 적용"""
+        
+        print(f"_apply_common_sliders: called..")
         if image is None:
             return image
         
         try:
-            # 고급 모드 확인
-            use_warping = getattr(self, 'use_landmark_warping', None)
-            is_advanced_mode = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get() and
-                               hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None)
-            
-            # 선택된 부위 목록 가져오기
-            selected_regions = []
-            if hasattr(self, 'show_face_oval') and self.show_face_oval.get():
-                selected_regions.append('face_oval')
-            if hasattr(self, 'show_left_eye') and self.show_left_eye.get():
-                selected_regions.append('left_eye')
-            if hasattr(self, 'show_right_eye') and self.show_right_eye.get():
-                selected_regions.append('right_eye')
-            if hasattr(self, 'show_left_eyebrow') and self.show_left_eyebrow.get():
-                selected_regions.append('left_eyebrow')
-            if hasattr(self, 'show_right_eyebrow') and self.show_right_eyebrow.get():
-                selected_regions.append('right_eyebrow')
-            if hasattr(self, 'show_nose') and self.show_nose.get():
-                selected_regions.append('nose')
-            if hasattr(self, 'show_lips') and self.show_lips.get():
-                selected_regions.append('lips')
-            if hasattr(self, 'show_left_iris') and self.show_left_iris.get():
-                selected_regions.append('left_iris')
-            if hasattr(self, 'show_right_iris') and self.show_right_iris.get():
-                selected_regions.append('right_iris')
-            if hasattr(self, 'show_contours') and self.show_contours.get():
-                selected_regions.append('contours')
-            if hasattr(self, 'show_tesselation') and self.show_tesselation.get():
-                selected_regions.append('tesselation')
-            
+            is_advanced_mode = self._is_advanced_mode()
+            selected_regions = self._get_selected_regions()
+
+            print(f"고급모드: {is_advanced_mode}, 선택된 부위: {selected_regions} ")
             if not selected_regions:
                 return image
-            
-            # 공통 슬라이더 값 가져오기
-            center_offset_x = self.region_center_offset_x.get()
-            center_offset_y = self.region_center_offset_y.get()
-            size_x = self.region_size_x.get()
-            size_y = self.region_size_y.get()
-            position_x = self.region_position_x.get()
-            position_y = self.region_position_y.get()
-            blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
-            
-            # 선택된 부위가 있고 슬라이더 값이 기본값이 아니면 적용
-            size_x_condition = abs(size_x - 1.0) >= 0.01
-            size_y_condition = abs(size_y - 1.0) >= 0.01
-            size_condition = size_x_condition or size_y_condition
-            offset_x_condition = abs(center_offset_x) >= 0.1
-            offset_y_condition = abs(center_offset_y) >= 0.1
-            pos_x_condition = abs(position_x) >= 0.1
-            pos_y_condition = abs(position_y) >= 0.1
-            
-            conditions_met = offset_x_condition or offset_y_condition or size_condition or pos_x_condition or pos_y_condition
-            
-            # 고급 모드: custom_landmarks의 포인트를 직접 조절
+
+            slider_values, slider_conditions = self._get_common_slider_values()
+
             if is_advanced_mode:
-                result = self._apply_common_sliders_to_landmarks(selected_regions, center_offset_x, center_offset_y, 
-                                                                   size_x, size_y, position_x, position_y, image)
-                # 이미지가 변형되었으므로 미리보기 업데이트
-                if result is not None and result != image:
-                    self.edited_image = result
-                    self.show_edited_preview()
-                    if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                        self.update_face_features_display()
-                return result
-            
-            # 일반 모드: 이미지 영역 변형
-            import utils.face_landmarks as face_landmarks
-            landmarks, _ = face_landmarks.detect_face_landmarks(image)
-            
-            if landmarks is None:
-                return image
-            
-            from utils.face_morphing.adjustments import adjust_region_size, adjust_region_position
-            result = image
-            
-            # 각 부위에 대해 순차적으로 적용
-            for region_name in selected_regions:
-                # 1. 크기 조절
-                if size_condition:
-                    result = adjust_region_size(result, region_name, size_x, size_y, center_offset_x, center_offset_y, landmarks, blend_ratio)
-                    if result is None:
-                        print_warning("얼굴편집", f"{region_name} 크기 조절 결과가 None입니다")
-                        result = image
-                    else:
-                        # 랜드마크 업데이트 (크기 조절 후)
-                        landmarks, _ = face_landmarks.detect_face_landmarks(result)
-                        image = result  # 다음 단계를 위해 업데이트
-                
-                # 2. 위치 이동
-                if pos_x_condition or pos_y_condition:
-                    result = adjust_region_position(result, region_name, position_x, position_y, 
-                                                  center_offset_x, center_offset_y, landmarks)
-                    if result is None:
-                        print_warning("얼굴편집", f"{region_name} 위치 이동 결과가 None입니다")
-                        result = image
-                    else:
-                        # 랜드마크 업데이트 (위치 이동 후)
-                        landmarks, _ = face_landmarks.detect_face_landmarks(result)
-                        image = result  # 다음 단계를 위해 업데이트
-            
-            return result if result is not None else image
-            
+                return self._handle_advanced_mode(selected_regions, slider_values, image)
+
+            return self._apply_common_sliders_general_mode(
+                image=image,
+                selected_regions=selected_regions,
+                slider_values=slider_values,
+                slider_conditions=slider_conditions,
+            )
+        
         except Exception as e:
             import traceback
             traceback.print_exc()
             return image
+
+    def _handle_tesselation_transform_mode(
+        self,
+        selected_regions,
+        dragged_indices,
+        updated_landmarks,
+        center_offset_x,
+        center_offset_y,
+        size_x,
+        size_y,
+        position_x,
+        position_y,
+        image,
+        expansion_level,
+        tesselation_graph,
+        scale_relative_fn,
+    ):
+        if 'tesselation' not in selected_regions or len(selected_regions) != 1:
+            return False
+
+        all_indices = set()
+        for region_name in selected_regions:
+            region_indices = set(self._get_region_indices(region_name))
+            all_indices.update(region_indices)
+
+        try:
+            from utils.face_morphing.region_extraction import get_iris_indices
+
+            left_iris_indices, right_iris_indices = get_iris_indices()
+            iris_indices = set(left_iris_indices + right_iris_indices)
+        except ImportError:
+            iris_indices = {469, 470, 471, 472, 474, 475, 476, 477}
+
+        iris_indices_in_all = all_indices & iris_indices
+        face_indices = all_indices - iris_indices
+
+        if expansion_level > 0 and tesselation_graph:
+            current_indices = face_indices.copy()
+            for _ in range(expansion_level):
+                next_level_indices = set()
+                for idx in current_indices:
+                    if idx in tesselation_graph:
+                        for neighbor in tesselation_graph[idx]:
+                            if neighbor < len(updated_landmarks) and neighbor not in iris_indices:
+                                next_level_indices.add(neighbor)
+                face_indices.update(next_level_indices)
+                current_indices = next_level_indices
+
+        face_indices_for_transform = face_indices - dragged_indices
+        self._apply_tesselation_transform(
+            updated_landmarks,
+            face_indices_for_transform,
+            iris_indices_in_all,
+            center_offset_x,
+            center_offset_y,
+            size_x,
+            size_y,
+            position_x,
+            position_y,
+            image,
+            scale_relative_fn=scale_relative_fn,
+        )
+        return True
+
+    def _transform_selected_landmarks(
+        self,
+        selected_regions,
+        updated_landmarks,
+        original_landmarks,
+        center_offset_x,
+        center_offset_y,
+        position_x,
+        position_y,
+        image,
+        expansion_level,
+        tesselation_graph,
+        scale_relative_fn,
+        dragged_indices,
+    ):
+        from utils.face_morphing.region_extraction import _get_region_center
+
+        transformed_indices = set()
+
+        region_centers = {}
+        for region_name in selected_regions:
+            region_indices = set(self._get_region_indices(region_name))
+            if not region_indices:
+                continue
+
+            center = _get_region_center(region_name, original_landmarks, center_offset_x, center_offset_y)
+            if center is None:
+                continue
+            region_centers[region_name] = center
+
+        for region_name in selected_regions:
+            region_indices = set(self._get_region_indices(region_name))
+            if not region_indices or region_name not in region_centers:
+                continue
+
+            if expansion_level > 0 and tesselation_graph:
+                current_indices = region_indices.copy()
+                for _ in range(expansion_level):
+                    next_level_indices = set()
+                    for idx in current_indices:
+                        if idx in tesselation_graph:
+                            for neighbor in tesselation_graph[idx]:
+                                if neighbor < len(updated_landmarks):
+                                    next_level_indices.add(neighbor)
+                    region_indices.update(next_level_indices)
+                    current_indices = next_level_indices
+            elif 'eyebrow' in region_name.lower():
+                print_warning(
+                    "얼굴편집",
+                    f"{region_name} 확장 실패: expansion_level={expansion_level}, tesselation_graph 크기={len(tesselation_graph)}",
+                )
+
+            center_x, center_y = region_centers[region_name]
+
+            if region_name in ['left_iris', 'right_iris']:
+                iris_points_orig = []
+                for idx in region_indices:
+                    if idx < len(self.original_landmarks):
+                        if isinstance(self.original_landmarks[idx], tuple):
+                            iris_points_orig.append(self.original_landmarks[idx])
+                        else:
+                            img_width, img_height = image.size
+                            iris_points_orig.append(
+                                (
+                                    self.original_landmarks[idx].x * img_width,
+                                    self.original_landmarks[idx].y * img_height,
+                                )
+                            )
+
+                if iris_points_orig:
+                    orig_iris_center_x = sum(p[0] for p in iris_points_orig) / len(iris_points_orig)
+                    orig_iris_center_y = sum(p[1] for p in iris_points_orig) / len(iris_points_orig)
+
+                    rel_x = orig_iris_center_x - center_x
+                    rel_y = orig_iris_center_y - center_y
+
+                    before_rel_x, before_rel_y = rel_x, rel_y
+                    rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+                    if (before_rel_x, before_rel_y) != (rel_x, rel_y):
+                        print_debug(
+                            "얼굴편집",
+                            f"랜드마크 변형: before=({before_rel_x:.3f},{before_rel_y:.3f}), after=({rel_x:.3f},{rel_y:.3f})",
+                        )
+
+                    rel_x += position_x
+                    rel_y += position_y
+
+                    new_iris_center_x = center_x + rel_x
+                    new_iris_center_y = center_y + rel_y
+
+                    if region_name == 'left_iris':
+                        self.landmark_manager.set_iris_center_coords(
+                            (new_iris_center_x, new_iris_center_y),
+                            self.landmark_manager.get_right_iris_center_coord(),
+                        )
+                    else:
+                        self.landmark_manager.set_iris_center_coords(
+                            self.landmark_manager.get_left_iris_center_coord(),
+                            (new_iris_center_x, new_iris_center_y),
+                        )
+
+                    for idx in region_indices:
+                        if idx not in transformed_indices and idx < len(updated_landmarks):
+                            updated_landmarks[idx] = (new_iris_center_x, new_iris_center_y)
+                            transformed_indices.add(idx)
+            else:
+                for idx in region_indices:
+                    if idx in transformed_indices or idx in dragged_indices or idx >= len(updated_landmarks):
+                        continue
+
+                    if isinstance(updated_landmarks[idx], tuple):
+                        point_x, point_y = updated_landmarks[idx]
+                    else:
+                        img_width, img_height = image.size
+                        point_x = updated_landmarks[idx].x * img_width
+                        point_y = updated_landmarks[idx].y * img_height
+
+                    rel_x = point_x - center_x
+                    rel_y = point_y - center_y
+                    rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+                    rel_x += position_x
+                    rel_y += position_y
+
+                    updated_landmarks[idx] = (center_x + rel_x, center_y + rel_y)
+                    transformed_indices.add(idx)
+
+        return transformed_indices
+
+    def _is_advanced_mode(self):
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        has_custom_landmarks = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None
+        return (
+            use_warping is not None and
+            hasattr(use_warping, 'get') and
+            use_warping.get() and
+            has_custom_landmarks
+        )
+
+    def _should_use_guide_axis(self):
+        return (
+            hasattr(self, 'use_guide_line_scaling') and
+            hasattr(self.use_guide_line_scaling, 'get') and
+            self.use_guide_line_scaling.get() and
+            hasattr(self, 'guide_lines_manager')
+        )
+
+    def _get_selected_regions(self):
+        regions = []
+        attr_pairs = [
+            ('show_face_oval', 'face_oval'),
+            ('show_left_eye', 'left_eye'),
+            ('show_right_eye', 'right_eye'),
+            ('show_left_eyebrow', 'left_eyebrow'),
+            ('show_right_eyebrow', 'right_eyebrow'),
+            ('show_nose', 'nose'),
+            ('show_lips', 'lips'),
+            ('show_left_iris', 'left_iris'),
+            ('show_right_iris', 'right_iris'),
+            ('show_contours', 'contours'),
+            ('show_tesselation', 'tesselation'),
+        ]
+        for attr_name, region_name in attr_pairs:
+            var = getattr(self, attr_name, None)
+            if var is not None and hasattr(var, 'get') and var.get():
+                regions.append(region_name)
+        return regions
+
+    def _get_common_slider_values(self):
+        values = {
+            'center_offset_x': self.region_center_offset_x.get(),
+            'center_offset_y': self.region_center_offset_y.get(),
+            'size_x': self.region_size_x.get(),
+            'size_y': self.region_size_y.get(),
+            'position_x': self.region_position_x.get(),
+            'position_y': self.region_position_y.get(),
+            'blend_ratio': self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0,
+        }
+        conditions = {
+            'size_x_condition': abs(values['size_x'] - 1.0) >= 0.01,
+            'size_y_condition': abs(values['size_y'] - 1.0) >= 0.01,
+            'offset_x_condition': abs(values['center_offset_x']) >= 0.1,
+            'offset_y_condition': abs(values['center_offset_y']) >= 0.1,
+            'pos_x_condition': abs(values['position_x']) >= 0.1,
+            'pos_y_condition': abs(values['position_y']) >= 0.1,
+        }
+        conditions['size_condition'] = conditions['size_x_condition'] or conditions['size_y_condition']
+        return values, conditions
+
+    def _handle_advanced_mode(self, selected_regions, slider_values, image):
+        center_offset_x = slider_values['center_offset_x']
+        center_offset_y = slider_values['center_offset_y']
+        size_x = slider_values['size_x']
+        size_y = slider_values['size_y']
+        position_x = slider_values['position_x']
+        position_y = slider_values['position_y']
+
+        result = self._apply_common_sliders_to_landmarks(
+            selected_regions,
+            center_offset_x,
+            center_offset_y,
+            size_x,
+            size_y,
+            position_x,
+            position_y,
+            image,
+        )
+
+        if result is not None and result != image:
+            self.edited_image = result
+            self.show_edited_preview()
+            if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+                self.update_face_features_display()
+
+        return result
+
+    def _apply_common_sliders_general_mode(self, image, selected_regions, slider_values, slider_conditions):
+        import utils.face_landmarks as face_landmarks
+
+        landmarks, _ = face_landmarks.detect_face_landmarks(image)
+        if landmarks is None:
+            return image
+
+        from utils.face_morphing.adjustments import (
+            adjust_region_size,
+            adjust_region_position,
+            adjust_region_size_with_axis,
+        )
+
+        center_offset_x = slider_values['center_offset_x']
+        center_offset_y = slider_values['center_offset_y']
+        size_x = slider_values['size_x']
+        size_y = slider_values['size_y']
+        position_x = slider_values['position_x']
+        position_y = slider_values['position_y']
+        blend_ratio = slider_values['blend_ratio']
+
+        size_condition = slider_conditions['size_condition']
+        pos_x_condition = slider_conditions['pos_x_condition']
+        pos_y_condition = slider_conditions['pos_y_condition']
+
+        result = image
+        use_guide_axis = size_condition and self._should_use_guide_axis()
+        guide_angle = None
+        if use_guide_axis:
+            guide_angle = self._get_guide_axis_angle(landmarks, image.size)
+            if guide_angle is None:
+                print_debug("얼굴편집", "지시선 축 각도 계산 실패 - 기본 축으로 폴백")
+                use_guide_axis = False
+            else:
+                print_debug(
+                    "얼굴편집",
+                    f"전체탭 축 스케일 시작: angle={math.degrees(guide_angle):.1f}°, regions={len(selected_regions)}"
+                )
+
+        for region_name in selected_regions:
+            if size_condition:
+                if use_guide_axis and guide_angle is not None:
+                    print_debug("얼굴편집", f"지시선 축 적용 대상: {region_name}, size=({size_x:.3f},{size_y:.3f})")
+                    print_debug("얼굴편집", f"adjust_region_size_with_axis 호출: region={region_name}")
+                    result = adjust_region_size_with_axis(
+                        result,
+                        region_name,
+                        size_x=size_x,
+                        size_y=size_y,
+                        center_offset_x=center_offset_x,
+                        center_offset_y=center_offset_y,
+                        landmarks=landmarks,
+                        blend_ratio=blend_ratio,
+                        guide_angle=guide_angle,
+                    )
+                else:
+                    print_debug("얼굴편집", f"기본 축 adjust_region_size 호출: region={region_name}")
+                    result = adjust_region_size(
+                        result,
+                        region_name,
+                        size_x,
+                        size_y,
+                        center_offset_x,
+                        center_offset_y,
+                        landmarks,
+                        blend_ratio,
+                    )
+
+                if result is None:
+                    print_warning("얼굴편집", f"{region_name} 크기 조절 결과가 None입니다")
+                    result = image
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(result)
+                    if landmarks is None:
+                        print_warning("얼굴편집", "랜드마크 재검출 실패 (지시선 축 적용)")
+                        return result
+                    if use_guide_axis:
+                        guide_angle = self._get_guide_axis_angle(landmarks, image.size)
+                        if guide_angle is None:
+                            print_debug("얼굴편집", "지시선 축 재계산 실패 - 이후 기본 축 적용")
+                            use_guide_axis = False
+                    image = result
+
+            if pos_x_condition or pos_y_condition:
+                result = adjust_region_position(
+                    result,
+                    region_name,
+                    position_x,
+                    position_y,
+                    center_offset_x,
+                    center_offset_y,
+                    landmarks,
+                )
+                if result is None:
+                    print_warning("얼굴편집", f"{region_name} 위치 이동 결과가 None입니다")
+                    result = image
+                else:
+                    landmarks, _ = face_landmarks.detect_face_landmarks(result)
+                    image = result
+
+        return result if result is not None else image
+
+    def _get_guide_axis_angle(self, landmarks, image_size):
+        if not landmarks or not hasattr(self, 'guide_lines_manager'):
+            return None
+        try:
+            img_width, img_height = image_size
+        except Exception:
+            return None
+        try:
+            left_center, right_center, angle = self.guide_lines_manager.get_eye_centers_and_angle(
+                landmarks, img_width, img_height
+            )
+            if left_center is None or right_center is None or angle is None:
+                print_debug("얼굴편집", "지시선 축 정보를 가져오지 못했습니다")
+                return None
+            print_debug(
+                "얼굴편집",
+                f"지시선 축 각도 계산 성공: angle={math.degrees(angle):.1f}°, left={left_center}, right={right_center}"
+            )
+            return angle
+        except Exception as exc:
+            print_debug("얼굴편집", f"지시선 축 계산 실패: {exc}")
+            return None
     
     def _apply_common_sliders_to_landmarks(self, selected_regions, center_offset_x, center_offset_y, 
                                           size_x, size_y, position_x, position_y, image):
         """고급 모드: 공통 슬라이더로 custom_landmarks의 포인트를 직접 조절"""
-        # custom_landmarks 확인 (LandmarkManager 사용)
-        custom = self.landmark_manager.get_custom_landmarks()
-        if custom is None:
-            return image
-        
         try:
             from utils.face_morphing.region_extraction import _get_region_center
             import utils.face_landmarks as face_landmarks
-            
-            # 원본 랜드마크 가져오기 (LandmarkManager 사용)
-            if not self.landmark_manager.has_original_face_landmarks():
-                # MediaPipe로 랜드마크 감지 (478개 또는 468개)
-                original_landmarks_full, _ = face_landmarks.detect_face_landmarks(self.current_image)
-                if original_landmarks_full is None:
-                    return image
-                
-                # LandmarkManager에 저장 (자동으로 얼굴/눈동자 분리)
-                # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
-                img_width, img_height = image.size
-                self.landmark_manager.set_original_landmarks(original_landmarks_full, img_width, img_height)
-                self.original_landmarks = self.landmark_manager.get_original_landmarks_full()
-            
-            # 얼굴 랜드마크 (468개) 가져오기
-            original_face_landmarks = self.landmark_manager.get_original_face_landmarks()
-            # 눈동자 랜드마크 (10개) 가져오기
-            original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-            # 전체 랜드마크
-            original_landmarks = self.landmark_manager.get_original_landmarks_full()
-            
-            # custom_landmarks 초기화 (얼굴 랜드마크만, 468개)
-            if self.custom_landmarks is None or len(self.custom_landmarks) != 468:
-                if original_face_landmarks is not None:
-                    # original_face_landmarks는 원본이므로 복사본이 필요할 수 있지만,
-                    # 직접 참조로 저장 (원본은 읽기 전용이므로 안전)
-                    self.custom_landmarks = original_face_landmarks
-            
-            # 드래그로 변경된 포인트 추적 (LandmarkManager에서 직접 가져오기)
-            # 슬라이더 변형을 적용할 때 이 포인트들은 건너뛰어야 함
-            dragged_indices = self.landmark_manager.get_dragged_indices()
-            
-            # 사이즈 변환 중복 적용 방지: 원본 랜드마크를 기준으로 변환 적용
-            # 드래그된 포인트만 custom_landmarks에서 보존
-            updated_landmarks = []
-            img_width, img_height = image.size
-            
-            # 원본 랜드마크를 기준으로 초기화 (사이즈 변환 중복 방지)
-            base_landmarks = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
-            for idx in range(len(base_landmarks)):
-                if isinstance(base_landmarks[idx], tuple):
-                    updated_landmarks.append(base_landmarks[idx])
-                else:
-                    updated_landmarks.append((
-                        base_landmarks[idx].x * img_width,
-                        base_landmarks[idx].y * img_height
-                    ))
-            
-            # 드래그된 포인트는 custom_landmarks에서 가져와서 보존 (사이즈 변환 포함된 상태)
-            custom = self.landmark_manager.get_custom_landmarks()
-            
-            # custom_landmarks가 470개인 경우 마지막 2개(중앙 포인트)를 제외한 468개만 사용
-            custom_for_drag = custom
-            if custom is not None and len(custom) == 470:
-                custom_for_drag = custom[:468]  # 마지막 2개 제외
-            
-            if custom_for_drag is not None and len(custom_for_drag) == 468 and dragged_indices:
-                # 드래그된 포인트만 custom_landmarks에서 가져와서 보존
-                for idx in dragged_indices:
-                    if 0 <= idx < len(custom_for_drag) and idx < len(updated_landmarks):
-                        if isinstance(custom_for_drag[idx], tuple):
-                            updated_landmarks[idx] = custom_for_drag[idx]
-                        else:
-                            updated_landmarks[idx] = (
-                                custom_for_drag[idx].x * img_width,
-                                custom_for_drag[idx].y * img_height
-                            )
-            
+
+            context = self._collect_landmark_transform_context(
+                image=image,
+                size_x=size_x,
+                size_y=size_y,
+                face_landmarks_module=face_landmarks,
+            )
+            if context is None:
+                return image
+
+            size_x_condition = context['size_x_condition']
+            size_y_condition = context['size_y_condition']
+            size_condition = context['size_condition']
+            scale_relative_fn = context['scale_relative_fn']
+            dragged_indices = context['dragged_indices']
+            updated_landmarks = context['updated_landmarks']
+            original_face_landmarks = context['original_face_landmarks']
+            original_iris_landmarks = context['original_iris_landmarks']
+            original_landmarks = context['original_landmarks']
+            base_landmarks = context['base_landmarks']
+            img_width, img_height = context['image_size']
+            use_guide_axis = context['use_guide_axis']
+
             # 확장 레벨 가져오기
             expansion_level = getattr(self, 'polygon_expansion_level', tk.IntVar(value=1)).get() if hasattr(self, 'polygon_expansion_level') else 1
             
@@ -480,400 +778,97 @@ class LogicMixin(EditingStepsMixin):
                 except ImportError:
                     pass
             
-            # Tesselation 선택 시 전체 얼굴 중심점 사용
-            if 'tesselation' in selected_regions and len(selected_regions) == 1:
-                # Tesselation만 선택된 경우: 전체 얼굴 중심점 사용
-                all_indices = set()
-                for region_name in selected_regions:
-                    region_indices = set(self._get_region_indices(region_name))
-                    all_indices.update(region_indices)
-                
-                # 눈동자 인덱스 분리 (별도 처리, MediaPipe 정의 사용)
-                try:
-                    from utils.face_morphing.region_extraction import get_iris_indices
-                    left_iris_indices, right_iris_indices = get_iris_indices()
-                    iris_indices = set(left_iris_indices + right_iris_indices)
-                except ImportError:
-                    # 폴백: 하드코딩된 인덱스 사용 (실제 MediaPipe 정의: LEFT_IRIS=[474,475,476,477], RIGHT_IRIS=[469,470,471,472])
-                    iris_indices = set([469, 470, 471, 472, 474, 475, 476, 477])
-                iris_indices_in_all = all_indices & iris_indices
-                face_indices = all_indices - iris_indices
-                
-                # 확장 레벨에 따라 이웃 포인트 추가 (눈동자 제외)
-                if expansion_level > 0 and tesselation_graph:
-                    current_indices = face_indices.copy()
-                    for level in range(expansion_level):
-                        next_level_indices = set()
-                        for idx in current_indices:
-                            if idx in tesselation_graph:
-                                for neighbor in tesselation_graph[idx]:
-                                    if neighbor < len(updated_landmarks) and neighbor not in iris_indices:
-                                        next_level_indices.add(neighbor)
-                        face_indices.update(next_level_indices)
-                        current_indices = next_level_indices
-                
-                # Tesselation 변형 적용 (드래그로 변경된 포인트는 제외)
-                # face_indices에서 드래그로 변경된 포인트 제거
-                face_indices_for_transform = face_indices - dragged_indices
-                self._apply_tesselation_transform(
-                    updated_landmarks, face_indices_for_transform, iris_indices_in_all,
-                    center_offset_x, center_offset_y, size_x, size_y,
-                    position_x, position_y, image
-                )
-            else:
-                # 각 선택된 부위에 대해 랜드마크 포인트 조절
-                # 이미 변형된 포인트 추적 (중복 변형 방지)
+            handled_tesselation = self._handle_tesselation_transform_mode(
+                selected_regions=selected_regions,
+                dragged_indices=dragged_indices,
+                updated_landmarks=updated_landmarks,
+                center_offset_x=center_offset_x,
+                center_offset_y=center_offset_y,
+                size_x=size_x,
+                size_y=size_y,
+                position_x=position_x,
+                position_y=position_y,
+                image=image,
+                expansion_level=expansion_level,
+                tesselation_graph=tesselation_graph,
+                scale_relative_fn=scale_relative_fn if size_condition else None,
+            )
+
+            if handled_tesselation:
                 transformed_indices = set()
-                
-                # 먼저 모든 선택된 부위의 기본 인덱스 수집 (확장 제한용)
-                all_selected_base_indices = set()
-                for region_name in selected_regions:
-                    base_indices = set(self._get_region_indices(region_name))
-                    all_selected_base_indices.update(base_indices)
-                
-                # 원본 랜드마크를 기준으로 각 부위의 중심점을 미리 계산 (여러 부위 선택 시 정확성 보장)
-                region_centers = {}
-                for region_name in selected_regions:
-                    # 부위의 랜드마크 인덱스 가져오기
-                    region_indices = set(self._get_region_indices(region_name))
-                    if not region_indices:
-                        continue
-                    
-                    # 원본 랜드마크를 기준으로 중심점 계산 (오프셋 포함)
-                    center = _get_region_center(region_name, original_landmarks, center_offset_x, center_offset_y)
-                    if center is None:
-                        continue
-                    region_centers[region_name] = center
-                
-                for region_name in selected_regions:
-                    # 부위의 랜드마크 인덱스 가져오기
-                    region_indices = set(self._get_region_indices(region_name))
-                    if not region_indices:
-                        continue
-                    
-                    original_region_count = len(region_indices)
-                    
-                    # 확장 레벨에 따라 이웃 포인트 추가
-                    if expansion_level > 0 and tesselation_graph:
-                        # 디버그: 눈썹인 경우 초기 상태 확인
-                        if 'eyebrow' in region_name.lower():
-                            eyebrow_in_graph_count = sum(1 for idx in region_indices if idx in tesselation_graph)
-                        current_indices = region_indices.copy()
-                        for level in range(expansion_level):
-                            next_level_indices = set()
-                            for idx in current_indices:
-                                if idx in tesselation_graph:
-                                    for neighbor in tesselation_graph[idx]:
-                                        if neighbor < len(updated_landmarks):
-                                            next_level_indices.add(neighbor)
-                            region_indices.update(next_level_indices)
-                            current_indices = next_level_indices
-                        
-                    elif 'eyebrow' in region_name.lower():
-                        print_warning("얼굴편집", f"{region_name} 확장 실패: expansion_level={expansion_level}, tesselation_graph 크기={len(tesselation_graph)}")
-                    
-                    # 미리 계산한 중심점 사용
-                    if region_name not in region_centers:
-                        continue
-                    
-                    center_x, center_y = region_centers[region_name]
-                    
-                    # 눈동자 영역인 경우 중앙 포인트로 변환
-                    if region_name in ['left_iris', 'right_iris']:
-                        # 눈동자 포인트들의 중앙 포인트 계산
-                        iris_points_orig = []
-                        for idx in region_indices:
-                            if idx < len(self.original_landmarks):
-                                if isinstance(self.original_landmarks[idx], tuple):
-                                    iris_points_orig.append(self.original_landmarks[idx])
-                                else:
-                                    img_width, img_height = image.size
-                                    iris_points_orig.append((
-                                        self.original_landmarks[idx].x * img_width,
-                                        self.original_landmarks[idx].y * img_height
-                                    ))
-                        
-                        if iris_points_orig:
-                            # 원본 눈동자 중앙 포인트
-                            orig_iris_center_x = sum(p[0] for p in iris_points_orig) / len(iris_points_orig)
-                            orig_iris_center_y = sum(p[1] for p in iris_points_orig) / len(iris_points_orig)
-                            
-                            # 중심점 기준 상대 좌표
-                            rel_x = orig_iris_center_x - center_x
-                            rel_y = orig_iris_center_y - center_y
-                            
-                            # 크기 조절
-                            if abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
-                                rel_x *= size_x
-                                rel_y *= size_y
-                            
-                            # 위치 이동
-                            rel_x += position_x
-                            rel_y += position_y
-                            
-                            # 새로운 좌표 계산
-                            new_iris_center_x = center_x + rel_x
-                            new_iris_center_y = center_y + rel_y
-                            
-                            # 중앙 포인트 좌표 업데이트 (LandmarkManager 사용)
-                            if region_name == 'left_iris':
-                                self.landmark_manager.set_iris_center_coords(
-                                    (new_iris_center_x, new_iris_center_y),
-                                    self.landmark_manager.get_right_iris_center_coord()
-                                )
-                            elif region_name == 'right_iris':
-                                self.landmark_manager.set_iris_center_coords(
-                                    self.landmark_manager.get_left_iris_center_coord(),
-                                    (new_iris_center_x, new_iris_center_y)
-                                )
-                            
-                            # 모든 눈동자 포인트를 중앙 포인트로 설정
-                            for idx in region_indices:
-                                if idx not in transformed_indices and idx < len(updated_landmarks):
-                                    updated_landmarks[idx] = (new_iris_center_x, new_iris_center_y)
-                                    transformed_indices.add(idx)  # 변형된 포인트 추적
-                    else:
-                        # 일반 부위: 각 포인트를 개별적으로 변형
-                        # 부위의 랜드마크 포인트들을 중심점 기준으로 조절 (확장된 포인트 포함)
-                        # 이미 변형된 포인트는 제외 (중복 변형 방지)
-                        # 드래그로 변경된 포인트도 제외 (드래그 변경 보존)
-                        for idx in region_indices:
-                            if idx in transformed_indices:
-                                continue  # 이미 다른 부위에서 변형된 포인트는 건너뛰기
-                            if idx in dragged_indices:
-                                continue  # 드래그로 변경된 포인트는 건너뛰기 (보존)
-                            if idx >= len(updated_landmarks):
-                                continue
-                            
-                            # 현재 포인트 좌표
-                            if isinstance(updated_landmarks[idx], tuple):
-                                point_x, point_y = updated_landmarks[idx]
-                            else:
-                                img_width, img_height = image.size
-                                point_x = updated_landmarks[idx].x * img_width
-                                point_y = updated_landmarks[idx].y * img_height
-                            
-                            # 중심점 기준 상대 좌표
-                            rel_x = point_x - center_x
-                            rel_y = point_y - center_y
-                            
-                            # 크기 조절
-                            if abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01:
-                                rel_x *= size_x
-                                rel_y *= size_y
-                            
-                            # 위치 이동
-                            rel_x += position_x
-                            rel_y += position_y
-                            
-                            # 새로운 좌표 계산
-                            new_x = center_x + rel_x
-                            new_y = center_y + rel_y
-                            
-                            # 업데이트
-                            updated_landmarks[idx] = (new_x, new_y)
-                            transformed_indices.add(idx)  # 변형된 포인트 추적
-            
-            # 변형된 포인트 인덱스 수집 (선택한 부위만)
-            transformed_point_indices = set()
-            base_for_compare = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
-            if 'tesselation' in selected_regions and len(selected_regions) == 1:
-                # Tesselation만 선택된 경우: 모든 변형된 포인트 포함
-                for idx in range(len(updated_landmarks)):
-                    if idx < len(base_for_compare):
-                        # 원본과 변형된 랜드마크 비교
-                        if isinstance(base_for_compare[idx], tuple) and isinstance(updated_landmarks[idx], tuple):
-                            if abs(base_for_compare[idx][0] - updated_landmarks[idx][0]) > 0.1 or \
-                               abs(base_for_compare[idx][1] - updated_landmarks[idx][1]) > 0.1:
-                                transformed_point_indices.add(idx)
-                        else:
-                            # MediaPipe 형태인 경우
-                            img_width, img_height = image.size
-                            orig_x = base_for_compare[idx].x * img_width if hasattr(base_for_compare[idx], 'x') else base_for_compare[idx][0]
-                            orig_y = base_for_compare[idx].y * img_height if hasattr(base_for_compare[idx], 'y') else base_for_compare[idx][1]
-                            trans_x = updated_landmarks[idx][0] if isinstance(updated_landmarks[idx], tuple) else updated_landmarks[idx].x * img_width
-                            trans_y = updated_landmarks[idx][1] if isinstance(updated_landmarks[idx], tuple) else updated_landmarks[idx].y * img_height
-                            if abs(orig_x - trans_x) > 0.1 or abs(orig_y - trans_y) > 0.1:
-                                transformed_point_indices.add(idx)
             else:
-                # 다른 모드: transformed_indices에 추가된 포인트를 직접 사용 (이미 변형된 포인트)
-                transformed_point_indices = transformed_indices.copy()
+                transformed_indices = self._transform_selected_landmarks(
+                    selected_regions=selected_regions,
+                    updated_landmarks=updated_landmarks,
+                    original_landmarks=original_landmarks,
+                    center_offset_x=center_offset_x,
+                    center_offset_y=center_offset_y,
+                    position_x=position_x,
+                    position_y=position_y,
+                    image=image,
+                    expansion_level=expansion_level,
+                    tesselation_graph=tesselation_graph,
+                    scale_relative_fn=scale_relative_fn,
+                    dragged_indices=dragged_indices,
+                )
             
-            # 변형되지 않은 포인트는 원본 위치로 복원 (선택하지 않은 부위는 변형되지 않도록)
-            # 단, 드래그로 변경된 포인트는 보존해야 함
-            final_landmarks = list(updated_landmarks)  # 468개
-            base_landmarks_for_restore = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
-            for idx in range(len(base_landmarks_for_restore)):
-                # 드래그로 변경된 포인트는 원본으로 복원하지 않음 (보존)
-                if idx in dragged_indices:
-                    continue
-                if idx not in transformed_point_indices:
-                    # 변형되지 않은 포인트는 원본 위치 유지
-                    if isinstance(base_landmarks_for_restore[idx], tuple):
-                        final_landmarks[idx] = base_landmarks_for_restore[idx]
-                    else:
-                        # MediaPipe 형태인 경우 tuple로 변환
-                        img_width, img_height = image.size
-                        final_landmarks[idx] = (
-                            base_landmarks_for_restore[idx].x * img_width,
-                            base_landmarks_for_restore[idx].y * img_height
-                        )
-            
-            # original_face_landmarks를 tuple 형태로 변환 (morph_face_by_polygons에 전달하기 위해)
-            original_face_landmarks_tuple = []
-            img_width, img_height = image.size
-            base_for_tuple = original_face_landmarks if original_face_landmarks is not None else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
-            for idx in range(len(base_for_tuple)):
-                if isinstance(base_for_tuple[idx], tuple):
-                    original_face_landmarks_tuple.append(base_for_tuple[idx])
-                else:
-                    # MediaPipe 형태인 경우 tuple로 변환
-                    original_face_landmarks_tuple.append((
-                        base_for_tuple[idx].x * img_width,
-                        base_for_tuple[idx].y * img_height
-                    ))
-            
-            # Tesselation 선택 시: 중앙 포인트 추가 (눈동자 제거 불필요, 이미 468개)
-            if 'tesselation' in selected_regions and len(selected_regions) == 1:
-                # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표 또는 계산)
-                left_center = self.landmark_manager.get_left_iris_center_coord()
-                right_center = self.landmark_manager.get_right_iris_center_coord()
-                
-                # 중앙 포인트가 없으면 원본 눈동자에서 계산
-                if left_center is None or right_center is None:
-                    if original_iris_landmarks is not None:
-                        try:
-                            from utils.face_morphing.region_extraction import get_iris_indices
-                            left_iris_indices, right_iris_indices = get_iris_indices()
-                            # 왼쪽 눈동자 포인트 (contour만, 처음 4개 가정)
-                            left_points = original_iris_landmarks[:4] if len(original_iris_landmarks) >= 4 else original_iris_landmarks[:len(original_iris_landmarks)//2]
-                            # 오른쪽 눈동자 포인트 (나머지)
-                            right_points = original_iris_landmarks[4:] if len(original_iris_landmarks) > 4 else original_iris_landmarks[len(original_iris_landmarks)//2:]
-                            
-                            if left_points:
-                                left_center = (
-                                    sum(p[0] for p in left_points) / len(left_points),
-                                    sum(p[1] for p in left_points) / len(left_points)
-                                )
-                            if right_points:
-                                right_center = (
-                                    sum(p[0] for p in right_points) / len(right_points),
-                                    sum(p[1] for p in right_points) / len(right_points)
-                                )
-                        except Exception as e:
-                            pass
-                
-                # 중앙 포인트 추가 (morph_face_by_polygons 순서: MediaPipe LEFT_IRIS 먼저, MediaPipe RIGHT_IRIS 나중)
-                if left_center is not None and right_center is not None:
-                    # landmarks[468] = LEFT_EYE_INDICES, landmarks[469] = RIGHT_EYE_INDICES
-                    final_landmarks.append(left_center)   # landmarks[468]
-                    final_landmarks.append(right_center)  # landmarks[469]
-                    original_face_landmarks_tuple.append(left_center)  # 원본도 동일하게 추가
-                    original_face_landmarks_tuple.append(right_center)
-                    
-                    # custom_landmarks는 468개 + 중앙 포인트 2개 = 470개 구조로 저장
-                    final_landmarks_for_custom = final_landmarks  # 470개
-                    original_landmarks_for_morph = original_face_landmarks_tuple  # 470개
-                    
-                    # LandmarkManager에 중앙 포인트 저장
-                    self.landmark_manager.set_custom_iris_centers([left_center, right_center])
-                else:
-                    final_landmarks_for_custom = final_landmarks  # 468개
-                    original_landmarks_for_morph = original_face_landmarks_tuple  # 468개
-            else:
-                # Tesselation이 아닌 경우: 원래 구조 유지 (468개)
-                final_landmarks_for_custom = final_landmarks  # 468개
-                original_landmarks_for_morph = original_face_landmarks_tuple  # 468개
-            
-            # custom_landmarks가 이미 470개인 경우 (눈동자 중심점 드래그로 생성된 경우)
-            # 중앙 포인트 변환 후 마지막 2개 포인트 업데이트
-            existing_custom = self.landmark_manager.get_custom_landmarks()
-            if existing_custom is not None and len(existing_custom) == 470:
-                # 중앙 포인트 좌표 가져오기 (변환된 좌표)
-                left_center = self.landmark_manager.get_left_iris_center_coord()
-                right_center = self.landmark_manager.get_right_iris_center_coord()
-                
-                if left_center is not None and right_center is not None:
-                    # final_landmarks에 중앙 포인트 추가 (470개 구조로 변환)
-                    final_landmarks_for_custom = list(final_landmarks)
-                    final_landmarks_for_custom.append(left_center)   # landmarks[468]
-                    final_landmarks_for_custom.append(right_center)  # landmarks[469]
-                    print_info("얼굴편집", f"기존 custom_landmarks(470개)에 중앙 포인트 업데이트: 왼쪽={left_center}, 오른쪽={right_center}")
-            
-            # custom_landmarks 업데이트 (LandmarkManager 사용)
-            self.landmark_manager.set_custom_landmarks(final_landmarks_for_custom, reason="_apply_common_sliders_to_landmarks")
-            
-            # 랜드마크 변형을 이미지에 적용
+            finalized = self._finalize_landmark_transforms(
+                selected_regions=selected_regions,
+                updated_landmarks=updated_landmarks,
+                original_face_landmarks=original_face_landmarks,
+                original_iris_landmarks=original_iris_landmarks,
+                original_landmarks=original_landmarks,
+                dragged_indices=dragged_indices,
+                transformed_indices=transformed_indices,
+                image=image,
+                use_guide_axis=use_guide_axis,
+            )
+
+            self.landmark_manager.set_custom_landmarks(
+                finalized['final_landmarks_for_custom'],
+                reason="_apply_common_sliders_to_landmarks",
+            )
+
+            polygon_inputs = self._prepare_polygon_inputs(
+                selected_regions=selected_regions,
+                finalized_landmarks=finalized,
+                transformed_point_indices=finalized['transformed_point_indices'],
+                image=image,
+            )
+
+            original_for_morph = polygon_inputs['original_for_morph']
+            transformed_for_morph = polygon_inputs['transformed_for_morph']
+            transformed_point_indices = finalized['transformed_point_indices']
+
+            if original_for_morph and transformed_for_morph:
+                sample_indices = (
+                    list(transformed_point_indices)[:5]
+                    if transformed_point_indices
+                    else list(range(min(5, len(transformed_for_morph))))
+                )
+                for idx in sample_indices:
+                    if idx >= len(transformed_for_morph) or idx >= len(original_for_morph):
+                        continue
+                    o = original_for_morph[idx]
+                    t = transformed_for_morph[idx]
+                    print_debug(
+                        "얼굴편집",
+                        f"Delaunay 직전 좌표: idx={idx}, orig=({o[0]:.2f},{o[1]:.2f}), trans=({t[0]:.2f},{t[1]:.2f})"
+                    )
+
             import utils.face_morphing as face_morphing
-            # 중앙 포인트 좌표 가져오기 (드래그로 변환된 좌표)
-            left_center = self.landmark_manager.get_left_iris_center_coord()
-            right_center = self.landmark_manager.get_right_iris_center_coord()
-            
-            # 원본 중앙 포인트 가져오기 (landmark_manager에서 저장된 값 사용)
-            left_center_orig = self.landmark_manager.get_original_left_iris_center_coord()
-            right_center_orig = self.landmark_manager.get_original_right_iris_center_coord()
-            
-            # 없으면 original_iris_landmarks에서 계산
-            if left_center_orig is None or right_center_orig is None:
-                original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
-                
-                if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
-                    # 눈동자 랜드마크: 왼쪽 5개 (0-4), 오른쪽 5개 (5-9)
-                    left_iris_points = original_iris_landmarks[:5]
-                    right_iris_points = original_iris_landmarks[5:]
-                    
-                    if left_iris_points and left_center_orig is None:
-                        left_center_orig = (
-                            sum(p[0] for p in left_iris_points) / len(left_iris_points),
-                            sum(p[1] for p in left_iris_points) / len(left_iris_points)
-                        )
-                        # landmark_manager에 원본으로 저장
-                        self.landmark_manager.set_iris_center_coords(
-                            left_center_orig, 
-                            self.landmark_manager.get_original_right_iris_center_coord(),
-                            is_original=True
-                        )
-                    if right_iris_points and right_center_orig is None:
-                        right_center_orig = (
-                            sum(p[0] for p in right_iris_points) / len(right_iris_points),
-                            sum(p[1] for p in right_iris_points) / len(right_iris_points)
-                        )
-                        # landmark_manager에 원본으로 저장
-                        self.landmark_manager.set_iris_center_coords(
-                            self.landmark_manager.get_original_left_iris_center_coord(),
-                            right_center_orig,
-                            is_original=True
-                        )
-            
-            # morph_face_by_polygons 호출 시: Tesselation 선택 시에는 이미 눈동자 제거 + 중앙 포인트 추가된 구조 전달
-            # LandmarkManager의 get_landmarks_for_tesselation() 사용 (원본, 변형 모두 470개 구조)
-            if 'tesselation' in selected_regions and len(selected_regions) == 1:
-                original_for_morph, transformed_for_morph = self.landmark_manager.get_copied_landmarks_for_tesselation_with_centers()
-                if original_for_morph is None:
-                    original_for_morph = original_landmarks_for_morph
-                if transformed_for_morph is None:
-                    transformed_for_morph = final_landmarks_for_custom
-            else:
-                # Tesselation이 아닌 경우: 468개 구조
-                original_for_morph = original_face_landmarks_tuple
-                transformed_for_morph = final_landmarks_for_custom
-            
-            # 캐시된 원본 바운딩 박스 가져오기
-            img_width, img_height = self.current_image.size
-            cached_bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
-            # 블렌딩 비율 가져오기
-            blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
+
             result = face_morphing.morph_face_by_polygons(
-                self.current_image,  # 원본 이미지
-                original_for_morph,  # 원본 랜드마크 (Tesselation 선택 시 470개, 그 외 468개)
-                transformed_for_morph,  # 변형된 랜드마크 (Tesselation 선택 시 470개, 그 외 468개)
-                selected_point_indices=None,  # 모든 포인트 사용 (변형되지 않은 포인트는 원본 위치 유지)
-                left_iris_center_coord=left_center,  # 드래그로 변환된 왼쪽 중앙 포인트
-                right_iris_center_coord=right_center,  # 드래그로 변환된 오른쪽 중앙 포인트
-                left_iris_center_orig=left_center_orig,  # 원본 왼쪽 중앙 포인트
-                right_iris_center_orig=right_center_orig,  # 원본 오른쪽 중앙 포인트
-                cached_original_bbox=cached_bbox,  # 캐시된 원본 바운딩 박스
-                blend_ratio=blend_ratio  # 블렌딩 비율
+                self.current_image,
+                original_for_morph,
+                transformed_for_morph,
+                selected_point_indices=polygon_inputs['selected_indices_for_morph'],
+                left_iris_center_coord=polygon_inputs['left_center'],
+                right_iris_center_coord=polygon_inputs['right_center'],
+                left_iris_center_orig=polygon_inputs['left_center_orig'],
+                right_iris_center_orig=polygon_inputs['right_center_orig'],
+                cached_original_bbox=polygon_inputs['cached_bbox'],
+                blend_ratio=polygon_inputs['blend_ratio'],
             )
             
             if result is None:
@@ -887,6 +882,7 @@ class LogicMixin(EditingStepsMixin):
             # 원본 이미지의 폴리곤 다시 그리기
             if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
                 # 기존 폴리곤 제거
+                print_debug("얼굴편집", "폴리곤 다시 그리기 시작 (고급모드)")
                 if hasattr(self, 'landmark_polygon_items') and 'original' in self.landmark_polygon_items:
                     for item_id in list(self.landmark_polygon_items['original']):
                         try:
@@ -903,6 +899,10 @@ class LogicMixin(EditingStepsMixin):
                         iris_landmarks_for_drawing = None
                         iris_centers_for_drawing = None
                         
+                        transformed_point_indices = finalized['transformed_point_indices']
+                        final_landmarks_for_custom = finalized['final_landmarks_for_custom']
+                        original_face_landmarks_tuple = finalized['original_face_landmarks_tuple']
+
                         if 'tesselation' in selected_regions and len(selected_regions) == 1:
                             # Tesselation 선택 시: iris_centers 사용 (470개 구조)
                             iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
@@ -913,7 +913,7 @@ class LogicMixin(EditingStepsMixin):
                         else:
                             # Tesselation이 아닌 경우: iris_landmarks 사용 (478개 구조)
                             iris_landmarks_for_drawing = self.landmark_manager.get_original_iris_landmarks()
-                        
+
                         self._draw_landmark_polygons(
                             self.canvas_original,
                             self.current_image,
@@ -924,7 +924,15 @@ class LogicMixin(EditingStepsMixin):
                             "green",
                             '전체',  # 전체 탭으로 강제하여 선택된 모든 부위의 폴리곤 그리기
                             iris_landmarks=iris_landmarks_for_drawing,  # 10개 또는 None
-                            iris_centers=iris_centers_for_drawing  # 2개 또는 None
+                            iris_centers=iris_centers_for_drawing,  # 2개 또는 None
+                            force_use_custom=True,  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
+                            highlight_indices=sorted(transformed_point_indices) if transformed_point_indices else None
+                        )
+                        self._log_polygon_debug_info(
+                            face_landmarks_for_drawing,
+                            transformed_point_indices,
+                            original_face_landmarks_tuple,
+                            iris_centers_for_drawing is not None,
                         )
             
             # 이미지 변형 결과 반환
@@ -934,6 +942,359 @@ class LogicMixin(EditingStepsMixin):
             import traceback
             traceback.print_exc()
             return image
+    
+    def _collect_landmark_transform_context(self, image, size_x, size_y, face_landmarks_module):
+        custom = self.landmark_manager.get_custom_landmarks()
+        if custom is None:
+            return None
+
+        size_x_condition = abs(size_x - 1.0) >= 0.01
+        size_y_condition = abs(size_y - 1.0) >= 0.01
+        size_condition = size_x_condition or size_y_condition
+        use_guide_axis = size_condition and self._should_use_guide_axis()
+        guide_angle = None
+        cos_angle = None
+        sin_angle = None
+
+        if not self.landmark_manager.has_original_face_landmarks():
+            original_landmarks_full, _ = face_landmarks_module.detect_face_landmarks(self.current_image)
+            if original_landmarks_full is None:
+                return None
+            img_width, img_height = image.size
+            self.landmark_manager.set_original_landmarks(original_landmarks_full, img_width, img_height)
+            self.original_landmarks = self.landmark_manager.get_original_landmarks_full()
+
+        original_face_landmarks = self.landmark_manager.get_original_face_landmarks()
+        original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+        original_landmarks = self.landmark_manager.get_original_landmarks_full()
+
+        if self.custom_landmarks is None or len(self.custom_landmarks) != 468:
+            if original_face_landmarks is not None:
+                self.custom_landmarks = original_face_landmarks
+
+        dragged_indices = self.landmark_manager.get_dragged_indices()
+        updated_landmarks = []
+        img_width, img_height = image.size
+
+        base_landmarks = (
+            original_face_landmarks
+            if original_face_landmarks is not None
+            else (original_landmarks[:468] if len(original_landmarks) >= 468 else original_landmarks)
+        )
+        for idx in range(len(base_landmarks)):
+            if isinstance(base_landmarks[idx], tuple):
+                updated_landmarks.append(base_landmarks[idx])
+            else:
+                updated_landmarks.append((
+                    base_landmarks[idx].x * img_width,
+                    base_landmarks[idx].y * img_height
+                ))
+
+        if use_guide_axis:
+            angle_landmarks = base_landmarks if base_landmarks is not None else updated_landmarks
+            guide_angle = self._get_guide_axis_angle(angle_landmarks, image.size)
+            if guide_angle is None:
+                use_guide_axis = False
+            else:
+                cos_angle = math.cos(guide_angle)
+                sin_angle = math.sin(guide_angle)
+                print_debug(
+                    "얼굴편집",
+                    f"고급모드 축 스케일 적용 준비: angle={math.degrees(guide_angle):.1f}°"
+                )
+
+        def _scale_relative(dx, dy):
+            if not size_condition:
+                return dx, dy
+            if use_guide_axis and guide_angle is not None:
+                rot_x = dx * cos_angle + dy * sin_angle
+                rot_y = -dx * sin_angle + dy * cos_angle
+                rot_x *= size_x
+                rot_y *= size_y
+                new_dx = rot_x * cos_angle - rot_y * sin_angle
+                new_dy = rot_x * sin_angle + rot_y * cos_angle
+                print_debug(
+                    "얼굴편집",
+                    f"_scale_relative: in=({dx:.3f},{dy:.3f}) -> rotated=({rot_x:.3f},{rot_y:.3f}) -> out=({new_dx:.3f},{new_dy:.3f})"
+                )
+                return new_dx, new_dy
+            return dx * size_x, dy * size_y
+
+        custom_for_drag = custom
+        if custom is not None and len(custom) == 470:
+            custom_for_drag = custom[:468]
+
+        if custom_for_drag is not None and len(custom_for_drag) == 468 and dragged_indices:
+            for idx in dragged_indices:
+                if 0 <= idx < len(custom_for_drag) and idx < len(updated_landmarks):
+                    if isinstance(custom_for_drag[idx], tuple):
+                        updated_landmarks[idx] = custom_for_drag[idx]
+                    else:
+                        updated_landmarks[idx] = (
+                            custom_for_drag[idx].x * img_width,
+                            custom_for_drag[idx].y * img_height
+                        )
+
+        return {
+            'size_x_condition': size_x_condition,
+            'size_y_condition': size_y_condition,
+            'size_condition': size_condition,
+            'scale_relative_fn': _scale_relative,
+            'dragged_indices': dragged_indices,
+            'updated_landmarks': updated_landmarks,
+            'original_face_landmarks': original_face_landmarks,
+            'original_iris_landmarks': original_iris_landmarks,
+            'original_landmarks': original_landmarks,
+            'base_landmarks': base_landmarks,
+            'image_size': (img_width, img_height),
+            'use_guide_axis': use_guide_axis,
+        }
+
+    def _finalize_landmark_transforms(
+        self,
+        *,
+        selected_regions,
+        updated_landmarks,
+        original_face_landmarks,
+        original_iris_landmarks,
+        original_landmarks,
+        dragged_indices,
+        transformed_indices,
+        image,
+        use_guide_axis,
+    ):
+        transformed_point_indices = set()
+        base_for_compare = (
+            original_face_landmarks
+            if original_face_landmarks is not None
+            else (original_landmarks[:468] if original_landmarks and len(original_landmarks) >= 468 else original_landmarks)
+        )
+
+        if 'tesselation' in selected_regions and len(selected_regions) == 1:
+            if base_for_compare is not None:
+                img_width, img_height = image.size
+                for idx in range(len(updated_landmarks)):
+                    if idx >= len(base_for_compare):
+                        continue
+                    base_point = base_for_compare[idx]
+                    if isinstance(base_point, tuple) and isinstance(updated_landmarks[idx], tuple):
+                        if (
+                            abs(base_point[0] - updated_landmarks[idx][0]) > 0.1 or
+                            abs(base_point[1] - updated_landmarks[idx][1]) > 0.1
+                        ):
+                            transformed_point_indices.add(idx)
+                    else:
+                        orig_x = base_point.x * img_width if hasattr(base_point, 'x') else base_point[0]
+                        orig_y = base_point.y * img_height if hasattr(base_point, 'y') else base_point[1]
+                        trans_x = updated_landmarks[idx][0] if isinstance(updated_landmarks[idx], tuple) else updated_landmarks[idx].x * img_width
+                        trans_y = updated_landmarks[idx][1] if isinstance(updated_landmarks[idx], tuple) else updated_landmarks[idx].y * img_height
+                        if abs(orig_x - trans_x) > 0.1 or abs(orig_y - trans_y) > 0.1:
+                            transformed_point_indices.add(idx)
+        else:
+            transformed_point_indices = set(transformed_indices)
+
+        if base_for_compare is not None and transformed_point_indices:
+            img_width, img_height = image.size
+            max_diff = 0.0
+            max_y_diff = 0.0
+            sample_count = 0
+            for idx in transformed_point_indices:
+                if idx >= len(updated_landmarks) or idx >= len(base_for_compare):
+                    continue
+                if isinstance(base_for_compare[idx], tuple):
+                    orig_x, orig_y = base_for_compare[idx]
+                else:
+                    orig_x = base_for_compare[idx].x * img_width
+                    orig_y = base_for_compare[idx].y * img_height
+                trans_x, trans_y = updated_landmarks[idx]
+                diff = ((trans_x - orig_x) ** 2 + (trans_y - orig_y) ** 2) ** 0.5
+                y_diff = abs(trans_y - orig_y)
+                max_diff = max(max_diff, diff)
+                max_y_diff = max(max_y_diff, y_diff)
+                sample_count += 1
+            print_debug(
+                "얼굴편집",
+                f"고급모드 축스케일 비교: guide_axis={use_guide_axis}, transformed={sample_count}개, max_diff={max_diff:.3f}, max_y_diff={max_y_diff:.3f}"
+            )
+
+        restore_unselected = not (use_guide_axis and selected_regions and 'tesselation' not in selected_regions)
+        final_landmarks = list(updated_landmarks)
+        if restore_unselected and base_for_compare is not None:
+            img_width, img_height = image.size
+            restored_count = 0
+            restored_samples = []
+            for idx in range(len(base_for_compare)):
+                if idx in dragged_indices or idx in transformed_point_indices:
+                    continue
+                base_point = base_for_compare[idx]
+                if isinstance(base_point, tuple):
+                    final_landmarks[idx] = base_point
+                else:
+                    final_landmarks[idx] = (
+                        base_point.x * img_width,
+                        base_point.y * img_height,
+                    )
+                restored_count += 1
+                if len(restored_samples) < 5:
+                    restored_samples.append((idx, final_landmarks[idx]))
+            if restored_count:
+                print_debug(
+                    "얼굴편집",
+                    f"고급모드 복원: restored={restored_count}개, sample={restored_samples}"
+                )
+        elif not restore_unselected:
+            print_debug("얼굴편집", "고급모드 복원 비활성화: 선택 부위만 유지")
+
+        img_width, img_height = image.size
+        base_for_tuple = base_for_compare
+        original_face_landmarks_tuple = []
+        if base_for_tuple is not None:
+            for idx in range(len(base_for_tuple)):
+                base_point = base_for_tuple[idx]
+                if isinstance(base_point, tuple):
+                    original_face_landmarks_tuple.append(base_point)
+                else:
+                    original_face_landmarks_tuple.append((
+                        base_point.x * img_width,
+                        base_point.y * img_height,
+                    ))
+
+        final_landmarks_for_custom = final_landmarks
+        original_landmarks_for_morph = original_face_landmarks_tuple
+
+        if 'tesselation' in selected_regions and len(selected_regions) == 1:
+            left_center = self.landmark_manager.get_left_iris_center_coord()
+            right_center = self.landmark_manager.get_right_iris_center_coord()
+
+            if (left_center is None or right_center is None) and original_iris_landmarks is not None:
+                try:
+                    from utils.face_morphing.region_extraction import get_iris_indices  # noqa: F401 (for side effects)
+                except ImportError:
+                    get_iris_indices = None
+
+                left_points = original_iris_landmarks[:4] if len(original_iris_landmarks) >= 4 else original_iris_landmarks[:len(original_iris_landmarks)//2]
+                right_points = original_iris_landmarks[4:] if len(original_iris_landmarks) > 4 else original_iris_landmarks[len(original_iris_landmarks)//2:]
+
+                if left_points and left_center is None:
+                    left_center = (
+                        sum(p[0] for p in left_points) / len(left_points),
+                        sum(p[1] for p in left_points) / len(left_points),
+                    )
+                if right_points and right_center is None:
+                    right_center = (
+                        sum(p[0] for p in right_points) / len(right_points),
+                        sum(p[1] for p in right_points) / len(right_points),
+                    )
+
+            if left_center is not None and right_center is not None:
+                final_landmarks_for_custom = list(final_landmarks)
+                final_landmarks_for_custom.append(left_center)
+                final_landmarks_for_custom.append(right_center)
+                original_landmarks_for_morph = list(original_face_landmarks_tuple)
+                original_landmarks_for_morph.append(left_center)
+                original_landmarks_for_morph.append(right_center)
+                self.landmark_manager.set_custom_iris_centers([left_center, right_center])
+
+        existing_custom = self.landmark_manager.get_custom_landmarks()
+        if existing_custom is not None and len(existing_custom) == 470:
+            left_center = self.landmark_manager.get_left_iris_center_coord()
+            right_center = self.landmark_manager.get_right_iris_center_coord()
+            if left_center is not None and right_center is not None:
+                temp_landmarks = list(final_landmarks)
+                temp_landmarks.append(left_center)
+                temp_landmarks.append(right_center)
+                final_landmarks_for_custom = temp_landmarks
+                print_info(
+                    "얼굴편집",
+                    f"기존 custom_landmarks(470개)에 중앙 포인트 업데이트: 왼쪽={left_center}, 오른쪽={right_center}"
+                )
+
+        return {
+            'final_landmarks': final_landmarks,
+            'final_landmarks_for_custom': final_landmarks_for_custom,
+            'original_face_landmarks_tuple': original_face_landmarks_tuple,
+            'original_landmarks_for_morph': original_landmarks_for_morph,
+            'transformed_point_indices': transformed_point_indices,
+        }
+
+    def _prepare_polygon_inputs(
+        self,
+        *,
+        selected_regions,
+        finalized_landmarks,
+        transformed_point_indices,
+        image,
+    ):
+        final_landmarks_for_custom = finalized_landmarks['final_landmarks_for_custom']
+        original_face_landmarks_tuple = finalized_landmarks['original_face_landmarks_tuple']
+        original_landmarks_for_morph = finalized_landmarks['original_landmarks_for_morph']
+
+        if 'tesselation' in selected_regions and len(selected_regions) == 1:
+            original_for_morph, transformed_for_morph = self.landmark_manager.get_copied_landmarks_for_tesselation_with_centers()
+            if original_for_morph is None:
+                original_for_morph = original_landmarks_for_morph
+            if transformed_for_morph is None:
+                transformed_for_morph = final_landmarks_for_custom
+        else:
+            original_for_morph = original_face_landmarks_tuple
+            transformed_for_morph = final_landmarks_for_custom
+
+        left_center = self.landmark_manager.get_left_iris_center_coord()
+        right_center = self.landmark_manager.get_right_iris_center_coord()
+        left_center_orig = self.landmark_manager.get_original_left_iris_center_coord()
+        right_center_orig = self.landmark_manager.get_original_right_iris_center_coord()
+
+        if left_center_orig is None or right_center_orig is None:
+            original_iris_landmarks = self.landmark_manager.get_original_iris_landmarks()
+            if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
+                left_iris_points = original_iris_landmarks[:5]
+                right_iris_points = original_iris_landmarks[5:]
+
+                if left_iris_points and left_center_orig is None:
+                    left_center_orig = (
+                        sum(p[0] for p in left_iris_points) / len(left_iris_points),
+                        sum(p[1] for p in left_iris_points) / len(left_iris_points),
+                    )
+                    self.landmark_manager.set_iris_center_coords(
+                        left_center_orig,
+                        self.landmark_manager.get_original_right_iris_center_coord(),
+                        is_original=True,
+                    )
+                if right_iris_points and right_center_orig is None:
+                    right_center_orig = (
+                        sum(p[0] for p in right_iris_points) / len(right_iris_points),
+                        sum(p[1] for p in right_iris_points) / len(right_iris_points),
+                    )
+                    self.landmark_manager.set_iris_center_coords(
+                        self.landmark_manager.get_original_left_iris_center_coord(),
+                        right_center_orig,
+                        is_original=True,
+                    )
+
+        img_width, img_height = self.current_image.size
+        cached_bbox = self.landmark_manager.get_original_bbox(img_width, img_height)
+        blend_ratio = self.blend_ratio.get() if hasattr(self, 'blend_ratio') else 1.0
+
+        selected_indices_for_morph = None
+        if getattr(self, 'use_landmark_warping', None) and self.use_landmark_warping.get():
+            if 'tesselation' in selected_regions and len(selected_regions) == 1:
+                if transformed_for_morph:
+                    selected_indices_for_morph = list(range(len(transformed_for_morph)))
+            else:
+                if transformed_point_indices:
+                    selected_indices_for_morph = sorted(transformed_point_indices)
+
+        return {
+            'original_for_morph': original_for_morph,
+            'transformed_for_morph': transformed_for_morph,
+            'selected_indices_for_morph': selected_indices_for_morph,
+            'left_center': left_center,
+            'right_center': right_center,
+            'left_center_orig': left_center_orig,
+            'right_center_orig': right_center_orig,
+            'cached_bbox': cached_bbox,
+            'blend_ratio': blend_ratio,
+        }
     
     def reset_morphing(self):
         """얼굴 특징 보정 값들을 모두 초기화"""

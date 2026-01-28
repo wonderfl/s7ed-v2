@@ -22,7 +22,47 @@ class WidgetCreatorMixin:
         btn_file_select.pack(side=tk.LEFT, padx=(0, 5))
         
         btn_settings = tk.Button(button_frame, text="편집 설정", command=self.show_settings_popup, width=12)
-        btn_settings.pack(side=tk.LEFT)
+        btn_settings.pack(side=tk.LEFT, padx=(0, 5))
+        
+        btn_guide_lines = tk.Checkbutton(button_frame, text="지시선", 
+                                  variable=self.show_guide_lines, 
+                                  command=self.toggle_guide_lines, 
+                                  width=12)
+        btn_guide_lines.pack(side=tk.LEFT, padx=(0, 5))
+        
+        
+        def on_guide_scaling_change():
+            """지시선 스케일링 변경 시 처리"""
+            is_enabled = self.use_guide_line_scaling.get()
+            print(f"[디버그] 이미지축 사용 변경: {is_enabled}")
+            if hasattr(self, '_apply_guide_scaling_state'):
+                self._apply_guide_scaling_state(is_enabled)
+            
+            # 강제로 이미지 업데이트하여 스케일링 방식 적용
+            if hasattr(self, 'on_morphing_change'):
+                self.on_morphing_change()
+                print(f"[디버그] on_morphing_change 호출됨")
+            else:
+                print(f"[디버그] on_morphing_change 없음")
+        
+        # 현재 상태 확인 함수
+        def check_guide_scaling_state():
+            current_state = self.use_guide_line_scaling.get()
+            if hasattr(self, '_apply_guide_scaling_state'):
+                last_state = getattr(self, '_last_guide_scaling_state', None)
+                if last_state is None or last_state != current_state:
+                    self._apply_guide_scaling_state(current_state)
+            print(f"[디버그] 현재 지시선 스케일링 상태: {current_state}")
+            return current_state
+        
+        # 슬라이더 조정 시 상태 확인을 위한 함수 바인딩
+        self.check_guide_scaling_state = check_guide_scaling_state
+        
+        cb_guide_scaling = tk.Checkbutton(button_frame, text="이미지축 사용", 
+                                         variable=self.use_guide_line_scaling,
+                                         command=on_guide_scaling_change,
+                                         width=16)
+        cb_guide_scaling.pack(side=tk.LEFT, padx=(0, 5))
         
         # 중앙: 좌측(원본) + 우측(편집본) - grid 레이아웃 사용
         content_frame = tk.Frame(main_frame)
@@ -58,7 +98,8 @@ class WidgetCreatorMixin:
                     if new_width != window_width or new_height != window_height:
                         self.geometry(f"{new_width}x{new_height}")
                 finally:
-                    self.after_idle(lambda: setattr(self, '_resizing_canvas', False))
+                    pass
+                    #self.after_idle(lambda: setattr(self, '_resizing_canvas', False))
         
         content_frame.bind("<Configure>", on_content_frame_configure)
         

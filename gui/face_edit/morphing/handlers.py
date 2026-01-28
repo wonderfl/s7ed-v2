@@ -7,6 +7,9 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image
 
+# 디버그 출력 제어
+DEBUG_MORPHING = False
+
 import utils.face_landmarks as face_landmarks
 import utils.face_morphing as face_morphing
 import utils.style_transfer as style_transfer
@@ -123,8 +126,9 @@ class HandlersMixin:
             if self.show_eye_region.get():
                 self.update_eye_region_display()
             else:
-                # 눈 영역 표시 제거
+                # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
                 self.clear_eye_region_display()
+                self.clear_lip_region_display()
     
     def on_lip_region_display_change(self):
         """입술 영역 표시 옵션 변경 시 호출"""
@@ -132,6 +136,8 @@ class HandlersMixin:
             if self.show_lip_region.get():
                 self.update_lip_region_display()
             else:
+                # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
+                self.clear_eye_region_display()
                 # 입술 영역 표시 제거
                 self.clear_lip_region_display()
     
@@ -170,6 +176,9 @@ class HandlersMixin:
     
     def on_morphing_change(self, value=None):
         """얼굴 특징 보정 변경 시 호출 (슬라이더 드래그 종료 시 호출)"""
+
+        print("on_morphing_change called..")
+
         # 확대/축소 중이면 건너뛰기
         if hasattr(self, '_skip_morphing_change') and self._skip_morphing_change:
             # 50ms 후에 플래그 해제 (더 빠른 해제)
@@ -185,181 +194,240 @@ class HandlersMixin:
         # (눈동자 드래그 후 슬라이더 조작 시 슬라이더가 적용되도록)
         if hasattr(self, 'last_selected_landmark_index'):
             self.last_selected_landmark_index = None
+
+        if DEBUG_MORPHING:
+            print(f"on_morphing_change: {self.current_image}")
         
-        # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
-        if self.current_image is not None:
-            # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
-            # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
-            use_warping = getattr(self, 'use_landmark_warping', None)
-            if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
-                # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
-                if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
-                    # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
+        self._ensure_morphing_guard_state()
+        if self._morphing_update_in_progress:
+            self._morphing_update_pending = True
+            return
+        
+        self._morphing_update_in_progress = True
+        try:
+            self._perform_morphing_update()
+        finally:
+            self._morphing_update_in_progress = False
+
+    def _perform_morphing_update(self):
+        if self.current_image is None:
+            return
+
+        print("_perform_morphing_update: called..")
+        initial_signature = self._build_morphing_state_signature()
+        if (initial_signature is not None and
+                initial_signature == getattr(self, '_last_morphing_state_signature', None)):
+            if DEBUG_MORPHING:
+                print("[모핑] 상태 시그니처 동일 - 업데이트 스킵")
+            return
+        
+        # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
+        # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
+            # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
+            if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
+                # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
+                if hasattr(self, 'apply_polygon_drag_final'):
+                    self.apply_polygon_drag_final(force_slider_mode=False)
+                    # 이미지 업데이트 후 랜드마크 표시도 업데이트
+                    if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+                        self.update_face_features_display()
+        else:
+            # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함
+            if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                if hasattr(self, 'apply_polygon_drag_final'):
                     # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
-                    if hasattr(self, 'apply_polygon_drag_final'):
-                        self.apply_polygon_drag_final(force_slider_mode=False)
-                        # 이미지 업데이트 후 랜드마크 표시도 업데이트
-                        if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                            self.update_face_features_display()
-            else:
-                # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함
-                if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
-                    if hasattr(self, 'apply_polygon_drag_final'):
-                        # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
-                        self.apply_polygon_drag_final(force_slider_mode=False)
-                        # 이미지 업데이트 후 랜드마크 표시도 업데이트
-                        if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                            self.update_face_features_display()
-        
-        # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
-        if self.current_image is not None:
-            # 폴리곤 표시를 위해 custom_landmarks 업데이트 (apply_editing 전에)
-            # 고급 모드에서 Tesselation 선택 시에는 update_polygons_only를 호출하지 않음
-            # (공통 슬라이더로 직접 변형하므로 중복 변형 방지)
-            use_warping = getattr(self, 'use_landmark_warping', None)
-            is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
-            is_advanced_tesselation = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get() and is_tesselation_selected)
-            
-            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
-                if hasattr(self, 'update_polygons_only') and not is_advanced_tesselation:
-                    self.update_polygons_only()
-            # 편집 적용 전에 현재 위치를 명시적으로 저장 (위치 유지)
-            # 원본 이미지 위치를 먼저 확인
-            if self.image_created_original is not None:
-                try:
-                    original_coords = self.canvas_original.coords(self.image_created_original)
-                    if original_coords and len(original_coords) >= 2:
-                        self.canvas_original_pos_x = original_coords[0]
-                        self.canvas_original_pos_y = original_coords[1]
-                except Exception as e:
-                    pass
-            
-            # 편집된 이미지 위치도 저장 (원본과 동기화)
-            if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
-                self.canvas_edited_pos_x = self.canvas_original_pos_x
-                self.canvas_edited_pos_y = self.canvas_original_pos_y
-            elif self.image_created_edited is not None:
-                # 원본 위치가 없으면 편집된 이미지의 현재 위치를 유지
-                try:
-                    edited_coords = self.canvas_edited.coords(self.image_created_edited)
-                    if edited_coords and len(edited_coords) >= 2:
-                        self.canvas_edited_pos_x = edited_coords[0]
-                        self.canvas_edited_pos_y = edited_coords[1]
-                except Exception as e:
-                    pass
-            
-            # 고급 모드가 아닐 때만 apply_editing 호출 (고급 모드는 이미 apply_polygon_drag_final에서 처리됨)
-            use_warping = getattr(self, 'use_landmark_warping', None)
-            if use_warping is None or not (hasattr(use_warping, 'get') and use_warping.get() and 
-                                           hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None):
-                # 일반 모드: apply_editing 호출 (공통 슬라이더 포함)
-                self.apply_editing()
-            else:
-                # 고급 모드: apply_polygon_drag_final에서 랜드마크 변형 적용 후, 스타일 전송/나이 변환/공통 슬라이더도 적용
-                if hasattr(self, 'edited_image') and self.edited_image is not None:
-                    result = self.edited_image
-                    
-                    # 스타일 전송 적용
-                    import utils.style_transfer as style_transfer
-                    import os
-                    if hasattr(self, 'style_image_path') and self.style_image_path and os.path.exists(self.style_image_path):
-                        try:
-                            from PIL import Image
-                            style_image = Image.open(self.style_image_path)
-                            color_strength = self.color_strength.get()
-                            texture_strength = self.texture_strength.get()
-                            
-                            if color_strength > 0.0 or texture_strength > 0.0:
-                                result = style_transfer.transfer_style(
-                                    style_image,
-                                    result,
-                                    color_strength=color_strength,
-                                    texture_strength=texture_strength
-                                )
-                        except Exception as e:
-                            pass
-                    
-                    # 나이 변환 적용
-                    import utils.face_transform as face_transform
-                    age_adjustment = self.age_adjustment.get()
-                    if abs(age_adjustment) >= 1.0:
-                        result = face_transform.transform_age(result, age_adjustment=int(age_adjustment))
-                    
-                    # 공통 슬라이더 적용
-                    # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
-                    base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
-                    result = self._apply_common_sliders(result, base_image=base_image)
-                    
-                    if result is not None:
-                        self.edited_image = result
-                        self.show_edited_preview()
-                    else:
-                        from utils.logger import print_warning
-                        print_warning("얼굴편집", "공통 슬라이더 적용 후 edited_image가 None입니다")
-            
-            # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
-            show_polygons = hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()
-            if not show_polygons:
-                # 눈 영역 표시 업데이트
-                if self.show_eye_region.get():
-                    self.update_eye_region_display()
-                # 입술 영역 표시 업데이트
-                if self.show_lip_region.get():
-                    self.update_lip_region_display()
-            else:
-                # 폴리곤이 활성화되면 기존 타원형 영역 제거
-                if hasattr(self, 'clear_eye_region_display'):
-                    self.clear_eye_region_display()
-                if hasattr(self, 'clear_lip_region_display'):
-                    self.clear_lip_region_display()
-            # 폴리곤 표시 업데이트 (custom_landmarks가 이미 update_polygons_only에서 업데이트되었으므로)
-            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
-                # custom_landmarks가 있으면 폴리곤만 다시 그리기
-                if self.custom_landmarks is not None:
-                    # 기존 폴리곤 제거
-                    for item_id in list(self.landmark_polygon_items['original']):
-                        try:
-                            self.canvas_original.delete(item_id)
-                        except:
-                            pass
-                    self.landmark_polygon_items['original'].clear()
-                    self.polygon_point_map_original.clear()
-                    
-                    # 폴리곤 다시 그리기
-                    current_tab = getattr(self, 'current_morphing_tab', '눈')
-                    if hasattr(self, '_draw_landmark_polygons'):
-                        # custom_landmarks 가져오기 (LandmarkManager 사용)
-                        custom = self.landmark_manager.get_custom_landmarks()
-                        
-                        if custom is not None:
-                            # Tesselation 모드 확인
-                            is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
-                            
-                            # Tesselation 모드일 때 iris_centers 전달
-                            iris_centers_for_drawing = None
-                            face_landmarks_for_drawing = custom
-                            
-                            if is_tesselation_selected:
-                                # Tesselation 모드: iris_centers 사용
-                                iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
-                                if iris_centers_for_drawing is None and len(custom) == 470:
-                                    # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
-                                    iris_centers_for_drawing = custom[-2:]
-                                    face_landmarks_for_drawing = custom[:-2]  # 468개
-                            
-                            self._draw_landmark_polygons(
-                                self.canvas_original,
-                                self.current_image,
-                                face_landmarks_for_drawing,  # 468개 또는 470개
-                                self.canvas_original_pos_x,
-                                self.canvas_original_pos_y,
-                                self.landmark_polygon_items['original'],
-                                "green",
-                                current_tab,
-                                iris_centers=iris_centers_for_drawing,  # Tesselation 모드일 때만 전달
-                                force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
+                    self.apply_polygon_drag_final(force_slider_mode=False)
+                    # 이미지 업데이트 후 랜드마크 표시도 업데이트
+                    if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+                        self.update_face_features_display()
+
+        # 폴리곤 표시를 위해 custom_landmarks 업데이트 (apply_editing 전에)
+        # 고급 모드에서 Tesselation 선택 시에는 update_polygons_only를 호출하지 않음
+        # (공통 슬라이더로 직접 변형하므로 중복 변형 방지)
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
+        is_advanced_tesselation = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get() and is_tesselation_selected)
+
+        if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+            if hasattr(self, 'update_polygons_only') and not is_advanced_tesselation:
+                self.update_polygons_only()
+        # 편집 적용 전에 현재 위치를 명시적으로 저장 (위치 유지)
+        # 원본 이미지 위치를 먼저 확인
+        if self.image_created_original is not None:
+            try:
+                original_coords = self.canvas_original.coords(self.image_created_original)
+                if original_coords and len(original_coords) >= 2:
+                    self.canvas_original_pos_x = original_coords[0]
+                    self.canvas_original_pos_y = original_coords[1]
+            except Exception as e:
+                pass
+
+        # 편집된 이미지 위치도 저장 (원본과 동기화)
+        if self.canvas_original_pos_x is not None and self.canvas_original_pos_y is not None:
+            self.canvas_edited_pos_x = self.canvas_original_pos_x
+            self.canvas_edited_pos_y = self.canvas_original_pos_y
+        elif self.image_created_edited is not None:
+            # 원본 위치가 없으면 편집된 이미지의 현재 위치를 유지
+            try:
+                edited_coords = self.canvas_edited.coords(self.image_created_edited)
+                if edited_coords and len(edited_coords) >= 2:
+                    self.canvas_edited_pos_x = edited_coords[0]
+                    self.canvas_edited_pos_y = edited_coords[1]
+            except Exception as e:
+                pass
+
+        # 고급 모드가 아닐 때만 apply_editing 호출 (고급 모드는 이미 apply_polygon_drag_final에서 처리됨)
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        if use_warping is None or not (hasattr(use_warping, 'get') and use_warping.get() and 
+                                       hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None):
+            # 일반 모드: apply_editing 호출 (공통 슬라이더 포함)
+            self.apply_editing()
+        else:
+            if DEBUG_MORPHING:
+                print(f"on_morphing_change: {self.edited_image}")                
+            # 고급 모드: apply_polygon_drag_final에서 랜드마크 변형 적용 후, 스타일 전송/나이 변환/공통 슬라이더도 적용
+            if hasattr(self, 'edited_image') and self.edited_image is not None:
+                result = self.edited_image
+
+                # 스타일 전송 적용
+                import utils.style_transfer as style_transfer
+                import os
+                if hasattr(self, 'style_image_path') and self.style_image_path and os.path.exists(self.style_image_path):
+                    try:
+                        from PIL import Image
+                        style_image = Image.open(self.style_image_path)
+                        color_strength = self.color_strength.get()
+                        texture_strength = self.texture_strength.get()
+
+                        if color_strength > 0.0 or texture_strength > 0.0:
+                            result = style_transfer.transfer_style(
+                                style_image,
+                                result,
+                                color_strength=color_strength,
+                                texture_strength=texture_strength
                             )
-                else:
-                    # custom_landmarks가 없으면 전체 업데이트
-                    self.update_face_features_display()
+                    except Exception:
+                        pass
+
+                # 기존 폴리곤 제거
+                for item_id in list(self.landmark_polygon_items['original']):
+                    try:
+                        self.canvas_original.delete(item_id)
+                    except:
+                        pass
+                self.landmark_polygon_items['original'].clear()
+                self.polygon_point_map_original.clear()
+                
+                # 폴리곤 다시 그리기
+                current_tab = getattr(self, 'current_morphing_tab', '눈')
+                if hasattr(self, '_draw_landmark_polygons'):
+                    # custom_landmarks 가져오기 (LandmarkManager 사용)
+                    custom = self.landmark_manager.get_custom_landmarks()
+                    
+                    if custom is not None:
+                        # Tesselation 모드 확인
+                        is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
+                        
+                        # Tesselation 모드일 때 iris_centers 전달
+                        iris_centers_for_drawing = None
+                        face_landmarks_for_drawing = custom
+                        
+                        if is_tesselation_selected:
+                            # Tesselation 모드: iris_centers 사용
+                            iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
+                            if iris_centers_for_drawing is None and len(custom) == 470:
+                                # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
+                                iris_centers_for_drawing = custom[-2:]
+                                face_landmarks_for_drawing = custom[:-2]  # 468개
+                        
+                        self._draw_landmark_polygons(
+                            self.canvas_original,
+                            self.current_image,
+                            face_landmarks_for_drawing,  # 468개 또는 470개
+                            self.canvas_original_pos_x,
+                            self.canvas_original_pos_y,
+                            self.landmark_polygon_items['original'],
+                            "green",
+                            current_tab,
+                            iris_centers=iris_centers_for_drawing,  # Tesselation 모드일 때만 전달
+                            force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
+                        )
+            else:
+                # custom_landmarks가 없으면 전체 업데이트
+                self.update_face_features_display()
+        
+        final_signature = self._build_morphing_state_signature()
+        if final_signature is not None:
+            self._last_morphing_state_signature = final_signature
     
+    def _ensure_morphing_guard_state(self):
+        if not hasattr(self, '_morphing_update_in_progress'):
+            self._morphing_update_in_progress = False
+        if not hasattr(self, '_morphing_update_pending'):
+            self._morphing_update_pending = False
+
+    def _build_morphing_state_signature(self):
+        """현재 모핑 관련 상태를 요약해 중복 업데이트를 피하기 위한 시그니처 생성"""
+        if not hasattr(self, 'landmark_manager'):
+            return None
+        slider_values = (
+            self._safe_get_var_value('region_size_x', 1.0),
+            self._safe_get_var_value('region_size_y', 1.0),
+            self._safe_get_var_value('region_position_x', 0.0),
+            self._safe_get_var_value('region_position_y', 0.0),
+            self._safe_get_var_value('region_center_offset_x', 0.0),
+            self._safe_get_var_value('region_center_offset_y', 0.0),
+            self._safe_get_var_value('blend_ratio', 1.0),
+        )
+        use_warping_flag = False
+        use_warping = getattr(self, 'use_landmark_warping', None)
+        if use_warping is not None and hasattr(use_warping, 'get'):
+            try:
+                use_warping_flag = bool(use_warping.get())
+            except Exception:
+                use_warping_flag = False
+        current_tab = getattr(self, 'current_morphing_tab', '전체')
+        region_flags = self._get_region_selection_flags()
+        last_selected = getattr(self, 'last_selected_landmark_index', None)
+        return (slider_values, use_warping_flag, current_tab, region_flags, last_selected)
+
+    def _safe_get_var_value(self, attr_name, default=0.0):
+        var = getattr(self, attr_name, None)
+        if var is None:
+            return round(default, 4)
+        if hasattr(var, 'get'):
+            try:
+                return round(float(var.get()), 4)
+            except Exception:
+                return round(default, 4)
+        try:
+            return round(float(var), 4)
+        except Exception:
+            return round(default, 4)
+
+    def _get_region_selection_flags(self):
+        attrs = [
+            'show_face_oval', 'show_left_eye', 'show_right_eye',
+            'show_left_eyebrow', 'show_right_eyebrow', 'show_nose',
+            'show_lips', 'show_upper_lips', 'show_lower_lips',
+            'show_left_iris', 'show_right_iris', 'show_contours',
+            'show_tesselation'
+        ]
+        flags = []
+        for attr in attrs:
+            var = getattr(self, attr, None)
+            if var is None:
+                flags.append(False)
+            elif hasattr(var, 'get'):
+                try:
+                    flags.append(bool(var.get()))
+                except Exception:
+                    flags.append(False)
+            else:
+                flags.append(bool(var))
+        return tuple(flags)
+
+

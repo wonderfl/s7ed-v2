@@ -2,11 +2,13 @@
 이미지 조정 함수 모듈
 얼굴 특징(눈, 코, 입, 턱 등)을 조정하는 함수들
 """
+import math
 import numpy as np
 from PIL import Image
 
 from ..constants import _cv2_available, _landmarks_available
 from ..utils import _create_blend_mask
+from utils.logger import print_debug
 from ..region_extraction import _get_eye_region, _get_mouth_region, _get_nose_region, _get_region_center, _get_region_bbox
 
 # 외부 모듈 import
@@ -20,6 +22,56 @@ try:
 except ImportError:
     detect_face_landmarks = None
     get_key_landmarks = None
+
+
+def _compute_region_bbox_and_center(region_name, landmarks, img_width, img_height, center_offset_x=0.0, center_offset_y=0.0):
+    """공통: 부위별 바운딩 박스와 중심점 계산"""
+    if landmarks is None or len(landmarks) < 468:
+        return None
+
+    try:
+        if region_name in ['left_eye', 'right_eye']:
+            key_landmarks = get_key_landmarks(landmarks)
+            if key_landmarks is None:
+                return None
+            eye_name = 'left' if region_name == 'left_eye' else 'right'
+            eye_region, eye_center = _get_eye_region(
+                key_landmarks, img_width, img_height, eye_name, landmarks,
+                0.3, center_offset_x, center_offset_y
+            )
+            if not eye_region:
+                return None
+            x1, y1, x2, y2 = eye_region
+            return (int(x1), int(y1), int(x2), int(y2)), eye_center
+
+        if region_name == 'nose':
+            key_landmarks = get_key_landmarks(landmarks)
+            if key_landmarks is None:
+                return None
+            nose_region, nose_center = _get_nose_region(
+                key_landmarks, img_width, img_height, landmarks,
+                0.3, center_offset_x, center_offset_y
+            )
+            if not nose_region:
+                return None
+            x1, y1, x2, y2 = nose_region
+            return (int(x1), int(y1), int(x2), int(y2)), nose_center
+
+        bbox = _get_region_bbox(
+            region_name, landmarks, img_width, img_height,
+            padding_ratio=0.1,
+            center_offset_x=center_offset_x,
+            center_offset_y=center_offset_y
+        )
+        if bbox is None:
+            return None
+        x1, y1, x2, y2 = bbox
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        return (int(x1), int(y1), int(x2), int(y2)), (center_x, center_y)
+
+    except Exception:
+        return None
 
 
 def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset_x=0.0, center_offset_y=0.0, landmarks=None, blend_ratio=1.0):
@@ -67,33 +119,13 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         img_array = np.array(img_rgb)
         img_height, img_width = img_array.shape[:2]
         
-        # 부위별 바운딩 박스 계산
-        if region_name in ['left_eye', 'right_eye']:
-            # 눈 영역은 기존 함수 활용 (더 정확한 계산)
-            key_landmarks = get_key_landmarks(landmarks)
-            if key_landmarks is None:
-                return image
-            eye_name = 'left' if region_name == 'left_eye' else 'right'
-            eye_region, eye_center = _get_eye_region(key_landmarks, img_width, img_height, eye_name, landmarks, 0.3, center_offset_x, center_offset_y)
-            x1, y1, x2, y2 = eye_region
-            center_x, center_y = eye_center
-        elif region_name == 'nose':
-            # 코 영역은 기존 함수 활용 (더 정확한 계산)
-            key_landmarks = get_key_landmarks(landmarks)
-            if key_landmarks is None:
-                return image
-            nose_region, nose_center = _get_nose_region(key_landmarks, img_width, img_height, landmarks, 0.3, center_offset_x, center_offset_y)
-            x1, y1, x2, y2 = nose_region
-            center_x, center_y = nose_center
-        else:
-            # 다른 부위는 _get_region_bbox 함수 사용
-            bbox = _get_region_bbox(region_name, landmarks, img_width, img_height, padding_ratio=0.1, center_offset_x=center_offset_x, center_offset_y=center_offset_y)
-            if bbox is None:
-                return image
-            x1, y1, x2, y2 = bbox
-            # 바운딩 박스의 중심점 계산 (오프셋이 이미 적용된 바운딩 박스이므로 중심점만 계산)
-            center_x = (x1 + x2) / 2
-            center_y = (y1 + y2) / 2
+        bbox_center = _compute_region_bbox_and_center(
+            region_name, landmarks, img_width, img_height,
+            center_offset_x, center_offset_y
+        )
+        if bbox_center is None:
+            return image
+        (x1, y1, x2, y2), (center_x, center_y) = bbox_center
         
         if x2 <= x1 or y2 <= y1:
             return image
@@ -190,6 +222,148 @@ def adjust_region_size(image, region_name, size_x=1.0, size_y=1.0, center_offset
         traceback.print_exc()
         return image
 
+
+def adjust_region_size_with_axis(
+    image,
+    region_name,
+    size_x=1.0,
+    size_y=1.0,
+    center_offset_x=0.0,
+    center_offset_y=0.0,
+    landmarks=None,
+    blend_ratio=1.0,
+    guide_angle=None
+):
+    """지시선 축 기준 크기 조절 (회전 축 사용)"""
+    if guide_angle is None or abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01:
+        return adjust_region_size(
+            image, region_name, size_x, size_y,
+            center_offset_x, center_offset_y, landmarks, blend_ratio
+        )
+
+    if not _landmarks_available or not _cv2_available:
+        return adjust_region_size(
+            image, region_name, size_x, size_y,
+            center_offset_x, center_offset_y, landmarks, blend_ratio
+        )
+
+    try:
+        if landmarks is None:
+            landmarks, detected = detect_face_landmarks(image)
+            if not detected or landmarks is None:
+                return image
+
+        if landmarks is None or len(landmarks) < 468:
+            return image
+
+        if image.mode != 'RGB':
+            img_rgb = image.convert('RGB')
+        else:
+            img_rgb = image
+        img_array = np.array(img_rgb)
+        img_height, img_width = img_array.shape[:2]
+
+        bbox_center = _compute_region_bbox_and_center(
+            region_name, landmarks, img_width, img_height,
+            center_offset_x, center_offset_y
+        )
+        if bbox_center is None:
+            return image
+
+        (x1, y1, x2, y2), (center_x, center_y) = bbox_center
+        width = x2 - x1
+        height = y2 - y1
+        if width < 2 or height < 2:
+            return image
+
+        region_img = img_array[y1:y2, x1:x2].copy()
+        if region_img.size == 0:
+            return image
+
+        cos_a = math.cos(guide_angle)
+        sin_a = math.sin(guide_angle)
+        print_debug(
+            "얼굴편집",
+            f"adjust_region_size_with_axis 시작: region={region_name}, bbox=({x1},{y1},{x2},{y2}), angle={math.degrees(guide_angle):.1f}°, size=({size_x:.3f},{size_y:.3f})"
+        )
+
+        # 1) ROI를 중심 기준으로 회전(-angle)해서 축 정렬 상태로 변환
+        rotation_matrix = cv2.getRotationMatrix2D((width / 2, height / 2), math.degrees(guide_angle), 1.0)
+        rotation_matrix[0, 2] += (center_x - x1)
+        rotation_matrix[1, 2] += (center_y - y1)
+        # 회전 시 경계가 잘리지 않도록 크게 패딩
+        pad = int(max(width, height) * 0.5)
+        padded = cv2.copyMakeBorder(region_img, pad, pad, pad, pad, cv2.BORDER_REFLECT101)
+        rotation_matrix[0, 2] += pad - width / 2
+        rotation_matrix[1, 2] += pad - height / 2
+        rotated = cv2.warpAffine(
+            padded,
+            rotation_matrix,
+            (padded.shape[1], padded.shape[0]),
+            flags=cv2.INTER_LANCZOS4
+        )
+
+        rotated_height, rotated_width = rotated.shape[:2]
+        # 2) 회전된 상태에서 스케일 적용 (단순 리사이즈)
+        scaled_width = max(int(rotated_width * size_x), 1)
+        scaled_height = max(int(rotated_height * size_y), 1)
+        scaled = cv2.resize(rotated, (scaled_width, scaled_height), interpolation=cv2.INTER_LANCZOS4)
+
+        # 3) 다시 +angle 만큼 회전하여 원래 방향으로 복귀
+        revert_matrix = cv2.getRotationMatrix2D((scaled_width / 2, scaled_height / 2), -math.degrees(guide_angle), 1.0)
+        revert_matrix[0, 2] += center_x - scaled_width / 2
+        revert_matrix[1, 2] += center_y - scaled_height / 2
+        final_canvas = np.zeros_like(img_array)
+        cv2.warpAffine(
+            scaled,
+            revert_matrix,
+            (img_width, img_height),
+            dst=final_canvas,
+            flags=cv2.INTER_LANCZOS4,
+            borderMode=cv2.BORDER_TRANSPARENT
+        )
+
+        blend_mask = _create_blend_mask(width, height, mask_type='ellipse').astype(np.float32)
+        blend_mask = cv2.copyMakeBorder(
+            blend_mask,
+            pad,
+            pad,
+            pad,
+            pad,
+            borderType=cv2.BORDER_CONSTANT,
+            value=0.0
+        )
+        mask_rotated = cv2.warpAffine(
+            blend_mask,
+            rotation_matrix,
+            (padded.shape[1], padded.shape[0]),
+            flags=cv2.INTER_LINEAR
+        )
+        mask_scaled = cv2.resize(mask_rotated, (scaled_width, scaled_height), interpolation=cv2.INTER_LINEAR)
+        mask_final = np.zeros((img_height, img_width), dtype=np.float32)
+        cv2.warpAffine(
+            mask_scaled,
+            revert_matrix,
+            (img_width, img_height),
+            dst=mask_final,
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=0.0
+        )
+        blend_ratio = max(0.0, min(1.0, blend_ratio))
+        mask_final = np.clip(mask_final * blend_ratio, 0.0, 1.0)
+
+        result = img_array.copy()
+        mask_3d = np.stack([mask_final] * 3, axis=-1)
+        result = (final_canvas.astype(np.float32) * mask_3d + result.astype(np.float32) * (1.0 - mask_3d)).astype(np.uint8)
+        print_debug("얼굴편집", f"adjust_region_size_with_axis 완료: region={region_name}")
+
+        return Image.fromarray(result)
+
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return image
 
 
 def adjust_region_position(image, region_name, position_x=0.0, position_y=0.0, 

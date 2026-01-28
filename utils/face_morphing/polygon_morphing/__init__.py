@@ -11,6 +11,7 @@ from .core import (
 )
 from .transformations import (
     transform_points_for_eye_size,
+    transform_points_for_eye_size_centered,
     transform_points_for_nose_size,
     transform_points_for_jaw,
     transform_points_for_face_size,
@@ -30,6 +31,7 @@ __all__ = [
     '_check_triangles_flipped',
     'morph_face_by_polygons',
     'transform_points_for_eye_size',
+    'transform_points_for_eye_size_centered',
     'transform_points_for_nose_size',
     'transform_points_for_jaw',
     'transform_points_for_face_size',

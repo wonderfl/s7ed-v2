@@ -185,6 +185,7 @@ class UIMixin:
         
         # 탭 변경 이벤트 핸들러 추가
         def on_tab_changed(event):
+            print("on_tab_changed: called..")
             selected_tab = event.widget.tab('current')['text']
             self.current_morphing_tab = selected_tab
             # 탭 변경 시 화면 갱신 (랜드마크, 연결선, 폴리곤 모두)

@@ -8,6 +8,32 @@ import tkinter as tk
 class SliderUIMixin:
     """슬라이더 UI 생성 기능 Mixin"""
     
+    def _handle_slider_drag(self, event, scale, variable, label_text, value_label, default_label):
+        """슬라이더 드래그 직접 처리"""
+        try:
+            # 슬라이더 위치에서 값 계산
+            slider_width = scale.winfo_width()
+            click_x = event.x
+            relative_x = max(0, min(click_x, slider_width))
+            
+            # 값 계산
+            from_val = scale.cget("from")
+            to_val = scale.cget("to")
+            val = from_val + (to_val - from_val) * (relative_x / slider_width)
+            
+            # 변수와 슬라이더 값 설정
+            variable.set(val)
+            scale.set(val)
+            
+            # 라벨 업데이트
+            if default_label.endswith("%"):
+                value_label.config(text=f"{int(val * 100)}%")
+            else:
+                value_label.config(text=f"{int(val)}")
+            
+        except Exception as e:
+            pass  # 조용히 오류 처리
+    
     def _create_eye_tab(self, notebook):
         """눈 탭 UI 생성"""
         tab_frame = tk.Frame(notebook, padx=5, pady=5)
@@ -411,9 +437,54 @@ class SliderUIMixin:
                         value_label.config(text=f"{int(val * 100)}%")
                     else:
                         value_label.config(text=f"{int(val)}")
+                try:
+                    selected_regions = []
+                    for region_label, region_var in [
+                        ("Face Oval", getattr(self, 'show_face_oval', None)),
+                        ("Left Eye", getattr(self, 'show_left_eye', None)),
+                        ("Right Eye", getattr(self, 'show_right_eye', None)),
+                        ("Left Eyebrow", getattr(self, 'show_left_eyebrow', None)),
+                        ("Right Eyebrow", getattr(self, 'show_right_eyebrow', None)),
+                        ("Nose", getattr(self, 'show_nose', None)),
+                        ("Lips", getattr(self, 'show_lips', None)),
+                        ("Left Iris", getattr(self, 'show_left_iris', None)),
+                        ("Right Iris", getattr(self, 'show_right_iris', None)),
+                        ("Contours", getattr(self, 'show_contours', None)),
+                        ("Tesselation", getattr(self, 'show_tesselation', None)),
+                    ]:
+                        if region_var is not None and region_var.get():
+                            selected_regions.append(region_label)
+                    print(
+                        f"[전체탭 슬라이더] {label_text} 값 변경: {float(value):.3f}, 선택부위={selected_regions}"
+                    )
+                except Exception:
+                    pass
             
             def on_slider_release(event):
                 # 드래그 종료 시 실제 편집 적용
+                try:
+                    current_val = variable.get()
+                    selected_regions = []
+                    for region_label, region_var in [
+                        ("Face Oval", getattr(self, 'show_face_oval', None)),
+                        ("Left Eye", getattr(self, 'show_left_eye', None)),
+                        ("Right Eye", getattr(self, 'show_right_eye', None)),
+                        ("Left Eyebrow", getattr(self, 'show_left_eyebrow', None)),
+                        ("Right Eyebrow", getattr(self, 'show_right_eyebrow', None)),
+                        ("Nose", getattr(self, 'show_nose', None)),
+                        ("Lips", getattr(self, 'show_lips', None)),
+                        ("Left Iris", getattr(self, 'show_left_iris', None)),
+                        ("Right Iris", getattr(self, 'show_right_iris', None)),
+                        ("Contours", getattr(self, 'show_contours', None)),
+                        ("Tesselation", getattr(self, 'show_tesselation', None)),
+                    ]:
+                        if region_var is not None and region_var.get():
+                            selected_regions.append(region_label)
+                    print(
+                        f"[전체탭 슬라이더] {label_text} 적용 (release): {current_val:.3f}, 선택부위={selected_regions}"
+                    )
+                except Exception:
+                    pass
                 self.on_morphing_change()
             
             scale = tk.Scale(
@@ -755,6 +826,7 @@ class SliderUIMixin:
             def on_slider_change(value):
                 # 드래그 중에는 라벨만 업데이트 (성능 최적화)
                 val = float(value)
+                
                 if default_label.endswith("%"):
                     value_label.config(text=f"{int(val * 100)}%")
                 else:
@@ -782,12 +854,25 @@ class SliderUIMixin:
                 resolution=resolution,
                 orient=tk.HORIZONTAL,
                 variable=variable,
-                command=on_slider_change,  # 드래그 중에는 라벨만 업데이트
                 length=scaled_length,
-                showvalue=False
+                showvalue=False,
+                takefocus=1,  # 포커스 받도록 설정
+                state=tk.NORMAL,  # 명시적으로 활성화
+                cursor="hand2"  # 마우스 커서 변경
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
+            
+            # 슬라이더 상태 확인
+            scale.config(state=tk.NORMAL)
+            scale.update()
+            
+            # command 콜백 직접 설정 (생성 후)
+            scale.config(command=on_slider_change)
+            
+            # 드래그 이벤트 바인딩
+            scale.bind("<B1-Motion>", lambda e: self._handle_slider_drag(e, scale, variable, label_text, value_label, default_label))
             scale.bind("<ButtonRelease-1>", on_slider_release)  # 드래그 종료 시 적용
+            scale.bind("<ButtonRelease-3>", on_slider_release)  # 오른쪽 버튼도 지원
             
             # value_label을 슬라이더 오른쪽에 배치
             value_label.pack(side=tk.LEFT)
@@ -900,8 +985,8 @@ class SliderUIMixin:
         # 공통 슬라이더 6개 생성 (Size X, Size Y 분리)
         self.region_center_offset_x_label = create_slider(adjustment_frame, "Pivot X:", self.region_center_offset_x, -100, 100, 1, "0", default_value=0.0)
         self.region_center_offset_y_label = create_slider(adjustment_frame, "Pivot Y:", self.region_center_offset_y, -100, 100, 1, "0", default_value=0.0)
-        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 1.5, 0.01, "100%", default_value=1.0)
-        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 1.5, 0.01, "100%", default_value=1.0)
+        self.region_size_x_label = create_slider(adjustment_frame, "Size X:", self.region_size_x, 0.5, 2.5, 0.01, "100%", default_value=1.0)
+        self.region_size_y_label = create_slider(adjustment_frame, "Size Y:", self.region_size_y, 0.5, 2.5, 0.01, "100%", default_value=1.0)
         self.region_position_x_label = create_slider(adjustment_frame, "Move X:", self.region_position_x, -100, 100, 1, "0", default_value=0.0)
         self.region_position_y_label = create_slider(adjustment_frame, "Move Y:", self.region_position_y, -100, 100, 1, "0", default_value=0.0)
         
@@ -1211,10 +1296,12 @@ class SliderUIMixin:
                 variable=variable,
                 command=on_slider_change,
                 length=scaled_length,
-                showvalue=False
+                showvalue=False,
+                takefocus=1  # 포커스 받도록 설정
             )
             scale.pack(side=tk.LEFT, padx=(0, 5))
             scale.bind("<ButtonRelease-1>", on_slider_release)
+            scale.bind("<ButtonRelease-3>", on_slider_release)  # 오른쪽 버튼도 지원
             
             value_label.pack(side=tk.LEFT)
             

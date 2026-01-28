@@ -4,6 +4,8 @@
 import math
 import tkinter as tk
 
+DEBUG_POLYGON_RENDERER = False
+
 # scipy import 확인
 try:
     from scipy.spatial import Delaunay
@@ -28,7 +30,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
         # 별도로 초기화하지 않고 공유 인스턴스 사용
         # self.iris_renderer는 AllTabDrawerMixin.__init__에서 이미 초기화됨
     
-    def _draw_landmark_polygons(self, canvas, image, face_landmarks, pos_x, pos_y, items_list, color, current_tab, iris_landmarks=None, iris_centers=None, force_use_custom=False):
+    def _draw_landmark_polygons(self, canvas, image, face_landmarks, pos_x, pos_y, items_list, color, current_tab, iris_landmarks=None, iris_centers=None, force_use_custom=False, highlight_indices=None):
         """랜드마크 폴리곤 그리기 (해당 부위의 모든 랜드마크 포인트를 찾아서 폴리곤으로 그리기)
         
         Args:
@@ -38,6 +40,7 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
         """
         if image is None or pos_x is None or pos_y is None or face_landmarks is None:
             return
+        print("_draw_landmark_polygons: called..")
         
         # 하위 호환성: landmarks 파라미터가 전달된 경우 (기존 코드 호환)
         landmarks = face_landmarks
@@ -59,7 +62,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         else:
                             landmarks.append(iris_landmarks[i])
             except Exception as e:
-                print(f"[폴리곤렌더러] 눈동자 병합 실패: {e}")
+                if DEBUG_POLYGON_RENDERER:
+                    print(f"[폴리곤렌더러] 눈동자 병합 실패: {e}")
                 landmarks = face_landmarks
         try:
             import math
@@ -78,7 +82,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                     # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
                     self.landmark_manager.set_original_landmarks(landmarks, img_width, img_height)
                     self.original_landmarks = self.landmark_manager.get_original_landmarks()
-                    print(f"[폴리곤렌더러] original_landmarks 설정 - 길이: {len(self.original_landmarks)}")
+                    if DEBUG_POLYGON_RENDERER:
+                        print(f"[폴리곤렌더러] original_landmarks 설정 - 길이: {len(self.original_landmarks)}")
             else:
                 self.original_landmarks = self.landmark_manager.get_original_landmarks()
             
@@ -114,8 +119,11 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                                 iris_points = [landmarks[idx] for idx in iris_indices if idx < len(landmarks)]
                                 if len(iris_points) == 10:
                                     original_iris_landmarks = iris_points
-                                    print(f"[폴리곤렌더러] landmarks(478개)에서 눈동자 포인트 추출 성공")
+                                    if DEBUG_POLYGON_RENDERER:
+                                        print(f"[폴리곤렌더러] landmarks(478개)에서 눈동자 포인트 추출 성공")
                             except Exception as e:
+                                if DEBUG_POLYGON_RENDERER:
+                                    print(f"[폴리곤렌더러] landmarks에서 눈동자 포인트 추출 실패: {e}")
                                 print(f"[폴리곤렌더러] landmarks에서 눈동자 포인트 추출 실패: {e}")
                         
                         if original_iris_landmarks is not None and len(original_iris_landmarks) == 10:
@@ -140,7 +148,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                                 self.landmark_manager.set_iris_center_coords(left_center, right_center)
                                 self._left_iris_center_coord = left_center
                                 self._right_iris_center_coord = right_center
-                                print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화 (iris_landmarks에서 계산): 왼쪽={left_center}, 오른쪽={right_center}")
+                                if DEBUG_POLYGON_RENDERER:
+                                    print(f"[폴리곤렌더러] 중앙 포인트 좌표 초기화 (iris_landmarks에서 계산): 왼쪽={left_center}, 오른쪽={right_center}")
                             else:
                                 print_warning("폴리곤렌더러", "original_iris_landmarks에서 중앙 포인트 계산 실패")
                         else:
@@ -195,21 +204,25 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                             # landmarks[468] = LEFT_EYE_INDICES, landmarks[469] = RIGHT_EYE_INDICES
                             custom_landmarks_no_iris.append(left_center)   # landmarks[468]
                             custom_landmarks_no_iris.append(right_center)  # landmarks[469]
-                            print(f"[폴리곤렌더러] 중앙 포인트 추가 완료: 왼쪽={left_center}, 오른쪽={right_center}")
+                            if DEBUG_POLYGON_RENDERER:
+                                print(f"[폴리곤렌더러] 중앙 포인트 추가 완료: 왼쪽={left_center}, 오른쪽={right_center}")
                         else:
                             print_warning("폴리곤렌더러", "중앙 포인트 계산 실패, custom_landmarks에 추가하지 않음")
                         
                         self.landmark_manager.set_custom_landmarks(custom_landmarks_no_iris, reason="polygon_renderer_init_with_iris_centers")
                         # property가 자동으로 처리하므로 동기화 코드 불필요
-                        print(f"[폴리곤렌더러] custom_landmarks 생성 (눈동자 제거 + 중앙 포인트 추가) - 길이: {len(self.custom_landmarks)}")
+                        if DEBUG_POLYGON_RENDERER:
+                            print(f"[폴리곤렌더러] custom_landmarks 생성 (눈동자 제거 + 중앙 포인트 추가) - 길이: {len(self.custom_landmarks)}")
                     except Exception as e:
-                        print(f"[폴리곤렌더러] custom_landmarks 변환 실패: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        if DEBUG_POLYGON_RENDERER:
+                            print(f"[폴리곤렌더러] custom_landmarks 변환 실패: {e}")
+                            import traceback
+                            traceback.print_exc()
                         # 폴백: 원본 그대로 사용
                         self.landmark_manager.set_custom_landmarks(base_landmarks, reason="polygon_renderer_init_fallback")
                         # property가 자동으로 처리하므로 동기화 코드 불필요
-                        print(f"[폴리곤렌더러] custom_landmarks 생성 (폴백) - 길이: {len(self.custom_landmarks)}")
+                        if DEBUG_POLYGON_RENDERER:
+                            print(f"[폴리곤렌더러] custom_landmarks 생성 (폴백) - 길이: {len(self.custom_landmarks)}")
                     # custom_landmarks 사용
                     landmarks = self.landmark_manager.get_custom_landmarks()
             else:
@@ -227,7 +240,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                 self.landmark_manager.set_custom_iris_centers(iris_centers)
                 landmarks = self.landmark_manager.get_custom_landmarks()
                 # iris_centers는 그대로 유지 (draw_iris 함수에서 사용)
-                print(f"[폴리곤렌더러] Tesselation 모드 - iris_centers 사용, 길이: {len(landmarks)}, 탭: {current_tab}")
+                if DEBUG_POLYGON_RENDERER:
+                    print(f"[폴리곤렌더러] Tesselation 모드 - iris_centers 사용, 길이: {len(landmarks)}, 탭: {current_tab}")
             # iris_centers가 없고 custom_landmarks가 있는 경우
             else:
                 custom = self.landmark_manager.get_custom_landmarks()
@@ -356,6 +370,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
             # 현재 탭에 따라 해당 부위의 모든 랜드마크 인덱스 수집
             target_indices = []
             
+            highlight_indices_set = set(highlight_indices) if highlight_indices else None
+
             if current_tab == '전체':
                 # 눈동자 이동 범위 제한 파라미터 가져오기
                 clamping_enabled = getattr(self, 'iris_clamping_enabled', None)
@@ -595,6 +611,24 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
                         canvas.tag_raise(polygon_id)
                 else:
                     pass
+
+                # 하이라이트 포인트 표시
+                if highlight_indices_set:
+                    for idx, img_x, img_y in point_coords:
+                        if idx in highlight_indices_set:
+                            rel_x = (img_x - img_width / 2) * scale_x
+                            rel_y = (img_y - img_height / 2) * scale_y
+                            canvas_x = pos_x + rel_x
+                            canvas_y = pos_y + rel_y
+                            highlight = canvas.create_oval(
+                                canvas_x - 4, canvas_y - 4,
+                                canvas_x + 4, canvas_y + 4,
+                                outline="#FF3366",
+                                fill="",
+                                width=2,
+                                tags=("landmarks_highlight",)
+                            )
+                            items_list.append(highlight)
             
             # 뒤집힌 삼각형 감지 및 표시 (원본 랜드마크와 변형된 랜드마크가 모두 있을 때만)
             # custom_landmarks를 사용하여 실제 변형된 랜드마크와 비교

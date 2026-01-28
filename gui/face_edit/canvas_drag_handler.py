@@ -156,6 +156,10 @@ class CanvasDragHandlerMixin:
                 self.canvas_edited_pos_x = new_x
                 self.canvas_edited_pos_y = new_y
             
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
+            
             # 바운딩 박스도 함께 이동 (폴리곤이 체크되어 있을 때만)
             if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
                 hasattr(self, 'bbox_rect_original') and self.bbox_rect_original is not None):
@@ -411,6 +415,10 @@ class CanvasDragHandlerMixin:
                 self.canvas_original.coords(self.image_created_original, new_x, new_y)
                 self.canvas_original_pos_x = new_x
                 self.canvas_original_pos_y = new_y
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
             
             # 바운딩 박스도 함께 이동 (폴리곤이 체크되어 있을 때만)
             if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and

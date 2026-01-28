@@ -1,6 +1,6 @@
 """
-얼굴 편집 패널 - 캔버스 이벤트 처리 Mixin
-확대/축소 및 이미지 저장 관련 기능을 담당
+캔버스 이벤트 처리 기능 Mixin
+이미지 확대/축소, 이동, 마우스 휠 등의 이벤트 처리
 """
 import os
 import tkinter as tk
@@ -9,7 +9,6 @@ from tkinter import messagebox
 
 class CanvasEventHandlerMixin:
     """캔버스 이벤트 처리 기능 Mixin"""
-    
     
     def zoom_in_original(self, mouse_x=None, mouse_y=None):
         """원본 이미지 확대 (마우스 위치를 중심으로)"""
@@ -43,29 +42,34 @@ class CanvasEventHandlerMixin:
         old_display_width = int(preview_width * old_scale)
         old_display_height = int(preview_height * old_scale)
         
-        # 마우스 위치에서 이미지 중심까지의 거리
-        img_mouse_x = mouse_x - old_img_x
-        img_mouse_y = mouse_y - old_img_y
+        # 확대 비율 계산
+        zoom_factor = getattr(self, 'zoom_factor', 1.2)
+        new_scale = min(old_scale * zoom_factor, max_scale)
         
-        # 확대 비율 업데이트
-        new_scale = min(old_scale * 1.1, max_scale)
-        scale_ratio = new_scale / old_scale
+        # 새로운 표시 크기
+        new_display_width = int(preview_width * new_scale)
+        new_display_height = int(preview_height * new_scale)
         
-        # 새로운 이미지 크기
-        new_display_width = int(old_display_width * scale_ratio)
-        new_display_height = int(old_display_height * scale_ratio)
+        # 마우스 위치를 중심으로 확대 (캔버스 좌표계)
+        canvas_width = self.canvas_original.winfo_width()
+        canvas_height = self.canvas_original.winfo_height()
         
-        # 마우스 위치를 중심으로 이미지 위치 조정
-        new_img_x = mouse_x - img_mouse_x * scale_ratio
-        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        # 마우스 위치에 해당하는 이미지 내부 좌표 계산
+        if old_display_width > 0 and old_display_height > 0:
+            mouse_img_x = (mouse_x - old_img_x) / old_display_width * preview_width
+            mouse_img_y = (mouse_y - old_img_y) / old_display_height * preview_height
+        else:
+            mouse_img_x = preview_width / 2
+            mouse_img_y = preview_height / 2
         
-        # 위치 저장
+        # 새로운 이미지 위치 계산 (마우스 위치를 중심으로)
+        new_img_x = mouse_x - mouse_img_x * new_scale
+        new_img_y = mouse_y - mouse_img_y * new_scale
+        
+        # 새로운 위치와 스케일 적용
         self.zoom_scale_original = new_scale
         self.canvas_original_pos_x = new_img_x
         self.canvas_original_pos_y = new_img_y
-        # 편집된 이미지도 동일한 위치로 동기화
-        self.canvas_edited_pos_x = new_img_x
-        self.canvas_edited_pos_y = new_img_y
         
         # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
@@ -97,6 +101,10 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_zoom)
     
@@ -132,29 +140,34 @@ class CanvasEventHandlerMixin:
         old_display_width = int(preview_width * old_scale)
         old_display_height = int(preview_height * old_scale)
         
-        # 마우스 위치에서 이미지 중심까지의 거리
-        img_mouse_x = mouse_x - old_img_x
-        img_mouse_y = mouse_y - old_img_y
+        # 축소 비율 계산
+        zoom_factor = getattr(self, 'zoom_factor', 1.2)
+        new_scale = max(old_scale / zoom_factor, min_scale)
         
-        # 축소 비율 업데이트
-        new_scale = max(old_scale / 1.1, min_scale)
-        scale_ratio = new_scale / old_scale
+        # 새로운 표시 크기
+        new_display_width = int(preview_width * new_scale)
+        new_display_height = int(preview_height * new_scale)
         
-        # 새로운 이미지 크기
-        new_display_width = int(old_display_width * scale_ratio)
-        new_display_height = int(old_display_height * scale_ratio)
+        # 마우스 위치를 중심으로 축소 (캔버스 좌표계)
+        canvas_width = self.canvas_original.winfo_width()
+        canvas_height = self.canvas_original.winfo_height()
         
-        # 마우스 위치를 중심으로 이미지 위치 조정
-        new_img_x = mouse_x - img_mouse_x * scale_ratio
-        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        # 마우스 위치에 해당하는 이미지 내부 좌표 계산
+        if old_display_width > 0 and old_display_height > 0:
+            mouse_img_x = (mouse_x - old_img_x) / old_display_width * preview_width
+            mouse_img_y = (mouse_y - old_img_y) / old_display_height * preview_height
+        else:
+            mouse_img_x = preview_width / 2
+            mouse_img_y = preview_height / 2
         
-        # 위치 저장
+        # 새로운 이미지 위치 계산 (마우스 위치를 중심으로)
+        new_img_x = mouse_x - mouse_img_x * new_scale
+        new_img_y = mouse_y - mouse_img_y * new_scale
+        
+        # 새로운 위치와 스케일 적용
         self.zoom_scale_original = new_scale
         self.canvas_original_pos_x = new_img_x
         self.canvas_original_pos_y = new_img_y
-        # 편집된 이미지도 동일한 위치로 동기화
-        self.canvas_edited_pos_x = new_img_x
-        self.canvas_edited_pos_y = new_img_y
         
         # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
@@ -186,35 +199,31 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_zoom)
     
     def zoom_reset_original(self):
-        """원본 이미지 확대/축소 초기화"""
+        """원본 이미지 원래대로"""
         if self.current_image is None:
             return
         
-        # "원래대로" 버튼 플래그 설정
-        self.is_resetting_position = True
-        
+        # 원래 크기로 리셋
         self.zoom_scale_original = 1.0
-        # 위치를 중앙으로 초기화
-        preview_width = getattr(self, 'preview_width', 800)
-        preview_height = getattr(self, 'preview_height', 1000)
-        self.canvas_original_pos_x = preview_width // 2
-        self.canvas_original_pos_y = preview_height // 2
+        self.canvas_original_pos_x = 0
+        self.canvas_original_pos_y = 0
         
-        # 확대/축소 중 플래그 설정
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
         
         self.show_original_preview()
-        # 편집된 이미지도 동일하게 초기화 및 위치 동기화
+        # 편집된 이미지도 동일하게 리셋
         self.show_edited_preview()
-
-        # 플래그 해제
-        self.is_resetting_position = False
         
-        # 확대/축소 초기화 완료 후 랜드마크 다시 그리기 (지연 처리)
+        # 리셋 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_reset():
             self._is_zooming = False
             if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
@@ -237,6 +246,10 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_reset)
     
@@ -245,9 +258,9 @@ class CanvasEventHandlerMixin:
         if self.edited_image is None:
             return
         
-        # 원본과 동일한 확대 비율 사용
-        max_scale = getattr(self, 'zoom_max_scale', 8.0)
-        if self.zoom_scale_original >= max_scale:
+        # 확대 제한
+        max_scale = getattr(self, 'zoom_max_scale', 8.0)  # 최대 확대 비율
+        if self.zoom_scale_edited >= max_scale:
             return
         
         # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
@@ -264,7 +277,7 @@ class CanvasEventHandlerMixin:
         # 현재 이미지 위치와 크기 가져오기
         old_img_x = self.canvas_edited_pos_x
         old_img_y = self.canvas_edited_pos_y
-        old_scale = self.zoom_scale_original
+        old_scale = self.zoom_scale_edited
         
         # 이미지 표시 크기 계산
         preview_width = getattr(self, 'preview_width', 800)
@@ -272,36 +285,41 @@ class CanvasEventHandlerMixin:
         old_display_width = int(preview_width * old_scale)
         old_display_height = int(preview_height * old_scale)
         
-        # 마우스 위치에서 이미지 중심까지의 거리
-        img_mouse_x = mouse_x - old_img_x
-        img_mouse_y = mouse_y - old_img_y
+        # 확대 비율 계산
+        zoom_factor = getattr(self, 'zoom_factor', 1.2)
+        new_scale = min(old_scale * zoom_factor, max_scale)
         
-        # 확대 비율 업데이트
-        new_scale = min(old_scale * 1.1, max_scale)
-        scale_ratio = new_scale / old_scale
+        # 새로운 표시 크기
+        new_display_width = int(preview_width * new_scale)
+        new_display_height = int(preview_height * new_scale)
         
-        # 새로운 이미지 크기
-        new_display_width = int(old_display_width * scale_ratio)
-        new_display_height = int(old_display_height * scale_ratio)
+        # 마우스 위치를 중심으로 확대 (캔버스 좌표계)
+        canvas_width = self.canvas_edited.winfo_width()
+        canvas_height = self.canvas_edited.winfo_height()
         
-        # 마우스 위치를 중심으로 이미지 위치 조정
-        new_img_x = mouse_x - img_mouse_x * scale_ratio
-        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        # 마우스 위치에 해당하는 이미지 내부 좌표 계산
+        if old_display_width > 0 and old_display_height > 0:
+            mouse_img_x = (mouse_x - old_img_x) / old_display_width * preview_width
+            mouse_img_y = (mouse_y - old_img_y) / old_display_height * preview_height
+        else:
+            mouse_img_x = preview_width / 2
+            mouse_img_y = preview_height / 2
         
-        # 위치 저장
-        self.zoom_scale_original = new_scale
+        # 새로운 이미지 위치 계산 (마우스 위치를 중심으로)
+        new_img_x = mouse_x - mouse_img_x * new_scale
+        new_img_y = mouse_y - mouse_img_y * new_scale
+        
+        # 새로운 위치와 스케일 적용
+        self.zoom_scale_edited = new_scale
         self.canvas_edited_pos_x = new_img_x
         self.canvas_edited_pos_y = new_img_y
-        # 원본 이미지도 동일한 위치로 동기화
-        self.canvas_original_pos_x = new_img_x
-        self.canvas_original_pos_y = new_img_y
         
-        # 확대/축소 중 플래그 설정
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
-        self._skip_morphing_change = True
         
-        self.show_original_preview()
         self.show_edited_preview()
+        # 원본 이미지도 동일하게 확대/축소 및 위치 동기화
+        self.show_original_preview()
         
         # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_zoom():
@@ -326,6 +344,10 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_zoom)
     
@@ -334,9 +356,9 @@ class CanvasEventHandlerMixin:
         if self.edited_image is None:
             return
         
-        # 원본과 동일한 축소 비율 사용
-        min_scale = getattr(self, 'zoom_min_scale', 0.2)
-        if self.zoom_scale_original <= min_scale:
+        # 축소 제한
+        min_scale = getattr(self, 'zoom_min_scale', 0.2)  # 최소 축소 비율
+        if self.zoom_scale_edited <= min_scale:
             return
         
         # 마우스 위치가 제공되지 않으면 저장된 위치 또는 캔버스 중앙 사용
@@ -353,7 +375,7 @@ class CanvasEventHandlerMixin:
         # 현재 이미지 위치와 크기 가져오기
         old_img_x = self.canvas_edited_pos_x
         old_img_y = self.canvas_edited_pos_y
-        old_scale = self.zoom_scale_original
+        old_scale = self.zoom_scale_edited
         
         # 이미지 표시 크기 계산
         preview_width = getattr(self, 'preview_width', 800)
@@ -361,36 +383,41 @@ class CanvasEventHandlerMixin:
         old_display_width = int(preview_width * old_scale)
         old_display_height = int(preview_height * old_scale)
         
-        # 마우스 위치에서 이미지 중심까지의 거리
-        img_mouse_x = mouse_x - old_img_x
-        img_mouse_y = mouse_y - old_img_y
+        # 축소 비율 계산
+        zoom_factor = getattr(self, 'zoom_factor', 1.2)
+        new_scale = max(old_scale / zoom_factor, min_scale)
         
-        # 축소 비율 업데이트
-        new_scale = max(old_scale / 1.1, min_scale)
-        scale_ratio = new_scale / old_scale
+        # 새로운 표시 크기
+        new_display_width = int(preview_width * new_scale)
+        new_display_height = int(preview_height * new_scale)
         
-        # 새로운 이미지 크기
-        new_display_width = int(old_display_width * scale_ratio)
-        new_display_height = int(old_display_height * scale_ratio)
+        # 마우스 위치를 중심으로 축소 (캔버스 좌표계)
+        canvas_width = self.canvas_edited.winfo_width()
+        canvas_height = self.canvas_edited.winfo_height()
         
-        # 마우스 위치를 중심으로 이미지 위치 조정
-        new_img_x = mouse_x - img_mouse_x * scale_ratio
-        new_img_y = mouse_y - img_mouse_y * scale_ratio
+        # 마우스 위치에 해당하는 이미지 내부 좌표 계산
+        if old_display_width > 0 and old_display_height > 0:
+            mouse_img_x = (mouse_x - old_img_x) / old_display_width * preview_width
+            mouse_img_y = (mouse_y - old_img_y) / old_display_height * preview_height
+        else:
+            mouse_img_x = preview_width / 2
+            mouse_img_y = preview_height / 2
         
-        # 위치 저장
-        self.zoom_scale_original = new_scale
+        # 새로운 이미지 위치 계산 (마우스 위치를 중심으로)
+        new_img_x = mouse_x - mouse_img_x * new_scale
+        new_img_y = mouse_y - mouse_img_y * new_scale
+        
+        # 새로운 위치와 스케일 적용
+        self.zoom_scale_edited = new_scale
         self.canvas_edited_pos_x = new_img_x
         self.canvas_edited_pos_y = new_img_y
-        # 원본 이미지도 동일한 위치로 동기화
-        self.canvas_original_pos_x = new_img_x
-        self.canvas_original_pos_y = new_img_y
         
-        # 확대/축소 중 플래그 설정
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
-        self._skip_morphing_change = True
         
-        self.show_original_preview()
         self.show_edited_preview()
+        # 원본 이미지도 동일하게 확대/축소 및 위치 동기화
+        self.show_original_preview()
         
         # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_zoom():
@@ -415,35 +442,31 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_zoom)
     
     def zoom_reset_edited(self):
-        """편집된 이미지 확대/축소 초기화"""
+        """편집된 이미지 원래대로"""
         if self.edited_image is None:
             return
         
-        # "원래대로" 버튼 플래그 설정
-        self.is_resetting_position = True
+        # 원래 크기로 리셋
+        self.zoom_scale_edited = 1.0
+        self.canvas_edited_pos_x = 0
+        self.canvas_edited_pos_y = 0
         
-        self.zoom_scale_original = 1.0
-        # 위치를 중앙으로 초기화
-        preview_width = getattr(self, 'preview_width', 800)
-        preview_height = getattr(self, 'preview_height', 1000)
-        self.canvas_edited_pos_x = preview_width // 2
-        self.canvas_edited_pos_y = preview_height // 2
-        
-        # 확대/축소 중 플래그 설정
+        # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
-        self._skip_morphing_change = True
-
-        self.show_original_preview()
-        self.show_edited_preview()
-
-        # 플래그 해제
-        self.is_resetting_position = False
         
-        # 확대/축소 초기화 완료 후 랜드마크 다시 그리기 (지연 처리)
+        self.show_edited_preview()
+        # 원본 이미지도 동일하게 리셋
+        self.show_original_preview()
+        
+        # 리셋 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_reset():
             self._is_zooming = False
             if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
@@ -466,14 +489,17 @@ class CanvasEventHandlerMixin:
                 # 랜드마크 다시 그리기
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
+            
+            # 지시선 업데이트
+            if hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
         
         self.after(100, update_landmarks_after_reset)
-    
     
     def save_png(self):
         """편집된 이미지를 PNG 파일로 저장"""
         if self.edited_image is None:
-            messagebox.showwarning("경고", "저장할 이미지가 없습니다.")
+            messagebox.showwarning("경고", "편집된 이미지가 없습니다.")
             return
         
         if not self.current_image_path:
@@ -481,29 +507,35 @@ class CanvasEventHandlerMixin:
             return
         
         try:
-            # 원본 이미지 파일명 가져오기
+            # 원본 이미지 파일명 기반으로 저장 파일명 생성
             original_filename = os.path.basename(self.current_image_path)
             base_name = os.path.splitext(original_filename)[0]
             png_filename = f"{base_name}_edited.png"
             
-            # 저장 폴더 경로 결정
-            if self.face_edit_dir and os.path.exists(self.face_edit_dir):
+            # 저장 디렉토리 설정
+            if hasattr(self, 'face_edit_dir') and self.face_edit_dir and os.path.exists(self.face_edit_dir):
                 save_dir = self.face_edit_dir
             else:
                 save_dir = os.path.dirname(self.current_image_path)
             
-            # 파일 경로
+            # 파일 경로 생성
             file_path = os.path.join(save_dir, png_filename)
             
             # PNG로 저장
             self.edited_image.save(file_path, "PNG")
             
-            self.status_label.config(
-                text=f"저장 완료: {png_filename}",
-                fg="green"
-            )
-        
+            if hasattr(self, 'status_label'):
+                self.status_label.config(
+                    text=f"저장 완료: {png_filename}",
+                    fg="green"
+                )
+            
+            messagebox.showinfo("성공", f"이미지가 저장되었습니다:\n{file_path}")
+            
         except Exception as e:
-            messagebox.showerror("에러", f"PNG 저장 실패:\n{e}")
-            self.status_label.config(text=f"에러: {e}", fg="red")
-    
+            if hasattr(self, 'status_label'):
+                self.status_label.config(
+                    text=f"저장 실패: {str(e)}",
+                    fg="red"
+                )
+            messagebox.showerror("오류", f"이미지 저장 실패:\n{str(e)}")

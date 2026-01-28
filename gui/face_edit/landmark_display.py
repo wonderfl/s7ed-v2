@@ -128,6 +128,8 @@ class LandmarkDisplayMixin:
             polygon_items_list = items_list
         if image is None or pos_x is None or pos_y is None:
             return
+        
+        print("_draw_landmarks_on_canvas: called..")
 
         try:
             img_width, img_height = image.size

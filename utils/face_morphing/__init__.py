@@ -58,6 +58,7 @@ from .adjustments import (
 
 from .polygon_morphing import (
     transform_points_for_eye_size,
+    transform_points_for_eye_size_centered,
     transform_points_for_nose_size,
     transform_points_for_jaw,
     transform_points_for_face_size,
@@ -107,6 +108,7 @@ __all__ = [
     'adjust_lip_vertical_move',
     # 폴리곤 포인트 변형 및 모핑
     'transform_points_for_eye_size',
+    'transform_points_for_eye_size_centered',
     'transform_points_for_nose_size',
     'transform_points_for_jaw',
     'transform_points_for_face_size',
