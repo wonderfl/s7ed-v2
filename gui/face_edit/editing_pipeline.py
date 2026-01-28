@@ -1,5 +1,21 @@
 """Editing pipeline mixin for FaceEditPanel."""
+from dataclasses import dataclass
 from typing import Any, Optional, Tuple
+
+
+@dataclass
+class EditingContext:
+    """Lightweight container describing a single apply_editing run."""
+
+    depth: int
+    base_image: Any
+    face_morphing: Any
+    style_transfer: Any
+    face_transform: Any
+    image_cls: Any
+    os_module: Any
+    left_eye_size: float
+    right_eye_size: float
 
 
 class EditingPipelineMixin:
@@ -19,282 +35,28 @@ class EditingPipelineMixin:
         print(f"apply_editing: called.. {depth}")
 
         try:
-            import utils.face_morphing as face_morphing
-            import utils.style_transfer as style_transfer
-            import utils.face_transform as face_transform
-            import os
-            from PIL import Image
+            context = self._prepare_editing_context(depth)
+            face_morphing = context.face_morphing
+            style_transfer = context.style_transfer
+            face_transform = context.face_transform
+            os_module = context.os_module
+            image_cls = context.image_cls
 
             # 처리 순서: 정렬 → 특징 보정 → 스타일 전송 → 나이 변환
-            base_image = self.aligned_image if self.aligned_image is not None else self.current_image
+            base_image = context.base_image
+            left_eye_size = context.left_eye_size
+            right_eye_size = context.right_eye_size
 
-            # 눈 편집 파라미터 결정
-            if self.use_individual_eye_region.get():
-                left_eye_size = self.left_eye_size.get()
-                right_eye_size = self.right_eye_size.get()
-            else:
-                left_eye_size = self.left_eye_size.get()
-                right_eye_size = self.left_eye_size.get()
+            base_landmarks = self._ensure_landmark_sources(context)
+            self._update_landmarks_for_editing(context, base_landmarks)
 
-            # 눈 크기 값 유효성 검사 및 기본값 보정
-            if left_eye_size is None or not (0.1 <= left_eye_size <= 5.0):
-                from utils.logger import print_warning
-                print_warning("얼굴편집", f"왼쪽 눈 크기 값이 유효하지 않음: {left_eye_size}, 기본값 1.0으로 설정")
-                left_eye_size = 1.0
-            if right_eye_size is None or not (0.1 <= right_eye_size <= 5.0):
-                from utils.logger import print_warning
-                print_warning("얼굴편집", f"오른쪽 눈 크기 값이 유효하지 않음: {right_eye_size}, 기본값 1.0으로 설정")
-                right_eye_size = 1.0
-
-            # 변형된 랜드마크 계산 (랜드마크 표시용)
-            import utils.face_landmarks as face_landmarks
-
-            # 원본 랜드마크 가져오기 (항상 원본을 기준으로 변형)
-            base_landmarks = None
-            # original_landmarks 가져오기 (LandmarkManager 사용)
-            if not self.landmark_manager.has_original_landmarks():
-                # original_landmarks가 없으면 face_landmarks 사용 (없으면 감지)
-                if self.landmark_manager.get_face_landmarks() is None:
-                    detected, _ = face_landmarks.detect_face_landmarks(base_image)
-                    if detected is not None:
-                        self.landmark_manager.set_face_landmarks(detected)
-                        # 이미지 크기와 함께 바운딩 박스 계산하여 캐싱
-                        img_width, img_height = base_image.size
-                        self.landmark_manager.set_original_landmarks(detected, img_width, img_height)
-                        self.face_landmarks = self.landmark_manager.get_face_landmarks()
-                        self.original_landmarks = self.landmark_manager.get_original_landmarks()
-                base_landmarks = self.landmark_manager.get_face_landmarks()
-            else:
-                base_landmarks = self.landmark_manager.get_original_landmarks()
-            # 폴백
-            if base_landmarks is None:
-                base_landmarks = self.landmark_manager.get_face_landmarks()
-
-            if self.use_landmark_warping.get():
-                # 랜드마크 기반 변형 모드: 변형된 랜드마크 계산
-                if base_landmarks is not None:
-                    # 변형된 랜드마크 계산 (항상 원본을 기준으로)
-                    transformed = face_morphing.transform_points_for_eye_size(
-                        base_landmarks,
-                        eye_size_ratio=1.0,
-                        left_eye_size_ratio=left_eye_size,
-                        right_eye_size_ratio=right_eye_size
-                    )
-
-                    # 눈 위치 변형
-                    transformed = face_morphing.transform_points_for_eye_position(
-                        transformed,
-                        left_eye_position_x=self.left_eye_position_x.get(),
-                        right_eye_position_x=self.right_eye_position_x.get(),
-                        left_eye_position_y=self.left_eye_position_y.get(),
-                        right_eye_position_y=self.right_eye_position_y.get()
-                    )
-
-                    # 코 크기 변형
-                    transformed = face_morphing.transform_points_for_nose_size(
-                        transformed,
-                        nose_size_ratio=self.nose_size.get()
-                    )
-
-                    # 입술 변형
-                    transformed = face_morphing.transform_points_for_lip_shape(
-                        transformed,
-                        upper_lip_shape=self.upper_lip_shape.get(),
-                        lower_lip_shape=self.lower_lip_shape.get()
-                    )
-                    transformed = face_morphing.transform_points_for_lip_width(
-                        transformed,
-                        upper_lip_width=self.upper_lip_width.get(),
-                        lower_lip_width=self.lower_lip_width.get()
-                    )
-
-                    # transformed_landmarks 및 custom_landmarks 업데이트 (LandmarkManager 사용)
-                    self.landmark_manager.set_transformed_landmarks(transformed)
-                    self.landmark_manager.set_custom_landmarks(transformed, reason="__init__ use_landmark_warping")
-                    self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
-
-                    # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
-                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                        original = self.landmark_manager.get_original_landmarks()
-                        if original is not None:
-                            img_width, img_height = self.current_image.size
-                            left_iris_indices, right_iris_indices = self._get_iris_indices()
-                            # 드래그 좌표가 없으면 original_landmarks에서 계산
-                            left_center = self.landmark_manager.get_left_iris_center_coord()
-                            right_center = self.landmark_manager.get_right_iris_center_coord()
-
-                            if left_center is None:
-                                left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
-                            if right_center is None:
-                                right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
-
-                            self.landmark_manager.set_iris_center_coords(left_center, right_center)
-                            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
-                            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
-                    else:
-                        # LandmarkManager가 없으면 기존 방식 사용
-                        self.transformed_landmarks = transformed
-                        self.custom_landmarks = transformed  # 직접 참조 (복사본 없음)
-                        # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
-                        if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                            if hasattr(self, 'original_landmarks') and self.original_landmarks is not None:
-                                img_width, img_height = self.current_image.size
-                                left_iris_indices, right_iris_indices = self._get_iris_indices()
-                                # 드래그 좌표가 없으면 original_landmarks에서 계산
-                                if not (hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None):
-                                    left_center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
-                                    if left_center is not None:
-                                        self._left_iris_center_coord = left_center
-                                if not (hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None):
-                                    right_center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
-                                    if right_center is not None:
-                                        self._right_iris_center_coord = right_center
-                else:
-                    # transformed_landmarks 및 custom_landmarks 초기화 (LandmarkManager 사용)
-                    self.landmark_manager.set_transformed_landmarks(None)
-                    self.landmark_manager.set_custom_landmarks(None, reason="__init__ use_landmark_warping_false")
-                    self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
-            else:
-                self.transformed_landmarks = None
-                # use_landmark_warping이 꺼져 있어도 슬라이더 값에 따라 랜드마크 변형
-                if base_landmarks is not None:
-                    # 변형된 랜드마크 계산 (항상 원본을 기준으로)
-                    transformed = face_morphing.transform_points_for_eye_size(
-                        base_landmarks,
-                        eye_size_ratio=1.0,
-                        left_eye_size_ratio=left_eye_size,
-                        right_eye_size_ratio=right_eye_size
-                    )
-
-                    # 눈 위치 변형
-                    transformed = face_morphing.transform_points_for_eye_position(
-                        transformed,
-                        left_eye_position_x=self.left_eye_position_x.get(),
-                        right_eye_position_x=self.right_eye_position_x.get(),
-                        left_eye_position_y=self.left_eye_position_y.get(),
-                        right_eye_position_y=self.right_eye_position_y.get()
-                    )
-
-                    # 코 크기 변형
-                    transformed = face_morphing.transform_points_for_nose_size(
-                        transformed,
-                        nose_size_ratio=self.nose_size.get()
-                    )
-
-                    # 입술 변형
-                    transformed = face_morphing.transform_points_for_lip_shape(
-                        transformed,
-                        upper_lip_shape=self.upper_lip_shape.get(),
-                        lower_lip_shape=self.lower_lip_shape.get()
-                    )
-                    transformed = face_morphing.transform_points_for_lip_width(
-                        transformed,
-                        upper_lip_width=self.upper_lip_width.get(),
-                        lower_lip_width=self.lower_lip_width.get()
-                    )
-
-                    # custom_landmarks 업데이트 (중앙 포인트는 좌표 기반으로 별도 관리)
-                    self.custom_landmarks = transformed  # 직접 참조 (복사본 없음)
-                    # 중앙 포인트 좌표 초기화 (original_landmarks에서 계산)
-                    if hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center') and self.current_image is not None:
-                        if self.original_landmarks is not None:
-                            img_width, img_height = self.current_image.size
-                            left_iris_indices, right_iris_indices = self._get_iris_indices()
-                            # 드래그 좌표가 없으면 original_landmarks에서 계산
-                            if not (hasattr(self, '_left_iris_center_coord') and self._left_iris_center_coord is not None):
-                                left_center = self._calculate_iris_center(self.original_landmarks, left_iris_indices, img_width, img_height)
-                                if left_center is not None:
-                                    self._left_iris_center_coord = left_center
-                            if not (hasattr(self, '_right_iris_center_coord') and self._right_iris_center_coord is not None):
-                                right_center = self._calculate_iris_center(self.original_landmarks, right_iris_indices, img_width, img_height)
-                                if right_center is not None:
-                                    self._right_iris_center_coord = right_center
-                else:
-                    self.custom_landmarks = None
-
-            # 영역 파라미터는 모두 None으로 전달하여 기본값(자동 계산) 사용
-            # 입 편집 파라미터 전달
-            result = face_morphing.apply_all_adjustments(
-                base_image,
-                eye_size=None,
-                left_eye_size=left_eye_size,
-                right_eye_size=right_eye_size,
-                eye_spacing=self.eye_spacing.get(),
-                left_eye_position_y=self.left_eye_position_y.get(),
-                right_eye_position_y=self.right_eye_position_y.get(),
-                left_eye_position_x=self.left_eye_position_x.get(),
-                right_eye_position_x=self.right_eye_position_x.get(),
-                clamping_enabled=self.iris_clamping_enabled.get(),
-                margin_ratio=self.iris_clamping_margin_ratio.get(),
-                # 영역 파라미터를 None으로 전달하여 기본값 사용
-                eye_region_padding=None,
-                eye_region_offset_x=None,
-                eye_region_offset_y=None,
-                left_eye_region_padding=None,
-                right_eye_region_padding=None,
-                left_eye_region_offset_x=None,
-                left_eye_region_offset_y=None,
-                right_eye_region_offset_x=None,
-                right_eye_region_offset_y=None,
-                nose_size=self.nose_size.get(),
-                upper_lip_shape=self.upper_lip_shape.get(),
-                lower_lip_shape=self.lower_lip_shape.get(),
-                upper_lip_width=self.upper_lip_width.get(),
-                lower_lip_width=self.lower_lip_width.get(),
-                upper_lip_vertical_move=self.upper_lip_vertical_move.get(),
-                lower_lip_vertical_move=self.lower_lip_vertical_move.get(),
-                use_individual_lip_region=self.use_individual_lip_region.get(),
-                # 입술 영역 파라미터도 None으로 전달하여 기본값 사용
-                upper_lip_region_padding_x=None,
-                upper_lip_region_padding_y=None,
-                lower_lip_region_padding_x=None,
-                lower_lip_region_padding_y=None,
-                upper_lip_region_offset_x=None,
-                upper_lip_region_offset_y=None,
-                lower_lip_region_offset_x=None,
-                lower_lip_region_offset_y=None,
-                use_landmark_warping=self.use_landmark_warping.get(),
-                jaw_adjustment=self.jaw_size.get(),
-                face_width=self.face_width.get(),
-                face_height=self.face_height.get()
-            )
-
-            # 스타일 전송 적용
-            if self.style_image_path and os.path.exists(self.style_image_path):
-                try:
-                    style_image = Image.open(self.style_image_path)
-                    color_strength = self.color_strength.get()
-                    texture_strength = self.texture_strength.get()
-
-                    if color_strength > 0.0 or texture_strength > 0.0:
-                        result = style_transfer.transfer_style(
-                            style_image,
-                            result,
-                            color_strength=color_strength,
-                            texture_strength=texture_strength
-                        )
-                except Exception as e:
-                    print(f"[얼굴편집] 스타일 전송 실패: {e}")
-
-            # 나이 변환 적용
-            age_adjustment = self.age_adjustment.get()
-            if abs(age_adjustment) >= 1.0:
-                result = face_transform.transform_age(result, age_adjustment=int(age_adjustment))
+            result = self._apply_face_adjustments(context)
+            result = self._apply_style_transfer_if_requested(context, result)
+            result = self._apply_age_transform_if_requested(context, result)
 
             self.edited_image = result
-
-            # 미리보기 업데이트
-            self.show_edited_preview()
-
-            # 랜드마크 표시  업데이트 (변형된 랜드마크도 함께 표시)
-            if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                self.update_face_features_display()
-
-            # 영역 표시 업데이트
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
+            self._update_previews_and_labels()
+            self._refresh_overlays_and_polygons()
 
         except Exception as e:
             print(f"[Editing] Editing failed: {e}")
@@ -306,63 +68,7 @@ class EditingPipelineMixin:
             self.right_eye_size_label.config(text=f"{int(right_eye_value * 100)}%")
             self._last_apply_editing_signature = None
 
-        if hasattr(self, 'nose_size_label'):
-            nose_value = self.nose_size.get()
-            self.nose_size_label.config(text=f"{int(nose_value * 100)}%")
-
-        # 입 편집 라벨 업데이트
-        if hasattr(self, 'upper_lip_shape_label'):
-            upper_lip_shape_value = self.upper_lip_shape.get()
-            self.upper_lip_shape_label.config(text=f"{int(upper_lip_shape_value * 100)}%")
-
-        if hasattr(self, 'lower_lip_shape_label'):
-            lower_lip_shape_value = self.lower_lip_shape.get()
-            self.lower_lip_shape_label.config(text=f"{int(lower_lip_shape_value * 100)}%")
-
-        if hasattr(self, 'upper_lip_width_label'):
-            upper_lip_width_value = self.upper_lip_width.get()
-            self.upper_lip_width_label.config(text=f"{int(upper_lip_width_value * 100)}%")
-
-        if hasattr(self, 'lower_lip_width_label'):
-            lower_lip_width_value = self.lower_lip_width.get()
-            self.lower_lip_width_label.config(text=f"{int(lower_lip_width_value * 100)}%")
-
-        if hasattr(self, 'upper_lip_vertical_move_label'):
-            upper_lip_vertical_move_value = self.upper_lip_vertical_move.get()
-            self.upper_lip_vertical_move_label.config(text=f"{int(upper_lip_vertical_move_value)}")
-
-        if hasattr(self, 'lower_lip_vertical_move_label'):
-            lower_lip_vertical_move_value = self.lower_lip_vertical_move.get()
-            self.lower_lip_vertical_move_label.config(text=f"{int(lower_lip_vertical_move_value)}")
-
-        if hasattr(self, 'jaw_size_label'):
-            jaw_value = self.jaw_size.get()
-            self.jaw_size_label.config(text=f"{int(jaw_value)}")
-
-        if hasattr(self, 'face_width_label'):
-            face_width_value = self.face_width.get()
-            self.face_width_label.config(text=f"{int(face_width_value * 100)}%")
-
-        if hasattr(self, 'face_height_label'):
-            face_height_value = self.face_height.get()
-            self.face_height_label.config(text=f"{int(face_height_value * 100)}%")
-
-        # 눈 위치 라벨 업데이트
-        if hasattr(self, 'left_eye_position_y_label'):
-            left_eye_position_y_value = self.left_eye_position_y.get()
-            self.left_eye_position_y_label.config(text=f"{int(left_eye_position_y_value)}")
-
-        if hasattr(self, 'right_eye_position_y_label'):
-            right_eye_position_y_value = self.right_eye_position_y.get()
-            self.right_eye_position_y_label.config(text=f"{int(right_eye_position_y_value)}")
-
-        if hasattr(self, 'left_eye_position_x_label'):
-            left_eye_position_x_value = self.left_eye_position_x.get()
-            self.left_eye_position_x_label.config(text=f"{int(left_eye_position_x_value)}")
-
-        if hasattr(self, 'right_eye_position_x_label'):
-            right_eye_position_x_value = self.right_eye_position_x.get()
-            self.right_eye_position_x_label.config(text=f"{int(right_eye_position_x_value)}")
+        self._update_slider_labels()
 
         # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
         if self.current_image is not None:
@@ -568,3 +274,394 @@ class EditingPipelineMixin:
             texture_strength,
             custom_signature,
         )
+
+    # ------------------------------------------------------------------
+    # Context helpers
+    # ------------------------------------------------------------------
+    def _prepare_editing_context(self, depth: int) -> EditingContext:
+        """Collects import dependencies and slider defaults for apply_editing."""
+
+        import utils.face_morphing as face_morphing
+        import utils.style_transfer as style_transfer
+        import utils.face_transform as face_transform
+        import os
+        from PIL import Image
+
+        base_image = self.aligned_image if getattr(self, 'aligned_image', None) is not None else self.current_image
+        if base_image is None:
+            raise RuntimeError("Base image is not available for editing")
+
+        if self.use_individual_eye_region.get():
+            left_eye_size = self.left_eye_size.get()
+            right_eye_size = self.right_eye_size.get()
+        else:
+            left_eye_size = self.left_eye_size.get()
+            right_eye_size = self.left_eye_size.get()
+
+        from utils.logger import print_warning
+
+        if left_eye_size is None or not (0.1 <= left_eye_size <= 5.0):
+            print_warning("얼굴편집", f"왼쪽 눈 크기 값이 유효하지 않음: {left_eye_size}, 기본값 1.0으로 설정")
+            left_eye_size = 1.0
+        if right_eye_size is None or not (0.1 <= right_eye_size <= 5.0):
+            print_warning("얼굴편집", f"오른쪽 눈 크기 값이 유효하지 않음: {right_eye_size}, 기본값 1.0으로 설정")
+            right_eye_size = 1.0
+
+        return EditingContext(
+            depth=depth,
+            base_image=base_image,
+            face_morphing=face_morphing,
+            style_transfer=style_transfer,
+            face_transform=face_transform,
+            image_cls=Image,
+            os_module=os,
+            left_eye_size=left_eye_size,
+            right_eye_size=right_eye_size,
+        )
+
+    def _ensure_landmark_sources(self, context: EditingContext):
+        """Ensure original/custom landmarks are available and return base landmarks."""
+
+        import utils.face_landmarks as face_landmarks
+
+        base_image = context.base_image
+        base_landmarks = None
+
+        if not self.landmark_manager.has_original_landmarks():
+            if self.landmark_manager.get_face_landmarks() is None:
+                detected, _ = face_landmarks.detect_face_landmarks(base_image)
+                if detected is not None:
+                    self.landmark_manager.set_face_landmarks(detected)
+                    img_width, img_height = base_image.size
+                    self.landmark_manager.set_original_landmarks(detected, img_width, img_height)
+                    self.face_landmarks = self.landmark_manager.get_face_landmarks()
+                    self.original_landmarks = self.landmark_manager.get_original_landmarks()
+            base_landmarks = self.landmark_manager.get_face_landmarks()
+        else:
+            base_landmarks = self.landmark_manager.get_original_landmarks()
+
+        if base_landmarks is None:
+            base_landmarks = self.landmark_manager.get_face_landmarks()
+
+        return base_landmarks
+
+    def _update_landmarks_for_editing(self, context: EditingContext, base_landmarks):
+        """Apply slider-driven landmark transforms based on current settings."""
+
+        face_morphing = context.face_morphing
+        left_eye_size = context.left_eye_size
+        right_eye_size = context.right_eye_size
+
+        if self.use_landmark_warping.get():
+            if base_landmarks is not None:
+                transformed = face_morphing.transform_points_for_eye_size(
+                    base_landmarks,
+                    eye_size_ratio=1.0,
+                    left_eye_size_ratio=left_eye_size,
+                    right_eye_size_ratio=right_eye_size,
+                )
+                transformed = face_morphing.transform_points_for_eye_position(
+                    transformed,
+                    left_eye_position_x=self.left_eye_position_x.get(),
+                    right_eye_position_x=self.right_eye_position_x.get(),
+                    left_eye_position_y=self.left_eye_position_y.get(),
+                    right_eye_position_y=self.right_eye_position_y.get(),
+                )
+                transformed = face_morphing.transform_points_for_nose_size(
+                    transformed,
+                    nose_size_ratio=self.nose_size.get(),
+                )
+                transformed = face_morphing.transform_points_for_lip_shape(
+                    transformed,
+                    upper_lip_shape=self.upper_lip_shape.get(),
+                    lower_lip_shape=self.lower_lip_shape.get(),
+                )
+                transformed = face_morphing.transform_points_for_lip_width(
+                    transformed,
+                    upper_lip_width=self.upper_lip_width.get(),
+                    lower_lip_width=self.lower_lip_width.get(),
+                )
+
+                self.landmark_manager.set_transformed_landmarks(transformed)
+                self.landmark_manager.set_custom_landmarks(transformed, reason="apply_editing use_landmark_warping")
+                self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+
+                self._ensure_iris_centers_from_original()
+            else:
+                self.landmark_manager.set_transformed_landmarks(None)
+                self.landmark_manager.set_custom_landmarks(None, reason="apply_editing use_landmark_warping_false")
+                self.transformed_landmarks = self.landmark_manager.get_transformed_landmarks()
+        else:
+            self.transformed_landmarks = None
+            if base_landmarks is not None:
+                transformed = face_morphing.transform_points_for_eye_size(
+                    base_landmarks,
+                    eye_size_ratio=1.0,
+                    left_eye_size_ratio=left_eye_size,
+                    right_eye_size_ratio=right_eye_size,
+                )
+                transformed = face_morphing.transform_points_for_eye_position(
+                    transformed,
+                    left_eye_position_x=self.left_eye_position_x.get(),
+                    right_eye_position_x=self.right_eye_position_x.get(),
+                    left_eye_position_y=self.left_eye_position_y.get(),
+                    right_eye_position_y=self.right_eye_position_y.get(),
+                )
+                transformed = face_morphing.transform_points_for_nose_size(
+                    transformed,
+                    nose_size_ratio=self.nose_size.get(),
+                )
+                transformed = face_morphing.transform_points_for_lip_shape(
+                    transformed,
+                    upper_lip_shape=self.upper_lip_shape.get(),
+                    lower_lip_shape=self.lower_lip_shape.get(),
+                )
+                transformed = face_morphing.transform_points_for_lip_width(
+                    transformed,
+                    upper_lip_width=self.upper_lip_width.get(),
+                    lower_lip_width=self.lower_lip_width.get(),
+                )
+
+                self.custom_landmarks = transformed
+                self._ensure_iris_centers_from_original()
+            else:
+                self.custom_landmarks = None
+
+    def _ensure_iris_centers_from_original(self):
+        """Ensure iris center cache exists based on original landmarks when needed."""
+
+        if not (hasattr(self, '_get_iris_indices') and hasattr(self, '_calculate_iris_center')):
+            return
+        if self.current_image is None:
+            return
+
+        original = self.landmark_manager.get_original_landmarks() or getattr(self, 'original_landmarks', None)
+        if original is None:
+            return
+
+        img_width, img_height = self.current_image.size
+        left_iris_indices, right_iris_indices = self._get_iris_indices()
+
+        left_center = self.landmark_manager.get_left_iris_center_coord()
+        if left_center is None:
+            left_center = self._calculate_iris_center(original, left_iris_indices, img_width, img_height)
+        right_center = self.landmark_manager.get_right_iris_center_coord()
+        if right_center is None:
+            right_center = self._calculate_iris_center(original, right_iris_indices, img_width, img_height)
+
+        if left_center is not None or right_center is not None:
+            self.landmark_manager.set_iris_center_coords(left_center, right_center)
+            self._left_iris_center_coord = self.landmark_manager.get_left_iris_center_coord()
+            self._right_iris_center_coord = self.landmark_manager.get_right_iris_center_coord()
+
+    # ------------------------------------------------------------------
+    # Adjustment helpers
+    # ------------------------------------------------------------------
+    def _apply_face_adjustments(self, context: EditingContext):
+        """Apply core face adjustments via face_morphing."""
+
+        face_morphing = context.face_morphing
+        base_image = context.base_image
+
+        return face_morphing.apply_all_adjustments(
+            base_image,
+            eye_size=None,
+            left_eye_size=context.left_eye_size,
+            right_eye_size=context.right_eye_size,
+            eye_spacing=self.eye_spacing.get(),
+            left_eye_position_y=self.left_eye_position_y.get(),
+            right_eye_position_y=self.right_eye_position_y.get(),
+            left_eye_position_x=self.left_eye_position_x.get(),
+            right_eye_position_x=self.right_eye_position_x.get(),
+            clamping_enabled=self.iris_clamping_enabled.get(),
+            margin_ratio=self.iris_clamping_margin_ratio.get(),
+            eye_region_padding=None,
+            eye_region_offset_x=None,
+            eye_region_offset_y=None,
+            left_eye_region_padding=None,
+            right_eye_region_padding=None,
+            left_eye_region_offset_x=None,
+            left_eye_region_offset_y=None,
+            right_eye_region_offset_x=None,
+            right_eye_region_offset_y=None,
+            nose_size=self.nose_size.get(),
+            upper_lip_shape=self.upper_lip_shape.get(),
+            lower_lip_shape=self.lower_lip_shape.get(),
+            upper_lip_width=self.upper_lip_width.get(),
+            lower_lip_width=self.lower_lip_width.get(),
+            upper_lip_vertical_move=self.upper_lip_vertical_move.get(),
+            lower_lip_vertical_move=self.lower_lip_vertical_move.get(),
+            use_individual_lip_region=self.use_individual_lip_region.get(),
+            upper_lip_region_padding_x=None,
+            upper_lip_region_padding_y=None,
+            lower_lip_region_padding_x=None,
+            lower_lip_region_padding_y=None,
+            upper_lip_region_offset_x=None,
+            upper_lip_region_offset_y=None,
+            lower_lip_region_offset_x=None,
+            lower_lip_region_offset_y=None,
+            use_landmark_warping=self.use_landmark_warping.get(),
+            jaw_adjustment=self.jaw_size.get(),
+            face_width=self.face_width.get(),
+            face_height=self.face_height.get(),
+        )
+
+    def _apply_style_transfer_if_requested(self, context: EditingContext, result):
+        """Apply style transfer based on current settings and return updated image."""
+
+        if not (self.style_image_path and context.os_module.path.exists(self.style_image_path)):
+            return result
+
+        try:
+            style_image = context.image_cls.open(self.style_image_path)
+            color_strength = self.color_strength.get()
+            texture_strength = self.texture_strength.get()
+
+            if color_strength > 0.0 or texture_strength > 0.0:
+                return context.style_transfer.transfer_style(
+                    style_image,
+                    result,
+                    color_strength=color_strength,
+                    texture_strength=texture_strength,
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            print(f"[얼굴편집] 스타일 전송 실패: {exc}")
+
+        return result
+
+    def _apply_age_transform_if_requested(self, context: EditingContext, result):
+        """Apply age transformation if slider threshold exceeded."""
+
+        age_adjustment = self.age_adjustment.get()
+        if abs(age_adjustment) >= 1.0:
+            return context.face_transform.transform_age(result, age_adjustment=int(age_adjustment))
+        return result
+
+    # ------------------------------------------------------------------
+    # UI / Overlay helpers
+    # ------------------------------------------------------------------
+    def _update_previews_and_labels(self):
+        """Refresh preview canvas and landmark displays."""
+
+        self.show_edited_preview()
+        if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+            self.update_face_features_display()
+
+    def _refresh_overlays_and_polygons(self):
+        """Refresh region overlays or landmark polygons based on user settings."""
+
+        show_polygons = hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()
+        if not show_polygons:
+            if hasattr(self, 'show_eye_region') and self.show_eye_region.get():
+                self.update_eye_region_display()
+            if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
+                self.update_lip_region_display()
+        else:
+            if hasattr(self, 'clear_eye_region_display'):
+                self.clear_eye_region_display()
+            if hasattr(self, 'clear_lip_region_display'):
+                self.clear_lip_region_display()
+
+        if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+            if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                if hasattr(self, 'update_polygons_only'):
+                    self.update_polygons_only()
+                if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                    if hasattr(self, 'landmark_polygon_items') and 'original' in self.landmark_polygon_items:
+                        for item_id in list(self.landmark_polygon_items['original']):
+                            try:
+                                self.canvas_original.delete(item_id)
+                            except Exception:  # pylint: disable=broad-except
+                                pass
+                        self.landmark_polygon_items['original'].clear()
+                        if hasattr(self, 'polygon_point_map_original'):
+                            self.polygon_point_map_original.clear()
+
+                        current_tab = getattr(self, 'current_morphing_tab', '눈')
+                        if hasattr(self, '_draw_landmark_polygons'):
+                            custom = self.landmark_manager.get_custom_landmarks()
+                            if custom is not None:
+                                is_tesselation_selected = (
+                                    hasattr(self, 'show_tesselation') and self.show_tesselation.get()
+                                )
+                                iris_centers_for_drawing = None
+                                face_landmarks_for_drawing = custom
+                                if is_tesselation_selected:
+                                    iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
+                                    if iris_centers_for_drawing is None and len(custom) == 470:
+                                        iris_centers_for_drawing = custom[-2:]
+                                        face_landmarks_for_drawing = custom[:-2]
+
+                                self._draw_landmark_polygons(
+                                    self.canvas_original,
+                                    self.current_image,
+                                    face_landmarks_for_drawing,
+                                    self.canvas_original_pos_x,
+                                    self.canvas_original_pos_y,
+                                    self.landmark_polygon_items['original'],
+                                    "green",
+                                    current_tab,
+                                    iris_centers=iris_centers_for_drawing,
+                                    force_use_custom=True,
+                                )
+            else:
+                self.update_face_features_display()
+
+    def _update_slider_labels(self):
+        """Update slider readouts after editing completes."""
+
+        if hasattr(self, 'nose_size_label'):
+            nose_value = self.nose_size.get()
+            self.nose_size_label.config(text=f"{int(nose_value * 100)}%")
+
+        if hasattr(self, 'upper_lip_shape_label'):
+            upper_lip_shape_value = self.upper_lip_shape.get()
+            self.upper_lip_shape_label.config(text=f"{int(upper_lip_shape_value * 100)}%")
+
+        if hasattr(self, 'lower_lip_shape_label'):
+            lower_lip_shape_value = self.lower_lip_shape.get()
+            self.lower_lip_shape_label.config(text=f"{int(lower_lip_shape_value * 100)}%")
+
+        if hasattr(self, 'upper_lip_width_label'):
+            upper_lip_width_value = self.upper_lip_width.get()
+            self.upper_lip_width_label.config(text=f"{int(upper_lip_width_value * 100)}%")
+
+        if hasattr(self, 'lower_lip_width_label'):
+            lower_lip_width_value = self.lower_lip_width.get()
+            self.lower_lip_width_label.config(text=f"{int(lower_lip_width_value * 100)}%")
+
+        if hasattr(self, 'upper_lip_vertical_move_label'):
+            upper_lip_vertical_move_value = self.upper_lip_vertical_move.get()
+            self.upper_lip_vertical_move_label.config(text=f"{int(upper_lip_vertical_move_value)}")
+
+        if hasattr(self, 'lower_lip_vertical_move_label'):
+            lower_lip_vertical_move_value = self.lower_lip_vertical_move.get()
+            self.lower_lip_vertical_move_label.config(text=f"{int(lower_lip_vertical_move_value)}")
+
+        if hasattr(self, 'jaw_size_label'):
+            jaw_value = self.jaw_size.get()
+            self.jaw_size_label.config(text=f"{int(jaw_value)}")
+
+        if hasattr(self, 'face_width_label'):
+            face_width_value = self.face_width.get()
+            self.face_width_label.config(text=f"{int(face_width_value * 100)}%")
+
+        if hasattr(self, 'face_height_label'):
+            face_height_value = self.face_height.get()
+            self.face_height_label.config(text=f"{int(face_height_value * 100)}%")
+
+        if hasattr(self, 'left_eye_position_y_label'):
+            left_eye_position_y_value = self.left_eye_position_y.get()
+            self.left_eye_position_y_label.config(text=f"{int(left_eye_position_y_value)}")
+
+        if hasattr(self, 'right_eye_position_y_label'):
+            right_eye_position_y_value = self.right_eye_position_y.get()
+            self.right_eye_position_y_label.config(text=f"{int(right_eye_position_y_value)}")
+
+        if hasattr(self, 'left_eye_position_x_label'):
+            left_eye_position_x_value = self.left_eye_position_x.get()
+            self.left_eye_position_x_label.config(text=f"{int(left_eye_position_x_value)}")
+
+        if hasattr(self, 'right_eye_position_x_label'):
+            right_eye_position_x_value = self.right_eye_position_x.get()
+            self.right_eye_position_x_label.config(text=f"{int(right_eye_position_x_value)}")

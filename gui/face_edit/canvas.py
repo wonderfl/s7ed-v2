@@ -68,6 +68,8 @@ class CanvasEventHandlerMixin:
         
         # 새로운 위치와 스케일 적용
         self.zoom_scale_original = new_scale
+        self.zoom_scale_edited = new_scale
+        self.zoom_scale_original = new_scale
         self.canvas_original_pos_x = new_img_x
         self.canvas_original_pos_y = new_img_y
         
@@ -164,8 +166,9 @@ class CanvasEventHandlerMixin:
         new_img_x = mouse_x - mouse_img_x * new_scale
         new_img_y = mouse_y - mouse_img_y * new_scale
         
-        # 새로운 위치와 스케일 적용
+        # 새로운 위치와 스케일 적용 (양쪽 동기화)
         self.zoom_scale_original = new_scale
+        self.zoom_scale_edited = new_scale
         self.canvas_original_pos_x = new_img_x
         self.canvas_original_pos_y = new_img_y
         
@@ -213,6 +216,7 @@ class CanvasEventHandlerMixin:
         
         # 원래 크기로 리셋
         self.zoom_scale_original = 1.0
+        self.zoom_scale_edited = 1.0
         self.canvas_original_pos_x = 0
         self.canvas_original_pos_y = 0
         
@@ -311,8 +315,11 @@ class CanvasEventHandlerMixin:
         
         # 새로운 위치와 스케일 적용
         self.zoom_scale_edited = new_scale
+        self.zoom_scale_original = new_scale
         self.canvas_edited_pos_x = new_img_x
         self.canvas_edited_pos_y = new_img_y
+        self.canvas_original_pos_x = new_img_x
+        self.canvas_original_pos_y = new_img_y
         
         # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True
@@ -407,8 +414,9 @@ class CanvasEventHandlerMixin:
         new_img_x = mouse_x - mouse_img_x * new_scale
         new_img_y = mouse_y - mouse_img_y * new_scale
         
-        # 새로운 위치와 스케일 적용
+        # 새로운 위치와 스케일 적용 (양쪽 동기화)
         self.zoom_scale_edited = new_scale
+        self.zoom_scale_original = new_scale
         self.canvas_edited_pos_x = new_img_x
         self.canvas_edited_pos_y = new_img_y
         
@@ -456,8 +464,11 @@ class CanvasEventHandlerMixin:
         
         # 원래 크기로 리셋
         self.zoom_scale_edited = 1.0
+        self.zoom_scale_original = 1.0
         self.canvas_edited_pos_x = 0
         self.canvas_edited_pos_y = 0
+        self.canvas_original_pos_x = 0
+        self.canvas_original_pos_y = 0
         
         # 확대/축소 중 플래그 설정 (랜드마크 업데이트 지연)
         self._is_zooming = True

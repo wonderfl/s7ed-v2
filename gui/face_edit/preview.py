@@ -258,9 +258,10 @@ class PreviewManagerMixin:
                 base_display_width = int(img_width * base_scale)
                 base_display_height = preview_height
             
-            # 확대/축소 비율 적용
-            display_width = int(base_display_width * self.zoom_scale_original)
-            display_height = int(base_display_height * self.zoom_scale_original)
+            # 확대/축소 비율 적용 (원본 전용)
+            zoom_scale_original = getattr(self, 'zoom_scale_original', 1.0)
+            display_width = int(base_display_width * zoom_scale_original)
+            display_height = int(base_display_height * zoom_scale_original)
             
             # 원본 이미지 기본 크기 저장 (처음 로드 시)
             if self.original_image_base_size is None:
@@ -269,7 +270,7 @@ class PreviewManagerMixin:
             # 성능 최적화된 이미지 리사이즈
             try:
                 from .performance_optimization import performance_optimizer
-                scale_factor = self.zoom_scale_original
+                scale_factor = zoom_scale_original
                 resized = performance_optimizer.optimized_resize(
                     self.current_image, (display_width, display_height), scale_factor
                 )
@@ -399,17 +400,20 @@ class PreviewManagerMixin:
                 base_display_width = int(img_width * base_scale)
                 base_display_height = preview_height
             
-            # 원본 이미지와 동일한 확대/축소 비율 적용
-            display_width = int(base_display_width * self.zoom_scale_original)
-            display_height = int(base_display_height * self.zoom_scale_original)
+            # 원본과 동일한 확대/축소 비율 적용 (동기화 유지)
+            zoom_scale_original = getattr(self, 'zoom_scale_original', 1.0)
+            display_width = int(base_display_width * zoom_scale_original)
+            display_height = int(base_display_height * zoom_scale_original)
+            if getattr(self, 'edited_image_base_size', None) is None:
+                self.edited_image_base_size = (base_display_width, base_display_height)
             
             if DEBUG_PREVIEW:
-                print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {self.zoom_scale_original}")
+                print("[편집된 이미지 미리보기] display size:", f"{display_width}x{display_height}, scale: {zoom_scale_original}")
             
             # 성능 최적화된 이미지 리사이즈
             try:
                 from .performance_optimization import performance_optimizer
-                scale_factor = self.zoom_scale_original
+                scale_factor = zoom_scale_original
                 resized = performance_optimizer.optimized_resize(
                     self.edited_image, (display_width, display_height), scale_factor
                 )
@@ -564,10 +568,64 @@ class PreviewManagerMixin:
                     self.guide_lines_manager.guide_line_settings[key] = show_lines.get()
             
             # 미리보기 업데이트
-            if self.current_image:
-                self.show_original_preview()
-            if self.edited_image:
-                self.show_edited_preview()
+            # 확대/축소 중에는 전체 리렌더 없이 지시선만 갱신
+            if hasattr(self, 'guide_lines_manager') and not getattr(self, '_is_zooming', False):
+                landmarks = self.landmark_manager.get_face_landmarks()
+                if landmarks:
+                    if self.current_image is not None:
+                        img_width, img_height = self.current_image.size
+                        display_size = getattr(self.canvas_original, 'display_size', None)
+                        if display_size is None:
+                            zoom_scale = getattr(self, 'zoom_scale_original', 1.0)
+                            display_width = int(img_width * zoom_scale)
+                            display_height = int(img_height * zoom_scale)
+                        else:
+                            display_width, display_height = display_size
+                        if img_width and img_height:
+                            scale_x = display_width / img_width
+                            scale_y = display_height / img_height
+                        else:
+                            scale_x = scale_y = getattr(self, 'zoom_scale_original', 1.0)
+                        pos_x = self.canvas_original_pos_x if self.canvas_original_pos_x is not None else (getattr(self, 'preview_width', 800) // 2)
+                        pos_y = self.canvas_original_pos_y if self.canvas_original_pos_y is not None else (getattr(self, 'preview_height', 1000) // 2)
+                        self.guide_lines_manager.draw_guide_lines(
+                            self.canvas_original,
+                            landmarks,
+                            img_width,
+                            img_height,
+                            scale_x,
+                            scale_y,
+                            pos_x,
+                            pos_y,
+                            'original'
+                        )
+                    if self.edited_image is not None:
+                        img_width, img_height = self.edited_image.size
+                        display_size = getattr(self.canvas_edited, 'display_size', None)
+                        if display_size is None:
+                            zoom_scale = getattr(self, 'zoom_scale_original', 1.0)
+                            display_width = int(img_width * zoom_scale)
+                            display_height = int(img_height * zoom_scale)
+                        else:
+                            display_width, display_height = display_size
+                        if img_width and img_height:
+                            scale_x = display_width / img_width
+                            scale_y = display_height / img_height
+                        else:
+                            scale_x = scale_y = getattr(self, 'zoom_scale_original', 1.0)
+                        pos_x = self.canvas_edited_pos_x if self.canvas_edited_pos_x is not None else (getattr(self, 'preview_width', 800) // 2)
+                        pos_y = self.canvas_edited_pos_y if self.canvas_edited_pos_y is not None else (getattr(self, 'preview_height', 1000) // 2)
+                        self.guide_lines_manager.draw_guide_lines(
+                            self.canvas_edited,
+                            landmarks,
+                            img_width,
+                            img_height,
+                            scale_x,
+                            scale_y,
+                            pos_x,
+                            pos_y,
+                            'edited'
+                        )
     
     def clear_guide_lines(self):
         """지시선 제거"""

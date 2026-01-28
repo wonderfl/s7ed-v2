@@ -134,7 +134,7 @@ class FaceEditPanel(
         self.polygon_expansion_level = tk.IntVar(value=1)  # 폴리곤 주변 확장 레벨 (0~5, 기본값: 1)
         self.current_morphing_tab = "눈"  # 현재 선택된 얼굴 특징 보정 탭 (전체, 눈, 눈썹, 코, 입, 턱선, 윤곽)
         self.use_individual_eye_region = tk.BooleanVar(value=False)  # 눈 영역 개별 적용 여부
-        self.use_landmark_warping = tk.BooleanVar(value=False)  # 랜드마크 직접 변형 모드 사용 여부 (기본값: False)
+        self.use_landmark_warping = tk.BooleanVar(value=True)  # 랜드마크 직접 변형 모드 사용 여부 (기본값: False)
         self.eye_region_padding = tk.DoubleVar(value=0.3)  # 눈 영역 패딩 비율 (0.0 ~ 1.0, 기본값: 0.3)
         self.left_eye_region_padding = tk.DoubleVar(value=0.3)  # 왼쪽 눈 영역 패딩 비율
         self.right_eye_region_padding = tk.DoubleVar(value=0.3)  # 오른쪽 눈 영역 패딩 비율
@@ -252,9 +252,11 @@ class FaceEditPanel(
         self.canvas_edited_drag_start_image_x = None
         self.canvas_edited_drag_start_image_y = None
         
-        # 원본 이미지 확대/축소 변수
-        self.zoom_scale_original = 1.0  # 확대/축소 비율
+        # 원본/편집 이미지 확대/축소 변수
+        self.zoom_scale_original = 1.0  # 확대/축소 비율 (원본)
+        self.zoom_scale_edited = 1.0  # 확대/축소 비율 (편집본)
         self.original_image_base_size = None  # 원본 이미지 기본 크기
+        self.edited_image_base_size = None  # 편집 이미지 기본 크기
         self.zoom_max_scale = 40.0  # 최대 확대 비율
         self.zoom_min_scale = 0.1  # 최소 축소 비율
         
