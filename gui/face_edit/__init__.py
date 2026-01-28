@@ -23,6 +23,7 @@ from .popup_manager import PopupManagerMixin
 from .guide_line_scaling import GuideLineScalingMixin
 from .editing_pipeline import EditingPipelineMixin
 from .landmark_manager import LandmarkManager
+from .launcher import show_face_edit_panel
 
 
 class FaceEditPanel(
@@ -361,10 +362,3 @@ class FaceEditPanel(
             return
         # 직접 참조로 저장 (복사본 없음)
         self.landmark_manager.set_transformed_landmarks(value)
-
-
-def show_face_edit_panel(parent=None):
-    """얼굴 편집 패널 표시 (기존 V1 패널)"""
-    panel = FaceEditPanel(parent)
-    panel.transient(parent)
-    return panel
