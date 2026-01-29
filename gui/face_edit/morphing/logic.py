@@ -470,16 +470,14 @@ class LogicMixin(EditingStepsMixin):
             )
 
             pivot_for_region = axis_pivot if axis_pivot is not None else (center_x, center_y)
-            print(
+            print_debug(
                 "얼굴편집",
-                f"가이드축 스케일 대상 영역: {region_name}, pivot={pivot_for_region}"
+                f"가이드축 사용: {use_guide_axis}, " + \
+                f"region={region_name}, pivot={pivot_for_region}\n" + \
+                f"use_global_axis={use_global_axis}, " + \
+                f"size_x={size_x}, size_y={size_y}, " + \
+                f"position_x={position_x}, position_y={position_y}"
             )
-            if not use_guide_axis:
-                print("얼굴편집", f"가이드축 미사용(플래그 False): region={region_name}")
-            elif guide_axis_info is None:
-                print("얼굴편집", f"가이드축 정보 없음: region={region_name}")
-            else:
-                print("얼굴편집", f"가이드축 미사용(size 조건): region={region_name}")
 
             if region_name in ['left_iris', 'right_iris']:
                 iris_points_orig = []
@@ -1304,7 +1302,7 @@ class LogicMixin(EditingStepsMixin):
                 max_diff = max(max_diff, diff)
                 max_y_diff = max(max_y_diff, y_diff)
                 sample_count += 1
-            print(
+            print_debug(
                 "얼굴편집",
                 f"고급모드 축스케일 비교: guide_axis={use_guide_axis}, transformed={sample_count}개, max_diff={max_diff:.3f}, max_y_diff={max_y_diff:.3f}"
             )
@@ -1330,12 +1328,12 @@ class LogicMixin(EditingStepsMixin):
                 if len(restored_samples) < 5:
                     restored_samples.append((idx, final_landmarks[idx]))
             if restored_count:
-                print(
+                print_debug(
                     "얼굴편집",
                     f"고급모드 복원: restored={restored_count}개, sample={restored_samples}"
                 )
         elif not restore_unselected:
-            print("얼굴편집", "고급모드 복원 비활성화: 선택 부위만 유지")
+            print_debug("얼굴편집", "고급모드 복원 비활성화: 선택 부위만 유지")
 
         img_width, img_height = image.size
         base_for_tuple = base_for_compare
@@ -1635,11 +1633,11 @@ class LogicMixin(EditingStepsMixin):
                 if hasattr(self, 'update_face_features_display'):
                     self.update_face_features_display()
     
-    def apply_editing(self):
+    def apply_editing(self ):
         """편집 적용"""
         if self.current_image is None:
             return
-        
+        print_debug("logic", "apply_editing: called")
         try:
             # 처리 순서: 정렬 → 특징 보정 → 스타일 전송 → 나이 변환
             # 편집은 항상 정렬된 이미지(또는 원본)를 기반으로 처음부터 다시 적용

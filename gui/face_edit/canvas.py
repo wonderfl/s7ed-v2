@@ -86,30 +86,27 @@ class CanvasEventHandlerMixin:
         # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_zoom():
             self._is_zooming = False
-            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
-                # 기존 랜드마크 제거 (중복 방지)
-                if hasattr(self, 'clear_landmarks_display'):
-                    self.clear_landmarks_display()
-                # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items['original']):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                for item_id in list(self.landmark_polygon_items['edited']):
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['edited'].clear()
-                # 랜드마크 다시 그리기
-                if hasattr(self, 'update_face_features_display'):
-                    self.update_face_features_display()
-            
-            # 지시선 업데이트
-            if hasattr(self, 'update_guide_lines'):
-                self.update_guide_lines()
+            refresh = getattr(self, '_refresh_face_edit_display', None)
+            if callable(refresh):
+                refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=False,
+                    guide_lines=True,
+                    force_original=False,
+                )
+            else:
+                if hasattr(self, 'show_landmark_points') and (
+                    self.show_landmark_points.get()
+                    or (
+                        hasattr(self, 'show_landmark_polygons')
+                        and self.show_landmark_polygons.get()
+                    )
+                ):
+                    if hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+                if hasattr(self, 'update_guide_lines'):
+                    self.update_guide_lines()
         
         self.after(100, update_landmarks_after_zoom)
     
@@ -241,30 +238,27 @@ class CanvasEventHandlerMixin:
         # 리셋 완료 후 랜드마크 다시 그리기 (지연 처리)
         def update_landmarks_after_reset():
             self._is_zooming = False
-            if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
-                # 기존 랜드마크 제거 (중복 방지)
-                if hasattr(self, 'clear_landmarks_display'):
-                    self.clear_landmarks_display()
-                # 연결선 및 폴리곤도 제거
-                for item_id in list(self.landmark_polygon_items['original']):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                for item_id in list(self.landmark_polygon_items['edited']):
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['edited'].clear()
-                # 랜드마크 다시 그리기
-                if hasattr(self, 'update_face_features_display'):
-                    self.update_face_features_display()
-            
-            # 지시선 업데이트
-            if hasattr(self, 'update_guide_lines'):
-                self.update_guide_lines()
+            refresh = getattr(self, '_refresh_face_edit_display', None)
+            if callable(refresh):
+                refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=False,
+                    guide_lines=True,
+                    force_original=False,
+                )
+            else:
+                if hasattr(self, 'show_landmark_points') and (
+                    self.show_landmark_points.get()
+                    or (
+                        hasattr(self, 'show_landmark_polygons')
+                        and self.show_landmark_polygons.get()
+                    )
+                ):
+                    if hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+                if hasattr(self, 'update_guide_lines'):
+                    self.update_guide_lines()
         
         self.after(100, update_landmarks_after_reset)
     
@@ -324,29 +318,27 @@ class CanvasEventHandlerMixin:
 
         def update_landmarks_after_zoom():
             self._is_zooming = False
-            if hasattr(self, 'show_landmark_points') and (
-                self.show_landmark_points.get()
-                or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())
-            ):
-                if hasattr(self, 'clear_landmarks_display'):
-                    self.clear_landmarks_display()
-                for item_id in list(self.landmark_polygon_items['original']):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                for item_id in list(self.landmark_polygon_items['edited']):
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['edited'].clear()
-                if hasattr(self, 'update_face_features_display'):
-                    self.update_face_features_display()
-
-            if hasattr(self, 'update_guide_lines'):
-                self.update_guide_lines()
+            refresh = getattr(self, '_refresh_face_edit_display', None)
+            if callable(refresh):
+                refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=False,
+                    guide_lines=True,
+                    force_original=False,
+                )
+            else:
+                if hasattr(self, 'show_landmark_points') and (
+                    self.show_landmark_points.get()
+                    or (
+                        hasattr(self, 'show_landmark_polygons')
+                        and self.show_landmark_polygons.get()
+                    )
+                ):
+                    if hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+                if hasattr(self, 'update_guide_lines'):
+                    self.update_guide_lines()
 
         self.after(100, update_landmarks_after_zoom)
 
@@ -455,29 +447,27 @@ class CanvasEventHandlerMixin:
 
         def update_landmarks_after_reset():
             self._is_zooming = False
-            if hasattr(self, 'show_landmark_points') and (
-                self.show_landmark_points.get()
-                or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())
-            ):
-                if hasattr(self, 'clear_landmarks_display'):
-                    self.clear_landmarks_display()
-                for item_id in list(self.landmark_polygon_items['original']):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                for item_id in list(self.landmark_polygon_items['edited']):
-                    try:
-                        self.canvas_edited.delete(item_id)
-                    except Exception:
-                        pass
-                self.landmark_polygon_items['edited'].clear()
-                if hasattr(self, 'update_face_features_display'):
-                    self.update_face_features_display()
-
-            if hasattr(self, 'update_guide_lines'):
-                self.update_guide_lines()
+            refresh = getattr(self, '_refresh_face_edit_display', None)
+            if callable(refresh):
+                refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=False,
+                    guide_lines=True,
+                    force_original=False,
+                )
+            else:
+                if hasattr(self, 'show_landmark_points') and (
+                    self.show_landmark_points.get()
+                    or (
+                        hasattr(self, 'show_landmark_polygons')
+                        and self.show_landmark_polygons.get()
+                    )
+                ):
+                    if hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+                if hasattr(self, 'update_guide_lines'):
+                    self.update_guide_lines()
 
         self.after(100, update_landmarks_after_reset)
 

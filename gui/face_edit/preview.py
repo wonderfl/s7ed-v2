@@ -18,6 +18,14 @@ from .guide_lines import GuideLinesManager
 
 class PreviewManagerMixin:
     """미리보기 관리 기능 Mixin"""
+    _CHANGE_SOURCE_REFRESH_DEFAULTS = {
+        'slider': dict(image=True, landmarks=True, overlays=True, guide_lines=True),
+        'drag': dict(image=True, landmarks=True, overlays=True, guide_lines=True),
+        'option': dict(image=False, landmarks=True, overlays=True, guide_lines=False),
+        'programmatic': dict(image=True, landmarks=True, overlays=True, guide_lines=True),
+        'none': dict(image=True, landmarks=False, overlays=False, guide_lines=False),
+    }
+
     _REGION_FLAG_ATTRS = (
         'show_face_oval', 'show_left_eye', 'show_right_eye', 'show_left_eyebrow',
         'show_right_eyebrow', 'show_nose', 'show_lips', 'show_upper_lips',
@@ -92,6 +100,48 @@ class PreviewManagerMixin:
             guide_lines_flag = False
 
         return overlays_flag, landmarks_flag, guide_lines_flag
+
+    def _request_face_edit_refresh(
+        self,
+        *,
+        image=None,
+        landmarks=None,
+        overlays=None,
+        guide_lines=None,
+        force_original=False,
+    ):
+        """이벤트 소스에 맞는 기본 플래그를 적용해 디스플레이 갱신 요청."""
+
+        self._initialize_display_update_state()
+        source = getattr(self, '_last_change_source', 'none') or 'none'
+        defaults = self._CHANGE_SOURCE_REFRESH_DEFAULTS.get(
+            source,
+            self._CHANGE_SOURCE_REFRESH_DEFAULTS['none'],
+        )
+
+        if image is None:
+            image = defaults['image']
+        if landmarks is None:
+            landmarks = defaults['landmarks']
+        if overlays is None:
+            overlays = defaults['overlays']
+        if guide_lines is None:
+            guide_lines = defaults['guide_lines']
+
+        if not force_original and source == 'programmatic' and image:
+            force_original = True
+
+        # 오버레이/랜드마크 전용 갱신 시에도 이전 시그니처를 무효화해 중복 스킵 방지
+        if image or overlays or landmarks:
+            self._last_preview_update_signature = None
+
+        self._refresh_face_edit_display(
+            image=image,
+            landmarks=landmarks,
+            overlays=overlays,
+            guide_lines=guide_lines,
+            force_original=force_original,
+        )
 
     def _refresh_face_edit_display(
         self,

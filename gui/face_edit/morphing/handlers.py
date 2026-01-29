@@ -82,10 +82,6 @@ class HandlersMixin:
         # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
         if self.current_image is not None:
             self.apply_editing()
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
     
     def on_eye_spacing_change(self):
         """눈 간격 조정 체크박스 변경 시 호출"""
@@ -124,32 +120,44 @@ class HandlersMixin:
         # 이미지가 로드되어 있으면 편집 적용 및 미리보기 업데이트
         if self.current_image is not None:
             self.apply_editing()
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
     
     def on_eye_region_display_change(self):
         """눈 영역 표시 옵션 변경 시 호출"""
         self._mark_change_source('option')
         if self.current_image is not None:
-            self._refresh_face_edit_display(
-                image=False,
-                landmarks=True,
-                overlays=True,
-                guide_lines=False,
-            )
+            if hasattr(self, '_request_face_edit_refresh'):
+                self._request_face_edit_refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=True,
+                    guide_lines=False,
+                )
+            else:
+                self._refresh_face_edit_display(
+                    image=False,
+                    landmarks=True,
+                    overlays=True,
+                    guide_lines=False,
+                )
     
     def on_lip_region_display_change(self):
         """입술 영역 표시 옵션 변경 시 호출"""
         self._mark_change_source('option')
         if self.current_image is not None:
-            self._refresh_face_edit_display(
-                image=False,
-                landmarks=True,
-                overlays=True,
-                guide_lines=False,
-            )
+            if hasattr(self, '_request_face_edit_refresh'):
+                self._request_face_edit_refresh(
+                    image=False,
+                    landmarks=True,
+                    overlays=True,
+                    guide_lines=False,
+                )
+            else:
+                self._refresh_face_edit_display(
+                    image=False,
+                    landmarks=True,
+                    overlays=True,
+                    guide_lines=False,
+                )
     
     def on_region_selection_change(self):
         """부위 선택 변경 시 호출"""
@@ -162,18 +170,27 @@ class HandlersMixin:
         if self.current_morphing_tab == "전체":
             # 랜드마크 표시 업데이트
             if self.current_image is not None:
-                self._refresh_face_edit_display(
-                    image=False,
-                    landmarks=True,
-                    overlays=True,
-                    guide_lines=False,
-                )
+                if hasattr(self, '_request_face_edit_refresh'):
+                    self._request_face_edit_refresh(
+                        image=False,
+                        landmarks=True,
+                        overlays=True,
+                        guide_lines=False,
+                    )
+                else:
+                    self._refresh_face_edit_display(
+                        image=False,
+                        landmarks=True,
+                        overlays=True,
+                        guide_lines=False,
+                    )
     
     def on_landmarks_display_change(self):
         """랜드마크 표시 옵션 변경 시 호출"""
         self._mark_change_source('option')
         if self.current_image is not None:
-            self._refresh_face_edit_display(
+            refresh = getattr(self, '_request_face_edit_refresh', self._refresh_face_edit_display)
+            refresh(
                 image=False,
                 landmarks=True,
                 overlays=True,
@@ -232,9 +249,13 @@ class HandlersMixin:
         # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
         # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
         use_warping = getattr(self, 'use_landmark_warping', None)
-        print(f"use_warping: {use_warping}, {use_warping.get()}, {len(self.custom_landmarks)}")
         change_source = getattr(self, '_last_change_source', 'none')
         force_slider_mode = change_source in ('slider', 'drag')
+        refresh = getattr(self, '_request_face_edit_refresh', self._refresh_face_edit_display)
+
+        print_debug("handler", f"use_warping: {use_warping}, {use_warping.get()}, {len(self.custom_landmarks)}, \
+            slider:{force_slider_mode}, change_source:{change_source}")
+
         if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
             # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
@@ -242,6 +263,7 @@ class HandlersMixin:
                 # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False, 그런데 고급모드일땐 True 여야하는데
                 if hasattr(self, 'apply_polygon_drag_final'):
                     self.apply_polygon_drag_final(force_slider_mode=force_slider_mode)
+                    #self.apply_polygon_drag_final(force_slider_mode=True)
                     final_signature = self._build_morphing_state_signature()
                     if final_signature is not None:
                         self._last_morphing_state_signature = final_signature
@@ -252,9 +274,6 @@ class HandlersMixin:
                 if hasattr(self, 'apply_polygon_drag_final'):
                     # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
                     self.apply_polygon_drag_final(force_slider_mode=False)
-                    # 이미지 업데이트 후 랜드마크 표시도 업데이트
-                    if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                        self.update_face_features_display()
 
         # 폴리곤 표시를 위해 custom_landmarks 업데이트 (apply_editing 전에)
         # 고급 모드에서 Tesselation 선택 시에는 update_polygons_only를 호출하지 않음
@@ -299,76 +318,12 @@ class HandlersMixin:
             self.apply_editing()
         else:
             print(f"on_morphing_change: {self.edited_image}")
-            # 고급 모드: apply_polygon_drag_final에서 랜드마크 변형 적용 후, 스타일 전송/나이 변환/공통 슬라이더도 적용
-            if hasattr(self, 'edited_image') and self.edited_image is not None:
-                result = self.edited_image
-
-                # 스타일 전송 적용
-                import utils.style_transfer as style_transfer
-                import os
-                if hasattr(self, 'style_image_path') and self.style_image_path and os.path.exists(self.style_image_path):
-                    try:
-                        from PIL import Image
-                        style_image = Image.open(self.style_image_path)
-                        color_strength = self.color_strength.get()
-                        texture_strength = self.texture_strength.get()
-
-                        if color_strength > 0.0 or texture_strength > 0.0:
-                            result = style_transfer.transfer_style(
-                                style_image,
-                                result,
-                                color_strength=color_strength,
-                                texture_strength=texture_strength
-                            )
-                    except Exception:
-                        pass
-
-                # 기존 폴리곤 제거
-                for item_id in list(self.landmark_polygon_items['original']):
-                    try:
-                        self.canvas_original.delete(item_id)
-                    except:
-                        pass
-                self.landmark_polygon_items['original'].clear()
-                self.polygon_point_map_original.clear()
-                
-                # 폴리곤 다시 그리기
-                current_tab = getattr(self, 'current_morphing_tab', '눈')
-                if hasattr(self, '_draw_landmark_polygons'):
-                    # custom_landmarks 가져오기 (LandmarkManager 사용)
-                    custom = self.landmark_manager.get_custom_landmarks()
-                    
-                    if custom is not None:
-                        # Tesselation 모드 확인
-                        is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
-                        
-                        # Tesselation 모드일 때 iris_centers 전달
-                        iris_centers_for_drawing = None
-                        face_landmarks_for_drawing = custom
-                        
-                        if is_tesselation_selected:
-                            # Tesselation 모드: iris_centers 사용
-                            iris_centers_for_drawing = self.landmark_manager.get_custom_iris_centers()
-                            if iris_centers_for_drawing is None and len(custom) == 470:
-                                # custom_landmarks에서 중앙 포인트 추출 (마지막 2개)
-                                iris_centers_for_drawing = custom[-2:]
-                                face_landmarks_for_drawing = custom[:-2]  # 468개
-                        
-                        self._draw_landmark_polygons(
-                            self.canvas_original,
-                            self.current_image,
-                            face_landmarks_for_drawing,  # 468개 또는 470개
-                            self.canvas_original_pos_x,
-                            self.canvas_original_pos_y,
-                            self.landmark_polygon_items['original'],
-                            "green",
-                            current_tab,
-                            iris_centers=iris_centers_for_drawing,  # Tesselation 모드일 때만 전달
-                            force_use_custom=True  # custom_landmarks를 명시적으로 전달했으므로 강제 사용
-                        )
-            else:
-                # custom_landmarks가 없으면 전체 업데이트
-                self.update_face_features_display()
+            refresh(
+                image=True,
+                landmarks=True,
+                overlays=True,
+                guide_lines=True,
+            )
         
         final_signature = self._build_morphing_state_signature()
         if final_signature is not None:

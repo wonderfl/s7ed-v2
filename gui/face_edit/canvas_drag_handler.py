@@ -156,8 +156,16 @@ class CanvasDragHandlerMixin:
                 self.canvas_edited_pos_x = new_x
                 self.canvas_edited_pos_y = new_y
             
-            # 지시선 업데이트
-            if hasattr(self, 'update_guide_lines'):
+            refresh = getattr(self, '_refresh_face_edit_display', None)
+            if callable(refresh):
+                refresh(
+                    image=False,
+                    landmarks=False,
+                    overlays=False,
+                    guide_lines=True,
+                    force_original=False,
+                )
+            elif hasattr(self, 'update_guide_lines'):
                 self.update_guide_lines()
             
             # 바운딩 박스도 함께 이동 (폴리곤이 체크되어 있을 때만)
@@ -225,41 +233,53 @@ class CanvasDragHandlerMixin:
                         self.canvas_edited_pos_x = coords[0]
                         self.canvas_edited_pos_y = coords[1]
                     
-                    # 랜드마크가 표시되어 있으면 기존 랜드마크 제거 후 새로운 위치에 다시 그리기
-                    if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
-                        # 기존 랜드마크 제거
-                        if hasattr(self, 'clear_landmarks_display'):
-                            self.clear_landmarks_display()
-                        # 연결선도 제거
-                        for item_id in self.landmark_polygon_items['original']:
-                            try:
-                                self.canvas_original.delete(item_id)
-                            except Exception:
-                                pass
-                        self.landmark_polygon_items['original'].clear()
-                        for item_id in self.landmark_polygon_items['edited']:
-                            try:
-                                self.canvas_edited.delete(item_id)
-                            except Exception:
-                                pass
-                        self.landmark_polygon_items['edited'].clear()
-                        # 새로운 위치에 다시 그리기
-                        if hasattr(self, 'update_face_features_display'):
-                            self.update_face_features_display()
-                        # 바운딩 박스도 업데이트 (폴리곤이 체크되어 있을 때만)
-                        if (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get() and
-                            hasattr(self, 'update_bbox_display')):
-                            self.update_bbox_display()
-                    
-                    # 눈 영역 표시 업데이트
-                    if hasattr(self, 'show_eye_region') and self.show_eye_region.get():
-                        if hasattr(self, 'update_eye_region_display'):
-                            self.update_eye_region_display()
-                    
-                    # 입술 영역 표시 업데이트
-                    if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
-                        if hasattr(self, 'update_lip_region_display'):
-                            self.update_lip_region_display()
+                    refresh = getattr(self, '_refresh_face_edit_display', None)
+                    if callable(refresh):
+                        refresh(
+                            image=False,
+                            landmarks=True,
+                            overlays=False,
+                            guide_lines=True,
+                            force_original=False,
+                        )
+                    else:
+                        if hasattr(self, 'show_landmark_points') and (
+                            self.show_landmark_points.get()
+                            or (
+                                hasattr(self, 'show_landmark_polygons')
+                                and self.show_landmark_polygons.get()
+                            )
+                        ):
+                            if hasattr(self, 'clear_landmarks_display'):
+                                self.clear_landmarks_display()
+                            for item_id in self.landmark_polygon_items['original']:
+                                try:
+                                    self.canvas_original.delete(item_id)
+                                except Exception:
+                                    pass
+                            self.landmark_polygon_items['original'].clear()
+                            for item_id in self.landmark_polygon_items['edited']:
+                                try:
+                                    self.canvas_edited.delete(item_id)
+                                except Exception:
+                                    pass
+                            self.landmark_polygon_items['edited'].clear()
+                            if hasattr(self, 'update_face_features_display'):
+                                self.update_face_features_display()
+                            if (
+                                hasattr(self, 'show_landmark_polygons')
+                                and self.show_landmark_polygons.get()
+                                and hasattr(self, 'update_bbox_display')
+                            ):
+                                self.update_bbox_display()
+
+                        if hasattr(self, 'show_eye_region') and self.show_eye_region.get():
+                            if hasattr(self, 'update_eye_region_display'):
+                                self.update_eye_region_display()
+
+                        if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
+                            if hasattr(self, 'update_lip_region_display'):
+                                self.update_lip_region_display()
             except Exception as e:
                 import traceback
                 traceback.print_exc()

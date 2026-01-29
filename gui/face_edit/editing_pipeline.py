@@ -32,7 +32,7 @@ class EditingPipelineMixin:
         if state_signature_before is not None and last_signature == state_signature_before:
             return
 
-        print(f"apply_editing: called.. {depth}")
+        print_debug("EditingPipeline", f"apply_editing: called.. {depth}")
 
         try:
             context = self._prepare_editing_context(depth)
