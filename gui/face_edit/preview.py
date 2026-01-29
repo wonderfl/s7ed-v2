@@ -30,6 +30,7 @@ class PreviewManagerMixin:
         # 지시선 관리자 초기화
         self.guide_lines_manager = GuideLinesManager(self)
         self._initialize_face_feature_cache_state()
+        self._initialize_display_update_state()
 
     def _initialize_face_feature_cache_state(self):
         if not hasattr(self, '_face_feature_update_in_progress'):
@@ -38,6 +39,99 @@ class PreviewManagerMixin:
             self._face_feature_update_requested = False
         if not hasattr(self, '_last_face_feature_signature'):
             self._last_face_feature_signature = None
+
+    def _initialize_display_update_state(self):
+        if not hasattr(self, '_last_preview_update_signature'):
+            self._last_preview_update_signature = None
+        if not hasattr(self, '_last_change_source'):
+            self._last_change_source = 'none'
+        if not hasattr(self, '_last_displayed_original_image_id'):
+            self._last_displayed_original_image_id = None
+        if not hasattr(self, '_last_displayed_edited_image_id'):
+            self._last_displayed_edited_image_id = None
+
+    def _set_change_source(self, source):
+        """이벤트 소스 플래그를 안전하게 설정"""
+        self._initialize_display_update_state()
+        self._last_change_source = source
+
+    def _is_landmark_display_enabled(self):
+        """랜드마크/폴리곤/연결선 렌더링이 필요한지 여부"""
+        show_points = bool(getattr(self, 'show_landmark_points', None) and self.show_landmark_points.get())
+        show_lines = bool(getattr(self, 'show_landmark_lines', None) and self.show_landmark_lines.get())
+        show_polygons = bool(getattr(self, 'show_landmark_polygons', None) and self.show_landmark_polygons.get())
+        return show_points or show_lines or show_polygons
+
+    def _is_overlay_display_enabled(self):
+        """눈/입술 영역 또는 폴리곤 오버레이가 필요한지 여부"""
+        show_eye = bool(getattr(self, 'show_eye_region', None) and self.show_eye_region.get())
+        show_lip = bool(getattr(self, 'show_lip_region', None) and self.show_lip_region.get())
+        show_polygons = bool(getattr(self, 'show_landmark_polygons', None) and self.show_landmark_polygons.get())
+        return show_eye or show_lip or show_polygons
+
+    def _should_update_guide_lines(self):
+        return bool(getattr(self, 'show_guide_lines', None) and self.show_guide_lines.get())
+
+    def _compute_display_flags(self):
+        overlays_flag = False
+        try:
+            overlays_flag = self._is_overlay_display_enabled()
+        except Exception:  # pylint: disable=broad-except
+            overlays_flag = False
+
+        landmarks_flag = False
+        try:
+            landmarks_flag = self._is_landmark_display_enabled()
+        except Exception:  # pylint: disable=broad-except
+            landmarks_flag = False
+
+        guide_lines_flag = False
+        try:
+            guide_lines_flag = self._should_update_guide_lines()
+        except Exception:  # pylint: disable=broad-except
+            guide_lines_flag = False
+
+        return overlays_flag, landmarks_flag, guide_lines_flag
+
+    def _refresh_face_edit_display(
+        self,
+        *,
+        image=True,
+        landmarks=None,
+        overlays=None,
+        guide_lines=None,
+        force_original=False,
+    ):
+        overlays_flag, landmarks_flag, guide_lines_flag = self._compute_display_flags()
+        if overlays is not None:
+            overlays_flag = overlays
+        if landmarks is not None:
+            landmarks_flag = landmarks
+        if guide_lines is not None:
+            guide_lines_flag = guide_lines
+
+        if hasattr(self, 'update_face_edit_display'):
+            self.update_face_edit_display(
+                image=image,
+                landmarks=landmarks_flag,
+                overlays=overlays_flag,
+                guide_lines=guide_lines_flag,
+                force_original=force_original,
+            )
+        else:
+            if image and hasattr(self, 'show_original_preview'):
+                self.show_original_preview()
+            if image and hasattr(self, 'show_edited_preview'):
+                self.show_edited_preview()
+            if landmarks_flag and hasattr(self, 'update_face_features_display'):
+                self.update_face_features_display()
+            if overlays_flag:
+                if hasattr(self, '_refresh_overlays_and_polygons'):
+                    self._refresh_overlays_and_polygons()
+                else:
+                    self._fallback_overlay_refresh()
+            if guide_lines_flag and hasattr(self, 'update_guide_lines'):
+                self.update_guide_lines()
     
     def _create_preview_ui(self, parent):
         """미리보기 UI 생성"""
@@ -176,13 +270,21 @@ class PreviewManagerMixin:
                 # 이미지 업데이트를 약간 지연시켜 연속 스크롤 시 성능 향상
                 def update_zoom():
                     self._zoom_update_pending = False
-                    self.show_original_preview()
-                    self.show_edited_preview()
+                    self.update_face_edit_display(
+                        image=True,
+                        landmarks=False,
+                        overlays=self._is_overlay_display_enabled(),
+                        guide_lines=True,
+                        force_original=True,
+                    )
                     
-                    # 마우스 휠 확대/축소 후 랜드마크 다시 그리기
-                    if hasattr(self, 'show_landmark_points') and (self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())):
-                        if hasattr(self, 'update_face_features_display'):
+                    # 확대/축소 완료 후 랜드마크 다시 그리기 (지연 처리)
+                    def update_landmarks_after_zoom():
+                        self._is_zooming = False
+                        if self._is_landmark_display_enabled():
                             self.update_face_features_display()
+                    
+                    self.after(50, update_landmarks_after_zoom)
                 
                 self._zoom_update_pending = True
                 self._zoom_update_id = self.after(50, update_zoom)  # 50ms 지연
@@ -224,7 +326,7 @@ class PreviewManagerMixin:
         
         return preview_frame
     
-    def show_original_preview(self):
+    def show_original_preview(self, include_features=True):
         """원본 이미지 미리보기 표시"""
         if self.current_image is None:
             if self.image_created_original:
@@ -337,37 +439,38 @@ class PreviewManagerMixin:
             # 캔버스에 표시 크기 저장 (드래그 경계 계산용)
             self.canvas_original.display_size = (display_width, display_height)
             
-            # 눈 영역 표시 업데이트
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            # 입술 영역 표시 업데이트
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
-            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
-            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
-                self.update_bbox_display()
-            # 랜드마크 또는 연결선 표시 업데이트 (확대/축소 중이면 스킵)
-            if not getattr(self, '_is_zooming', False):
-                if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
-                    self.update_face_features_display()
-            
-            # 지시선 그리기
-            try:
-                landmarks = self.landmark_manager.get_face_landmarks()
-                if landmarks:
-                    self.guide_lines_manager.draw_guide_lines(
-                        self.canvas_original, landmarks, img_width, img_height,
-                        display_width / img_width, display_height / img_height,
-                        self.canvas_original_pos_x, self.canvas_original_pos_y, 'original'
-                    )
-            except Exception as e:
-                print(f"지시선 그리기 오류: {e}")
+            if include_features:
+                # 눈 영역 표시 업데이트
+                if hasattr(self, 'show_eye_region') and self.show_eye_region.get():
+                    self.update_eye_region_display()
+                # 입술 영역 표시 업데이트
+                if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
+                    self.update_lip_region_display()
+                # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+                if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+                    self.update_bbox_display()
+                # 랜드마크 또는 연결선 표시 업데이트 (확대/축소 중이면 스킵)
+                if not getattr(self, '_is_zooming', False):
+                    if self._is_landmark_display_enabled():
+                        self.update_face_features_display()
+
+            if include_features and self._should_update_guide_lines():
+                try:
+                    landmarks = self.landmark_manager.get_face_landmarks()
+                    if landmarks:
+                        self.guide_lines_manager.draw_guide_lines(
+                            self.canvas_original, landmarks, img_width, img_height,
+                            display_width / img_width, display_height / img_height,
+                            self.canvas_original_pos_x, self.canvas_original_pos_y, 'original'
+                        )
+                except Exception as e:
+                    print(f"지시선 그리기 오류: {e}")
                 
         except Exception as e:
             print(f"[원본 이미지 미리보기] 오류 발생: {e}")
             pass
     
-    def show_edited_preview(self):
+    def show_edited_preview(self, include_features=True):
         """편집된 이미지 미리보기 표시"""
 
         if self.edited_image is None:
@@ -505,29 +608,30 @@ class PreviewManagerMixin:
             # 캔버스에 표시 크기 저장 (드래그 경계 계산용)
             self.canvas_edited.display_size = (display_width, display_height)
             
-            # 눈 영역 표시는 원본 이미지에만 표시되므로 여기서는 업데이트하지 않음
-            # 입술 영역 표시 업데이트 (편집된 이미지에도 표시)
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
-            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
-            if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
-                self.update_bbox_display()
-            # 랜드마크 또는 연결선 표시 업데이트 (편집된 이미지에도 표시, 확대/축소 중이면 스킵)
-            if not getattr(self, '_is_zooming', False):
-                if self.show_landmark_points.get() or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get()):
-                    self.update_face_features_display()
-            
-            # 지시선 그리기 (편집된 이미지)
-            try:
-                landmarks = self.landmark_manager.get_face_landmarks()
-                if landmarks:
-                    self.guide_lines_manager.draw_guide_lines(
-                        self.canvas_edited, landmarks, img_width, img_height,
-                        display_width / img_width, display_height / img_height,
-                        self.canvas_edited_pos_x, self.canvas_edited_pos_y, 'edited'
-                    )
-            except Exception as e:
-                print(f"편집된 이미지 지시선 그리기 오류: {e}")
+            if include_features:
+                # 입술 영역 표시 업데이트 (편집된 이미지에도 표시)
+                if hasattr(self, 'show_lip_region') and self.show_lip_region.get():
+                    self.update_lip_region_display()
+                # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
+                if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+                    self.update_bbox_display()
+                # 랜드마크 또는 연결선 표시 업데이트 (편집된 이미지에도 표시, 확대/축소 중이면 스킵)
+                if not getattr(self, '_is_zooming', False):
+                    if self._is_landmark_display_enabled():
+                        self.update_face_features_display()
+
+                # 지시선 그리기 (편집된 이미지)
+                if self._should_update_guide_lines():
+                    try:
+                        landmarks = self.landmark_manager.get_face_landmarks()
+                        if landmarks:
+                            self.guide_lines_manager.draw_guide_lines(
+                                self.canvas_edited, landmarks, img_width, img_height,
+                                display_width / img_width, display_height / img_height,
+                                self.canvas_edited_pos_x, self.canvas_edited_pos_y, 'edited'
+                            )
+                    except Exception as e:
+                        print(f"편집된 이미지 지시선 그리기 오류: {e}")
                 
         except Exception as e:
             print(f"[편집된 이미지 미리보기] 오류 발생: {e}")
@@ -549,10 +653,13 @@ class PreviewManagerMixin:
                 self.guide_lines_manager.guide_line_settings[key] = show_lines
         
         # 미리보기 업데이트
-        if self.current_image:
-            self.show_original_preview()
-        if self.edited_image:
-            self.show_edited_preview()
+        self.update_face_edit_display(
+            image=False,
+            landmarks=False,
+            overlays=False,
+            guide_lines=True,
+            force_original=False,
+        )
     
     def update_guide_lines(self):
         """지시선 업데이트 (확대/축소 시 호출)"""
@@ -626,6 +733,143 @@ class PreviewManagerMixin:
                             pos_y,
                             'edited'
                         )
+        
+    def _fallback_overlay_refresh(self):
+        """`_refresh_overlays_and_polygons`가 없는 경우 최소한의 오버레이 갱신 처리"""
+        # 눈 영역
+        if hasattr(self, 'show_eye_region'):
+            if self.show_eye_region.get():
+                self.update_eye_region_display()
+            elif hasattr(self, 'clear_eye_region_display'):
+                self.clear_eye_region_display()
+        # 입술 영역
+        if hasattr(self, 'show_lip_region'):
+            if self.show_lip_region.get():
+                self.update_lip_region_display()
+            elif hasattr(self, 'clear_lip_region_display'):
+                self.clear_lip_region_display()
+        # 폴리곤 / bbox
+        if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+            if hasattr(self, 'update_polygons_only'):
+                self.update_polygons_only()
+            if hasattr(self, 'update_bbox_display'):
+                self.update_bbox_display()
+        elif hasattr(self, 'clear_bbox_display'):
+            self.clear_bbox_display()
+
+    def _build_preview_update_signature(
+        self,
+        image,
+        landmarks,
+        overlays,
+        guide_lines,
+        force_original,
+        should_update_original,
+        should_update_edited,
+    ):
+        edited_image = getattr(self, 'edited_image', None)
+        edited_id = (
+            id(edited_image)
+            if should_update_edited and edited_image is not None
+            else getattr(self, '_last_displayed_edited_image_id', None)
+        )
+        original_image = getattr(self, 'current_image', None)
+        original_id = (
+            id(original_image)
+            if should_update_original and original_image is not None
+            else getattr(self, '_last_displayed_original_image_id', None)
+        )
+        return (
+            image,
+            landmarks,
+            overlays,
+            guide_lines,
+            force_original,
+            edited_id,
+            original_id,
+            self.canvas_original_pos_x,
+            self.canvas_original_pos_y,
+            self.canvas_edited_pos_x,
+            self.canvas_edited_pos_y,
+        )
+
+    def update_face_edit_display(
+        self,
+        image=True,
+        landmarks=False,
+        overlays=False,
+        guide_lines=False,
+        *,
+        force_original=False,
+    ):
+        """미리보기/오버레이/랜드마크 갱신을 단일 진입점으로 처리"""
+
+        if not hasattr(self, 'canvas_original'):
+            return
+
+        self._initialize_display_update_state()
+
+        image_created_original = getattr(self, 'image_created_original', None)
+        has_original_canvas_image = image_created_original is not None
+        has_edited_image = getattr(self, 'edited_image', None) is not None
+
+        should_update_original = False
+        if force_original:
+            should_update_original = True
+        elif image and not has_original_canvas_image:
+            should_update_original = True
+
+        should_update_edited = image and has_edited_image
+
+        requested_signature = self._build_preview_update_signature(
+            image,
+            landmarks,
+            overlays,
+            guide_lines,
+            force_original,
+            should_update_original,
+            should_update_edited,
+        )
+        if requested_signature == getattr(self, '_last_preview_update_signature', None):
+            return
+
+        try:
+            if image:
+                if should_update_original and self.current_image is not None:
+                    self.show_original_preview(include_features=False)
+                    self._last_displayed_original_image_id = id(self.current_image)
+                elif should_update_original:
+                    self._last_displayed_original_image_id = None
+
+                if should_update_edited:
+                    self.show_edited_preview(include_features=False)
+                    self._last_displayed_edited_image_id = id(self.edited_image)
+                else:
+                    self._last_displayed_edited_image_id = None
+            elif force_original and self.current_image is not None:
+                self.show_original_preview(include_features=False)
+                self._last_displayed_original_image_id = id(self.current_image)
+            elif force_original:
+                self.show_original_preview(include_features=False)
+                self._last_displayed_original_image_id = None
+
+            if overlays:
+                refresh = getattr(self, '_refresh_overlays_and_polygons', None)
+                if callable(refresh):
+                    refresh()
+                else:
+                    self._fallback_overlay_refresh()
+
+            if landmarks and self._is_landmark_display_enabled():
+                self.update_face_features_display()
+
+            if guide_lines and self._should_update_guide_lines():
+                self.update_guide_lines()
+
+            self._last_preview_update_signature = requested_signature
+        finally:
+            # 이벤트 소스 초기화 (다음 업데이트를 위해 비움)
+            self._last_change_source = 'none'
     
     def clear_guide_lines(self):
         """지시선 제거"""

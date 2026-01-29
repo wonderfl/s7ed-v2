@@ -1211,7 +1211,6 @@ class PolygonDragHandlerMixin:
                 
                 # 디버그: 결과 확인
                 print_info("얼굴편집", f"morph_face_by_polygons 결과: {type(result)}, 크기: {result.size if result else 'None'}")
-            
             if result is None:
                 print_error("얼굴편집", "랜드마크 변형 결과가 None입니다")
                 return
@@ -1219,30 +1218,85 @@ class PolygonDragHandlerMixin:
             # 편집된 이미지 업데이트
             self.edited_image = result
             self.face_landmarks = self.custom_landmarks  # 현재 편집된 랜드마크 저장 (표시용)
-            
+
+            def _compute_overlay_flag():
+                if hasattr(self, '_is_overlay_display_enabled'):
+                    try:
+                        return self._is_overlay_display_enabled()
+                    except Exception:  # pylint: disable=broad-except
+                        return False
+                show_eye = bool(getattr(self, 'show_eye_region', None) and self.show_eye_region.get())
+                show_lip = bool(getattr(self, 'show_lip_region', None) and self.show_lip_region.get())
+                show_polygons = bool(getattr(self, 'show_landmark_polygons', None) and self.show_landmark_polygons.get())
+                return show_eye or show_lip or show_polygons
+
+            def _compute_landmark_flag():
+                if hasattr(self, '_is_landmark_display_enabled'):
+                    try:
+                        return self._is_landmark_display_enabled()
+                    except Exception:  # pylint: disable=broad-except
+                        return False
+                show_points = bool(getattr(self, 'show_landmark_points', None) and self.show_landmark_points.get())
+                show_lines = bool(getattr(self, 'show_landmark_lines', None) and self.show_landmark_lines.get())
+                show_polygons = bool(getattr(self, 'show_landmark_polygons', None) and self.show_landmark_polygons.get())
+                return show_points or show_lines or show_polygons
+
+            def _compute_guide_flag():
+                if hasattr(self, '_should_update_guide_lines'):
+                    try:
+                        return self._should_update_guide_lines()
+                    except Exception:  # pylint: disable=broad-except
+                        return False
+                return bool(getattr(self, 'show_guide_lines', None) and self.show_guide_lines.get())
+
+            overlays_enabled = _compute_overlay_flag()
+            landmarks_enabled = _compute_landmark_flag()
+            guide_lines_enabled = _compute_guide_flag()
+
             # 이미지 해시 계산 및 업데이트 (옵션 변경 시에는 강제 업데이트)
             try:
                 import hashlib
                 img_bytes = result.tobytes()
                 current_hash = hashlib.md5(img_bytes).hexdigest()
-                
-                # 옵션 변경 시(force_slider_mode=False)에는 강제로 화면 업데이트
-                if force_slider_mode == False:
-                    print_info("얼굴편집", f"옵션 변경으로 인한 강제 화면 업데이트")
-                    self.show_edited_preview()
-                    self._last_edited_image_hash = current_hash
-                elif current_hash != getattr(self, '_last_edited_image_hash', None):
-                    print_info("얼굴편집", f"이미지 해시 변경됨, show_edited_preview() 호출")
-                    self.show_edited_preview()
+
+                force_option_update = (force_slider_mode == False)
+                previous_hash = getattr(self, '_last_edited_image_hash', None)
+                image_needs_refresh = force_option_update or current_hash != previous_hash
+
+                if hasattr(self, 'update_face_edit_display'):
+                    self.update_face_edit_display(
+                        image=image_needs_refresh,
+                        landmarks=landmarks_enabled,
+                        overlays=overlays_enabled if image_needs_refresh else False,
+                        guide_lines=guide_lines_enabled if image_needs_refresh else False,
+                        force_original=False,
+                    )
+                else:
+                    if image_needs_refresh and hasattr(self, 'show_edited_preview'):
+                        self.show_edited_preview()
+                    if landmarks_enabled and hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+
+                if image_needs_refresh:
+                    print_info("얼굴편집", "편집된 이미지 갱신")
                     self._last_edited_image_hash = current_hash
                 else:
-                    print_info("얼굴편집", f"이미지 해시 동일, show_edited_preview() 건너뜀")
-            except Exception as e:
+                    print_info("얼굴편집", "이미지 해시 동일, 화면 갱신 건너뜀")
+            except Exception as e:  # pylint: disable=broad-except
                 print_error("얼굴편집", f"이미지 해시 계산 실패: {e}")
-                self.show_edited_preview()  # 오류 시 무조건 업데이트       
-            # 랜드마크 표시 업데이트 (이미 조건부 호출됨)
-            if self.show_landmark_points.get():
-                self.update_face_features_display()
+                if hasattr(self, 'update_face_edit_display'):
+                    self.update_face_edit_display(
+                        image=True,
+                        landmarks=landmarks_enabled,
+                        overlays=overlays_enabled,
+                        guide_lines=guide_lines_enabled,
+                        force_original=False,
+                    )
+                else:
+                    self.show_edited_preview()  # 오류 시 무조건 업데이트
+                    if landmarks_enabled and hasattr(self, 'update_face_features_display'):
+                        self.update_face_features_display()
+                self._last_edited_image_hash = None
             
             self._last_polygon_apply_signature = polygon_signature
 

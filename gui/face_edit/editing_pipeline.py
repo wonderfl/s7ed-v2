@@ -56,14 +56,13 @@ class EditingPipelineMixin:
 
             self.edited_image = result
             self._update_previews_and_labels()
-            self._refresh_overlays_and_polygons()
 
         except Exception as e:
             print(f"[Editing] Editing failed: {e}")
             import traceback
             traceback.print_exc()
             self.edited_image = self.current_image.copy()
-            self.show_edited_preview()
+            self._update_previews_and_labels()
             right_eye_value = self.right_eye_size.get()
             self.right_eye_size_label.config(text=f"{int(right_eye_value * 100)}%")
             self._last_apply_editing_signature = None
@@ -541,11 +540,30 @@ class EditingPipelineMixin:
     # UI / Overlay helpers
     # ------------------------------------------------------------------
     def _update_previews_and_labels(self):
-        """Refresh preview canvas and landmark displays."""
+        """Refresh preview canvas and landmark displays via unified entry point."""
 
-        self.show_edited_preview()
-        if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-            self.update_face_features_display()
+        if hasattr(self, 'update_face_edit_display'):
+            overlays_enabled = False
+            if hasattr(self, '_is_overlay_display_enabled'):
+                overlays_enabled = self._is_overlay_display_enabled()
+            else:
+                overlays_enabled = bool(
+                    (hasattr(self, 'show_eye_region') and self.show_eye_region.get())
+                    or (hasattr(self, 'show_lip_region') and self.show_lip_region.get())
+                    or (hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get())
+                )
+
+            self.update_face_edit_display(
+                image=True,
+                landmarks=True,
+                overlays=overlays_enabled,
+                guide_lines=True,
+                force_original=True,
+            )
+        else:
+            self.show_edited_preview()
+            if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
+                self.update_face_features_display()
 
     def _refresh_overlays_and_polygons(self):
         """Refresh region overlays or landmark polygons based on user settings."""

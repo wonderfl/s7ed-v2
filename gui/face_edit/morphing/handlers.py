@@ -21,11 +21,19 @@ import utils.face_transform as face_transform
 
 class HandlersMixin:
     """이벤트 핸들러 기능 Mixin"""
+
+    def _mark_change_source(self, source):
+        if hasattr(self, '_set_change_source'):
+            try:
+                self._set_change_source(source)
+            except Exception:
+                pass
     
     def on_alignment_change(self):
         """얼굴 정렬 설정 변경 시 호출"""
         if self.current_image is None:
             return
+        self._mark_change_source('option')
         
         if self.auto_align.get():
             # 정렬 활성화: 정렬 적용
@@ -34,8 +42,6 @@ class HandlersMixin:
             # 정렬 비활성화: 정렬된 이미지 제거하고 원본 기반으로 편집
             self.aligned_image = None
             self.apply_editing()
-            self.show_original_preview()
-            self.show_edited_preview()
     
     def on_individual_region_change(self):
         """개별 적용 체크박스 변경 시 호출 (눈 영역 + 입술 영역 통합)"""
@@ -83,6 +89,7 @@ class HandlersMixin:
     
     def on_eye_spacing_change(self):
         """눈 간격 조정 체크박스 변경 시 호출"""
+        self._mark_change_source('option')
         if self.eye_spacing.get():
             # 눈 간격 조정이 활성화되면 현재 왼쪽 눈 수평 값을 기준으로 오른쪽 눈을 반대로 동기화
             current_left_value = self.left_eye_position_x.get()
@@ -124,27 +131,29 @@ class HandlersMixin:
     
     def on_eye_region_display_change(self):
         """눈 영역 표시 옵션 변경 시 호출"""
+        self._mark_change_source('option')
         if self.current_image is not None:
-            if self.show_eye_region.get():
-                self.update_eye_region_display()
-            else:
-                # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
-                self.clear_eye_region_display()
-                self.clear_lip_region_display()
+            self._refresh_face_edit_display(
+                image=False,
+                landmarks=True,
+                overlays=True,
+                guide_lines=False,
+            )
     
     def on_lip_region_display_change(self):
         """입술 영역 표시 옵션 변경 시 호출"""
+        self._mark_change_source('option')
         if self.current_image is not None:
-            if self.show_lip_region.get():
-                self.update_lip_region_display()
-            else:
-                # 고급 모드에서 폴리곤 표시가 활성화되어 있으면 눈/입술 영역 표시는 하지 않음 (폴리곤으로 대체)
-                self.clear_eye_region_display()
-                # 입술 영역 표시 제거
-                self.clear_lip_region_display()
+            self._refresh_face_edit_display(
+                image=False,
+                landmarks=True,
+                overlays=True,
+                guide_lines=False,
+            )
     
     def on_region_selection_change(self):
         """부위 선택 변경 시 호출"""
+        self._mark_change_source('option')
         # 슬라이더 상태 업데이트
         if hasattr(self, 'update_region_slider_state'):
             self.update_region_slider_state()
@@ -153,28 +162,23 @@ class HandlersMixin:
         if self.current_morphing_tab == "전체":
             # 랜드마크 표시 업데이트
             if self.current_image is not None:
-                self.update_face_features_display()
+                self._refresh_face_edit_display(
+                    image=False,
+                    landmarks=True,
+                    overlays=True,
+                    guide_lines=False,
+                )
     
     def on_landmarks_display_change(self):
         """랜드마크 표시 옵션 변경 시 호출"""
+        self._mark_change_source('option')
         if self.current_image is not None:
-            show_landmarks = self.show_landmark_points.get() if hasattr(self, 'show_landmark_points') else False
-            show_lines = self.show_landmark_lines.get() if hasattr(self, 'show_landmark_lines') else False
-            show_polygons = self.show_landmark_polygons.get() if hasattr(self, 'show_landmark_polygons') else False
-            
-            # 바운딩 박스 표시 업데이트 (폴리곤이 체크되어 있을 때만)
-            if hasattr(self, 'update_bbox_display'):
-                if show_polygons:
-                    self.update_bbox_display()
-                else:
-                    self.clear_bbox_display()
-            
-            if show_landmarks or show_lines or show_polygons:
-                # 랜드마크, 연결선, 또는 폴리곤이 표시되어야 하면 업데이트
-                self.update_face_features_display()
-            else:
-                # 모두 체크 해제되어 있으면 랜드마크 표시 제거
-                self.clear_landmarks_display()
+            self._refresh_face_edit_display(
+                image=False,
+                landmarks=True,
+                overlays=True,
+                guide_lines=False,
+            )
     
     def on_morphing_change(self, value=None):
         """얼굴 특징 보정 변경 시 호출 (슬라이더 드래그 종료 시 호출)"""
@@ -198,6 +202,10 @@ class HandlersMixin:
             self.last_selected_landmark_index = None
         
         print_debug("handler", f"on_morphing_change: {self.current_image}")
+        if hasattr(self, '_last_change_source'):
+            last_source = getattr(self, '_last_change_source', 'none')
+            if last_source in (None, 'none'):
+                self._mark_change_source('slider')
         
         self._ensure_morphing_guard_state()
         if self._morphing_update_in_progress:
@@ -225,16 +233,18 @@ class HandlersMixin:
         # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
         use_warping = getattr(self, 'use_landmark_warping', None)
         print(f"use_warping: {use_warping}, {use_warping.get()}, {len(self.custom_landmarks)}")
+        change_source = getattr(self, '_last_change_source', 'none')
+        force_slider_mode = change_source in ('slider', 'drag')
         if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
             # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                 # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
                 # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False, 그런데 고급모드일땐 True 여야하는데
                 if hasattr(self, 'apply_polygon_drag_final'):
-                    self.apply_polygon_drag_final(force_slider_mode=True)
-                    # 이미지 업데이트 후 랜드마크 표시도 업데이트
-                    if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                        self.update_face_features_display()
+                    self.apply_polygon_drag_final(force_slider_mode=force_slider_mode)
+                    final_signature = self._build_morphing_state_signature()
+                    if final_signature is not None:
+                        self._last_morphing_state_signature = final_signature
                     return
         else:
             # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함

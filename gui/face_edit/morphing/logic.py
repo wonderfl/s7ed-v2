@@ -271,8 +271,13 @@ class LogicMixin(EditingStepsMixin):
             self.apply_editing()
             
             # 미리보기 업데이트
-            self.show_original_preview()
-            self.show_edited_preview()
+            self._refresh_face_edit_display(
+                image=True,
+                landmarks=True,
+                overlays=True,
+                guide_lines=True,
+                force_original=True,
+            )
             
             if abs(angle) > 0.1:
                 self.status_label.config(text=f"얼굴 정렬 완료 (회전: {angle:.1f}도)", fg="green")
@@ -661,9 +666,13 @@ class LogicMixin(EditingStepsMixin):
 
         if result is not None and result != image:
             self.edited_image = result
-            self.show_edited_preview()
-            if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
-                self.update_face_features_display()
+            self._refresh_face_edit_display(
+                image=True,
+                landmarks=True,
+                overlays=True,
+                guide_lines=True,
+                force_original=False,
+            )
 
         return result
 
@@ -1093,7 +1102,15 @@ class LogicMixin(EditingStepsMixin):
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return image
+            # 실패 시 원본 이미지 사용
+            self.edited_image = self.current_image.copy()
+            self._refresh_face_edit_display(
+                image=True,
+                landmarks=True,
+                overlays=True,
+                guide_lines=True,
+                force_original=False,
+            )
     
     def _collect_landmark_transform_context(self, image, size_x, size_y, face_landmarks_module):
         custom = self.landmark_manager.get_custom_landmarks()
@@ -1673,4 +1690,10 @@ class LogicMixin(EditingStepsMixin):
             traceback.print_exc()
             # 실패 시 원본 이미지 사용
             self.edited_image = self.current_image.copy()
-            self.show_edited_preview()
+            self._refresh_face_edit_display(
+                image=True,
+                landmarks=True,
+                overlays=True,
+                guide_lines=True,
+                force_original=False,
+            )

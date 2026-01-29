@@ -203,10 +203,32 @@ class FileManagerMixin:
                 self.edited_image = img.copy()
             
             # 미리보기 업데이트
-            if hasattr(self, 'show_original_preview'):
-                self.show_original_preview()
-            if hasattr(self, 'show_edited_preview'):
-                self.show_edited_preview()
+            overlays_enabled = False
+            if hasattr(self, '_is_overlay_display_enabled'):
+                try:
+                    overlays_enabled = self._is_overlay_display_enabled()
+                except Exception:  # pylint: disable=broad-except
+                    overlays_enabled = False
+            guide_lines_enabled = False
+            if hasattr(self, '_should_update_guide_lines'):
+                try:
+                    guide_lines_enabled = self._should_update_guide_lines()
+                except Exception:  # pylint: disable=broad-except
+                    guide_lines_enabled = False
+
+            if hasattr(self, 'update_face_edit_display'):
+                self.update_face_edit_display(
+                    image=True,
+                    landmarks=True,
+                    overlays=overlays_enabled,
+                    guide_lines=guide_lines_enabled,
+                    force_original=True,
+                )
+            else:
+                if hasattr(self, 'show_original_preview'):
+                    self.show_original_preview()
+                if hasattr(self, 'show_edited_preview'):
+                    self.show_edited_preview()
             
             filename = os.path.basename(file_path)
             self.status_label.config(text=f"이미지 로드 완료: {filename}", fg="green")
