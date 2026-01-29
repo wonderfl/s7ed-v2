@@ -787,8 +787,11 @@ class PolygonDragHandlerMixin:
         Args:
             force_slider_mode: (사용 안 함, 하위 호환성 유지용)
         """
+        
         self._ensure_polygon_apply_guard_state()
         polygon_signature = self._build_polygon_apply_signature(force_slider_mode)
+        
+        print(f"apply_polygon_drag_final: called.. polygon_signature={polygon_signature}")
         if polygon_signature == getattr(self, '_last_polygon_apply_signature', None):
             return
 
@@ -1140,11 +1143,6 @@ class PolygonDragHandlerMixin:
                         print_info("얼굴편집", f"랜드마크 비교: 다른 포인트 {diff_count}개, 최대 차이 {max_diff:.2f}픽셀")
                     else:
                         print_info("얼굴편집", f"랜드마크 길이 불일치: custom={len(custom_landmarks_for_morph)}, original={len(original_landmarks_for_morph)}")
-                
-                # 디버그: 중앙 포인트 좌표 확인
-                print_info("얼굴편집", f"중심점 드래그 적용: left_center={left_center}, right_center={right_center}")
-                print_info("얼굴편집", f"원본 중심점: left_orig={left_center_orig}, right_orig={right_center_orig}")
-                print_info("얼굴편집", f"마지막 선택 인덱스: {last_selected_index}")
                 
                 # 캐시된 원본 바운딩 박스 가져오기
                 img_width, img_height = self.current_image.size

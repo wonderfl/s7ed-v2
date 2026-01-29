@@ -54,6 +54,8 @@ class FaceEditPanel(
         
         # PolygonRendererMixin 초기화 (DrawingMixin 포함)
         PolygonRendererMixin.__init__(self)
+
+        self.debug_guide_axis = True
         
         # 메인 창 캔버스 초기 크기 설정 (먼저 정의)
         self.canvas_initial_width = 384  # 캔버스 초기 너비

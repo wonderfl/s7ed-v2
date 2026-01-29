@@ -1,5 +1,5 @@
 {
-  "level": "INFO",
+  "level": "DEBUG",
   "output_level": "DEBUG",
   "log_level": null,
   "file_path": "logs/s7ed.log",

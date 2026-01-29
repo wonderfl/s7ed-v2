@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image
 
+from utils.logger import print_debug
+
 # 디버그 출력 제어
 DEBUG_MORPHING = False
 
@@ -194,9 +196,8 @@ class HandlersMixin:
         # (눈동자 드래그 후 슬라이더 조작 시 슬라이더가 적용되도록)
         if hasattr(self, 'last_selected_landmark_index'):
             self.last_selected_landmark_index = None
-
-        if DEBUG_MORPHING:
-            print(f"on_morphing_change: {self.current_image}")
+        
+        print_debug("handler", f"on_morphing_change: {self.current_image}")
         
         self._ensure_morphing_guard_state()
         if self._morphing_update_in_progress:
@@ -213,27 +214,28 @@ class HandlersMixin:
         if self.current_image is None:
             return
 
-        print("_perform_morphing_update: called..")
+        print_debug("handler", "_perform_morphing_update: called..")
         initial_signature = self._build_morphing_state_signature()
         if (initial_signature is not None and
                 initial_signature == getattr(self, '_last_morphing_state_signature', None)):
-            if DEBUG_MORPHING:
-                print("[모핑] 상태 시그니처 동일 - 업데이트 스킵")
+            print_debug("handler", "[모핑] 상태 시그니처 동일 - 업데이트 스킵")
             return
         
         # 고급 모드가 체크되었고 기존에 수정된 랜드마크가 있으면 즉시 적용
         # 하지만 공통 슬라이더는 항상 적용되어야 하므로 return하지 않음
         use_warping = getattr(self, 'use_landmark_warping', None)
+        print(f"use_warping: {use_warping}, {use_warping.get()}, {len(self.custom_landmarks)}")
         if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
             # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                 # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
-                # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
+                # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False, 그런데 고급모드일땐 True 여야하는데
                 if hasattr(self, 'apply_polygon_drag_final'):
-                    self.apply_polygon_drag_final(force_slider_mode=False)
+                    self.apply_polygon_drag_final(force_slider_mode=True)
                     # 이미지 업데이트 후 랜드마크 표시도 업데이트
                     if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                         self.update_face_features_display()
+                    return
         else:
             # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
@@ -286,8 +288,7 @@ class HandlersMixin:
             # 일반 모드: apply_editing 호출 (공통 슬라이더 포함)
             self.apply_editing()
         else:
-            if DEBUG_MORPHING:
-                print(f"on_morphing_change: {self.edited_image}")                
+            print(f"on_morphing_change: {self.edited_image}")
             # 고급 모드: apply_polygon_drag_final에서 랜드마크 변형 적용 후, 스타일 전송/나이 변환/공통 슬라이더도 적용
             if hasattr(self, 'edited_image') and self.edited_image is not None:
                 result = self.edited_image

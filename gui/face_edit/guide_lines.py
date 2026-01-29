@@ -6,7 +6,7 @@ import math
 import tkinter as tk
 from typing import List, Tuple, Optional
 
-DEBUG_GUIDE_LINES = False
+DEBUG_GUIDE_LINES = True
 
 
 class GuideLinesManager:
@@ -354,6 +354,24 @@ class GuideLinesManager:
                     print(f"[지시선] 눈 중심선 계산 실패 ({canvas_type})")
                 self._guide_line_signatures[canvas_type] = signature
                 return
+
+            if getattr(self.parent, 'debug_guide_axis', False):
+                _, _, _, _, left_center_x, right_center_x, left_center_y, right_center_y, angle, center_x, center_y = eye_center_info
+                canvas_center_x = pos_x + (center_x - img_width / 2) * scale_x
+                canvas_center_y = pos_y + (center_y - img_height / 2) * scale_y
+                self.parent.current_guide_axis_info = {
+                    'canvas': canvas_type,
+                    'angle_rad': angle,
+                    'angle_deg': math.degrees(angle),
+                    'center_image': (center_x, center_y),
+                    'center_canvas': (canvas_center_x, canvas_center_y),
+                    'left_center': (left_center_x, left_center_y),
+                    'right_center': (right_center_x, right_center_y),
+                }
+                print(
+                    f"[GuideAxis] {canvas_type} angle={math.degrees(angle):.2f}° "
+                    f"center_img=({center_x:.1f},{center_y:.1f}) center_canvas=({canvas_center_x:.1f},{canvas_center_y:.1f})"
+                )
 
             drawn_lines = []
 

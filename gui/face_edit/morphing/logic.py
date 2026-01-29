@@ -304,6 +304,16 @@ class LogicMixin(EditingStepsMixin):
 
             slider_values, slider_conditions = self._get_common_slider_values()
 
+            if getattr(self, 'debug_guide_axis', False):
+                size_x = slider_values.get('size_x')
+                size_y = slider_values.get('size_y')
+                center_offset_x = slider_values.get('center_offset_x')
+                center_offset_y = slider_values.get('center_offset_y')
+                print(
+                    f"[GuideAxis] sliders size_x={size_x} size_y={size_y} "
+                    f"center_offset=({center_offset_x},{center_offset_y})"
+                )
+
             if is_advanced_mode:
                 return self._handle_advanced_mode(selected_regions, slider_values, image)
 
@@ -396,6 +406,10 @@ class LogicMixin(EditingStepsMixin):
         tesselation_graph,
         scale_relative_fn,
         dragged_indices,
+        guide_axis_info=None,
+        size_x=1.0,
+        size_y=1.0,
+        use_guide_axis=False,
     ):
         from utils.face_morphing.region_extraction import _get_region_center
 
@@ -411,6 +425,14 @@ class LogicMixin(EditingStepsMixin):
             if center is None:
                 continue
             region_centers[region_name] = center
+
+        axis_pivot = None
+        if guide_axis_info is not None and guide_axis_info.get('mid_center'):
+            pivot_x, pivot_y = guide_axis_info['mid_center']
+            axis_pivot = (
+                pivot_x + center_offset_x,
+                pivot_y + center_offset_y,
+            )
 
         for region_name in selected_regions:
             region_indices = set(self._get_region_indices(region_name))
@@ -435,6 +457,24 @@ class LogicMixin(EditingStepsMixin):
                 )
 
             center_x, center_y = region_centers[region_name]
+
+            use_global_axis = (
+                use_guide_axis
+                and guide_axis_info is not None
+                and (abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01)
+            )
+
+            pivot_for_region = axis_pivot if axis_pivot is not None else (center_x, center_y)
+            print(
+                "얼굴편집",
+                f"가이드축 스케일 대상 영역: {region_name}, pivot={pivot_for_region}"
+            )
+            if not use_guide_axis:
+                print("얼굴편집", f"가이드축 미사용(플래그 False): region={region_name}")
+            elif guide_axis_info is None:
+                print("얼굴편집", f"가이드축 정보 없음: region={region_name}")
+            else:
+                print("얼굴편집", f"가이드축 미사용(size 조건): region={region_name}")
 
             if region_name in ['left_iris', 'right_iris']:
                 iris_points_orig = []
@@ -461,7 +501,7 @@ class LogicMixin(EditingStepsMixin):
                     before_rel_x, before_rel_y = rel_x, rel_y
                     rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
                     if (before_rel_x, before_rel_y) != (rel_x, rel_y):
-                        print_debug(
+                        print(
                             "얼굴편집",
                             f"랜드마크 변형: before=({before_rel_x:.3f},{before_rel_y:.3f}), after=({rel_x:.3f},{rel_y:.3f})",
                         )
@@ -499,13 +539,27 @@ class LogicMixin(EditingStepsMixin):
                         point_x = updated_landmarks[idx].x * img_width
                         point_y = updated_landmarks[idx].y * img_height
 
-                    rel_x = point_x - center_x
-                    rel_y = point_y - center_y
-                    rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
-                    rel_x += position_x
-                    rel_y += position_y
+                    if use_global_axis:
+                        scaled_x, scaled_y = self._apply_guide_axis_transform(
+                            point_x,
+                            point_y,
+                            size_x,
+                            size_y,
+                            position_x,
+                            position_y,
+                            guide_axis_info,
+                            pivot=pivot_for_region,
+                        )
+                        new_point = (scaled_x, scaled_y)
+                    else:
+                        rel_x = point_x - center_x
+                        rel_y = point_y - center_y
+                        rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+                        rel_x += position_x
+                        rel_y += position_y
+                        new_point = (center_x + rel_x, center_y + rel_y)
 
-                    updated_landmarks[idx] = (center_x + rel_x, center_y + rel_y)
+                    updated_landmarks[idx] = new_point
                     transformed_indices.add(idx)
 
         return transformed_indices
@@ -570,6 +624,18 @@ class LogicMixin(EditingStepsMixin):
         conditions['size_condition'] = conditions['size_x_condition'] or conditions['size_y_condition']
         return values, conditions
 
+    def _log_polygon_debug_info(self, face_landmarks, transformed_indices, original_face_landmarks_tuple, has_iris_centers):
+        try:
+            transformed_count = len(transformed_indices) if transformed_indices else 0
+            total_points = len(face_landmarks) if face_landmarks is not None else 0
+            original_count = len(original_face_landmarks_tuple) if original_face_landmarks_tuple is not None else 0
+            print(
+                "얼굴편집",
+                f"폴리곤 디버그: transformed={transformed_count}, face_points={total_points}, original_tuple={original_count}, iris_centers={has_iris_centers}",
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            print("얼굴편집", f"폴리곤 디버그 로그 실패: {exc}")
+
     def _handle_advanced_mode(self, selected_regions, slider_values, image):
         center_offset_x = slider_values['center_offset_x']
         center_offset_y = slider_values['center_offset_y']
@@ -578,6 +644,10 @@ class LogicMixin(EditingStepsMixin):
         position_x = slider_values['position_x']
         position_y = slider_values['position_y']
 
+        print(f"_handle_advanced_mode: called.. {selected_regions}")
+
+        # NOTE: 전체 탭 size X/Y는 custom_landmarks를 직접 변형하며, 현재는 회전 정보 없이 수평/수직 스케일만 적용된다.
+        #       가이드축 연동 시점은 이 호출 이후 `_collect_landmark_transform_context` → `_transform_selected_landmarks` 흐름이다.
         result = self._apply_common_sliders_to_landmarks(
             selected_regions,
             center_offset_x,
@@ -628,10 +698,10 @@ class LogicMixin(EditingStepsMixin):
         if use_guide_axis:
             guide_angle = self._get_guide_axis_angle(landmarks, image.size)
             if guide_angle is None:
-                print_debug("얼굴편집", "지시선 축 각도 계산 실패 - 기본 축으로 폴백")
+                print("얼굴편집", "지시선 축 각도 계산 실패 - 기본 축으로 폴백")
                 use_guide_axis = False
             else:
-                print_debug(
+                print(
                     "얼굴편집",
                     f"전체탭 축 스케일 시작: angle={math.degrees(guide_angle):.1f}°, regions={len(selected_regions)}"
                 )
@@ -639,8 +709,8 @@ class LogicMixin(EditingStepsMixin):
         for region_name in selected_regions:
             if size_condition:
                 if use_guide_axis and guide_angle is not None:
-                    print_debug("얼굴편집", f"지시선 축 적용 대상: {region_name}, size=({size_x:.3f},{size_y:.3f})")
-                    print_debug("얼굴편집", f"adjust_region_size_with_axis 호출: region={region_name}")
+                    print("얼굴편집", f"지시선 축 적용 대상: {region_name}, size=({size_x:.3f},{size_y:.3f})")
+                    print("얼굴편집", f"adjust_region_size_with_axis 호출: region={region_name}")
                     result = adjust_region_size_with_axis(
                         result,
                         region_name,
@@ -653,7 +723,7 @@ class LogicMixin(EditingStepsMixin):
                         guide_angle=guide_angle,
                     )
                 else:
-                    print_debug("얼굴편집", f"기본 축 adjust_region_size 호출: region={region_name}")
+                    print("얼굴편집", f"기본 축 adjust_region_size 호출: region={region_name}")
                     result = adjust_region_size(
                         result,
                         region_name,
@@ -676,7 +746,7 @@ class LogicMixin(EditingStepsMixin):
                     if use_guide_axis:
                         guide_angle = self._get_guide_axis_angle(landmarks, image.size)
                         if guide_angle is None:
-                            print_debug("얼굴편집", "지시선 축 재계산 실패 - 이후 기본 축 적용")
+                            print("얼굴편집", "지시선 축 재계산 실패 - 이후 기본 축 적용")
                             use_guide_axis = False
                     image = result
 
@@ -699,28 +769,100 @@ class LogicMixin(EditingStepsMixin):
 
         return result if result is not None else image
 
-    def _get_guide_axis_angle(self, landmarks, image_size):
+    def _get_guide_axis_info(self, landmarks, image_size):
         if not landmarks or not hasattr(self, 'guide_lines_manager'):
             return None
         try:
             img_width, img_height = image_size
         except Exception:
             return None
+
         try:
             left_center, right_center, angle = self.guide_lines_manager.get_eye_centers_and_angle(
                 landmarks, img_width, img_height
             )
             if left_center is None or right_center is None or angle is None:
-                print_debug("얼굴편집", "지시선 축 정보를 가져오지 못했습니다")
+                print("얼굴편집", "지시선 축 정보를 가져오지 못했습니다")
                 return None
-            print_debug(
-                "얼굴편집",
-                f"지시선 축 각도 계산 성공: angle={math.degrees(angle):.1f}°, left={left_center}, right={right_center}"
+
+            mid_center = (
+                (left_center[0] + right_center[0]) / 2.0,
+                (left_center[1] + right_center[1]) / 2.0,
             )
-            return angle
+            info = {
+                'angle': angle,
+                'left_center': left_center,
+                'right_center': right_center,
+                'mid_center': mid_center,
+            }
+            self.current_guide_axis_info = info
+            print(
+                "얼굴편집",
+                f"지시선 축 정보 계산: angle={math.degrees(angle):.1f}°, left={left_center}, right={right_center}"
+            )
+            return info
         except Exception as exc:
-            print_debug("얼굴편집", f"지시선 축 계산 실패: {exc}")
+            print("얼굴편집", f"지시선 축 계산 실패: {exc}")
             return None
+
+    def _get_guide_axis_angle(self, landmarks, image_size):
+        info = self._get_guide_axis_info(landmarks, image_size)
+        return info['angle'] if info else None
+
+    def _apply_guide_axis_transform(self, abs_x, abs_y, size_x, size_y, pos_x, pos_y, axis_info, pivot=None):
+        if axis_info is None or (abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01):
+            return abs_x + pos_x, abs_y + pos_y
+
+        pivot_point = pivot or axis_info.get('mid_center') or axis_info.get('left_center') or axis_info.get('right_center')
+        if pivot_point is None:
+            return abs_x + pos_x, abs_y + pos_y
+
+        angle = axis_info.get('angle')
+        if angle is None:
+            return abs_x + pos_x, abs_y + pos_y
+
+        cos_angle = axis_info.get('cos_angle') or math.cos(angle)
+        sin_angle = axis_info.get('sin_angle') or math.sin(angle)
+
+        pivot_x, pivot_y = pivot_point
+        dx = abs_x - pivot_x
+        dy = abs_y - pivot_y
+
+        rotated_x = dx * cos_angle + dy * sin_angle
+        rotated_y = -dx * sin_angle + dy * cos_angle
+
+        rotated_x = rotated_x * size_x + pos_x
+        rotated_y = rotated_y * size_y + pos_y
+
+        new_x = pivot_x + (rotated_x * cos_angle - rotated_y * sin_angle)
+        new_y = pivot_y + (rotated_x * sin_angle + rotated_y * cos_angle)
+        return new_x, new_y
+
+    def _log_guide_axis_landmark_snapshot(self, label, landmarks, guide_axis_info):
+        print("_log_guide_axis_landmark_snapshot: called")
+        if not guide_axis_info or not landmarks:
+            return
+        idx = guide_axis_info.get('sample_index', 0)
+        if idx < 0 or idx >= len(landmarks):
+            idx = 0
+        point = landmarks[idx]
+        if not isinstance(point, tuple):
+            try:
+                img_width = getattr(self, 'preview_width', 800)
+                img_height = getattr(self, 'preview_height', 1000)
+                point = (point.x * img_width, point.y * img_height)
+            except Exception:
+                point = (0.0, 0.0)
+        mid_center = guide_axis_info.get('mid_center')
+        angle = guide_axis_info.get('angle')
+        if mid_center is not None and angle is not None:
+            dx = point[0] - mid_center[0]
+            dy = point[1] - mid_center[1]
+            #print(
+            print(
+                "얼굴편집",
+                f"[{label}] sample_idx={idx}, point=({point[0]:.2f},{point[1]:.2f}), pivot=({mid_center[0]:.2f},{mid_center[1]:.2f}), vector=({dx:.2f},{dy:.2f}), angle={math.degrees(angle):.2f}°"
+            )
     
     def _apply_common_sliders_to_landmarks(self, selected_regions, center_offset_x, center_offset_y, 
                                           size_x, size_y, position_x, position_y, image):
@@ -728,6 +870,7 @@ class LogicMixin(EditingStepsMixin):
         try:
             from utils.face_morphing.region_extraction import _get_region_center
             import utils.face_landmarks as face_landmarks
+            print("_apply_common_sliders_to_landmarks: called..")
 
             context = self._collect_landmark_transform_context(
                 image=image,
@@ -810,6 +953,10 @@ class LogicMixin(EditingStepsMixin):
                     tesselation_graph=tesselation_graph,
                     scale_relative_fn=scale_relative_fn,
                     dragged_indices=dragged_indices,
+                    guide_axis_info=context.get('guide_axis_info'),
+                    size_x=size_x,
+                    size_y=size_y,
+                    use_guide_axis=context.get('use_guide_axis', False),
                 )
             
             finalized = self._finalize_landmark_transforms(
@@ -824,10 +971,15 @@ class LogicMixin(EditingStepsMixin):
                 use_guide_axis=use_guide_axis,
             )
 
+            guide_info_for_log = context.get('guide_axis_info')
+
+            print("얼굴편집", f"guide_axis_info {guide_info_for_log}")
+            self._log_guide_axis_landmark_snapshot("before_set_custom", finalized['final_landmarks_for_custom'], guide_info_for_log)
             self.landmark_manager.set_custom_landmarks(
                 finalized['final_landmarks_for_custom'],
                 reason="_apply_common_sliders_to_landmarks",
             )
+            self._log_guide_axis_landmark_snapshot("after_set_custom", self.landmark_manager.get_custom_landmarks(), guide_info_for_log)
 
             polygon_inputs = self._prepare_polygon_inputs(
                 selected_regions=selected_regions,
@@ -851,7 +1003,7 @@ class LogicMixin(EditingStepsMixin):
                         continue
                     o = original_for_morph[idx]
                     t = transformed_for_morph[idx]
-                    print_debug(
+                    print(
                         "얼굴편집",
                         f"Delaunay 직전 좌표: idx={idx}, orig=({o[0]:.2f},{o[1]:.2f}), trans=({t[0]:.2f},{t[1]:.2f})"
                     )
@@ -882,7 +1034,7 @@ class LogicMixin(EditingStepsMixin):
             # 원본 이미지의 폴리곤 다시 그리기
             if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
                 # 기존 폴리곤 제거
-                print_debug("얼굴편집", "폴리곤 다시 그리기 시작 (고급모드)")
+                print("얼굴편집", "폴리곤 다시 그리기 시작 (고급모드)")
                 if hasattr(self, 'landmark_polygon_items') and 'original' in self.landmark_polygon_items:
                     for item_id in list(self.landmark_polygon_items['original']):
                         try:
@@ -945,6 +1097,7 @@ class LogicMixin(EditingStepsMixin):
     
     def _collect_landmark_transform_context(self, image, size_x, size_y, face_landmarks_module):
         custom = self.landmark_manager.get_custom_landmarks()
+        print(f"_collect_landmark_transform_context: called {custom is not None}")
         if custom is None:
             return None
 
@@ -970,7 +1123,10 @@ class LogicMixin(EditingStepsMixin):
 
         if self.custom_landmarks is None or len(self.custom_landmarks) != 468:
             if original_face_landmarks is not None:
-                self.custom_landmarks = original_face_landmarks
+                self.landmark_manager.set_custom_landmarks(
+                    list(original_face_landmarks),
+                    reason="collect_landmark_transform_context: init",
+                )
 
         dragged_indices = self.landmark_manager.get_dragged_indices()
         updated_landmarks = []
@@ -990,18 +1146,33 @@ class LogicMixin(EditingStepsMixin):
                     base_landmarks[idx].y * img_height
                 ))
 
+        guide_axis_centers = None
         if use_guide_axis:
             angle_landmarks = base_landmarks if base_landmarks is not None else updated_landmarks
-            guide_angle = self._get_guide_axis_angle(angle_landmarks, image.size)
-            if guide_angle is None:
+            guide_info = self._get_guide_axis_info(angle_landmarks, image.size)
+            if guide_info is None:
                 use_guide_axis = False
+                print(
+                    "얼굴편집",
+                    "고급모드 가이드축 비활성화: guide_info 계산 실패"
+                )
             else:
+                guide_angle = guide_info['angle']
                 cos_angle = math.cos(guide_angle)
                 sin_angle = math.sin(guide_angle)
-                print_debug(
+                guide_axis_centers = dict(guide_info)
+                guide_axis_centers['cos_angle'] = cos_angle
+                guide_axis_centers['sin_angle'] = sin_angle
+                guide_axis_centers.setdefault('sample_index', 0)
+                print(
                     "얼굴편집",
-                    f"고급모드 축 스케일 적용 준비: angle={math.degrees(guide_angle):.1f}°"
+                    f"고급모드 축 스케일 적용 준비: angle={math.degrees(guide_angle):.1f}°, pivot={guide_axis_centers.get('mid_center')}"
                 )
+        else:
+            if not size_condition:
+                print("얼굴편집", "고급모드 가이드축 비활성화: size_condition 미충족")
+            else:
+                print("얼굴편집", "고급모드 가이드축 비활성화: use_guide_line_scaling 꺼짐")
 
         def _scale_relative(dx, dy):
             if not size_condition:
@@ -1013,7 +1184,7 @@ class LogicMixin(EditingStepsMixin):
                 rot_y *= size_y
                 new_dx = rot_x * cos_angle - rot_y * sin_angle
                 new_dy = rot_x * sin_angle + rot_y * cos_angle
-                print_debug(
+                print(
                     "얼굴편집",
                     f"_scale_relative: in=({dx:.3f},{dy:.3f}) -> rotated=({rot_x:.3f},{rot_y:.3f}) -> out=({new_dx:.3f},{new_dy:.3f})"
                 )
@@ -1047,6 +1218,10 @@ class LogicMixin(EditingStepsMixin):
             'original_landmarks': original_landmarks,
             'base_landmarks': base_landmarks,
             'image_size': (img_width, img_height),
+            'use_guide_axis': use_guide_axis,
+            'guide_axis_info': guide_axis_centers,
+            'size_x': size_x,
+            'size_y': size_y,
             'use_guide_axis': use_guide_axis,
         }
 
@@ -1112,7 +1287,7 @@ class LogicMixin(EditingStepsMixin):
                 max_diff = max(max_diff, diff)
                 max_y_diff = max(max_y_diff, y_diff)
                 sample_count += 1
-            print_debug(
+            print(
                 "얼굴편집",
                 f"고급모드 축스케일 비교: guide_axis={use_guide_axis}, transformed={sample_count}개, max_diff={max_diff:.3f}, max_y_diff={max_y_diff:.3f}"
             )
@@ -1138,12 +1313,12 @@ class LogicMixin(EditingStepsMixin):
                 if len(restored_samples) < 5:
                     restored_samples.append((idx, final_landmarks[idx]))
             if restored_count:
-                print_debug(
+                print(
                     "얼굴편집",
                     f"고급모드 복원: restored={restored_count}개, sample={restored_samples}"
                 )
         elif not restore_unselected:
-            print_debug("얼굴편집", "고급모드 복원 비활성화: 선택 부위만 유지")
+            print("얼굴편집", "고급모드 복원 비활성화: 선택 부위만 유지")
 
         img_width, img_height = image.size
         base_for_tuple = base_for_compare
