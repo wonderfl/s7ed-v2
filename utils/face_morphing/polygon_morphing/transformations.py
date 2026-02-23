@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image
 
 # 디버그 출력 제어
-DEBUG_GUIDE_SCALING = False
+DEBUG_GUIDE_SCALING = True
 
 from ..constants import _cv2_available, _cv2_cuda_available, _scipy_available, _landmarks_available, _delaunay_cache, _delaunay_cache_max_size
 
@@ -130,10 +130,19 @@ def transform_points_for_eye_size_centered(landmarks, left_eye_center=None, righ
                     final_dy = scaled_x * sin_angle + scaled_y * cos_angle
                     
                     # 최종 좌표 계산
-                    transformed_landmarks[idx] = (
-                        left_eye_center[0] + final_dx,
-                        left_eye_center[1] + final_dy
-                    )
+                    final_x = left_eye_center[0] + final_dx
+                    final_y = left_eye_center[1] + final_dy
+                    
+                    # 디버그 출력 (처음 3개 포인트만)
+                    if transformed_count < 3 and DEBUG_GUIDE_SCALING:
+                        print(f"[DEBUG Y값] 포인트{idx}: ({x:.1f},{y:.1f}) -> ({final_x:.1f},{final_y:.1f})")
+                        print(f"  dx={dx:.1f}, dy={dy:.1f}")
+                        print(f"  rotated=({rotated_x:.1f},{rotated_y:.1f})")
+                        print(f"  scaled=({scaled_x:.1f},{scaled_y:.1f})")
+                        print(f"  final=({final_dx:.1f},{final_dy:.1f})")
+                        print(f"  y변화: {y:.1f} -> {final_y:.1f} (차이={final_y-y:.1f})")
+                    
+                    transformed_landmarks[idx] = (final_x, final_y)
                     transformed_count += 1
             
             if DEBUG_GUIDE_SCALING:

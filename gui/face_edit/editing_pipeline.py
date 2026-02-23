@@ -23,6 +23,8 @@ class EditingPipelineMixin:
 
     def apply_editing(self, depth: int = 1):
         """편집 적용 (영역 파라미터를 기본값으로 고정)"""
+        
+        print_debug("EditingPipeline", f"apply_editing: called.. {depth}")        
         if self.current_image is None:
             return
 
@@ -31,8 +33,6 @@ class EditingPipelineMixin:
         last_signature = getattr(self, '_last_apply_editing_signature', None)
         if state_signature_before is not None and last_signature == state_signature_before:
             return
-
-        print_debug("EditingPipeline", f"apply_editing: called.. {depth}")
 
         try:
             context = self._prepare_editing_context(depth)
@@ -79,7 +79,7 @@ class EditingPipelineMixin:
 
                 if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                     if hasattr(self, 'apply_polygon_drag_final'):
-                        self.apply_polygon_drag_final()
+                        self.apply_polygon_drag_final(desc="EditingPipeline")
                         if hasattr(self, 'show_landmark_points') and self.show_landmark_points.get():
                             self.update_face_features_display()
                         self._cache_apply_editing_signature()

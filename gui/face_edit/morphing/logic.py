@@ -295,7 +295,7 @@ class LogicMixin(EditingStepsMixin):
     def _apply_common_sliders(self, image, base_image=None):
         """공통 슬라이더(Size, Position, Center Offset) 적용"""
         
-        print(f"_apply_common_sliders: called..")
+        print_debug("_apply_common_sliders",f"_apply_common_sliders: called..")
         if image is None:
             return image
         
@@ -303,7 +303,7 @@ class LogicMixin(EditingStepsMixin):
             is_advanced_mode = self._is_advanced_mode()
             selected_regions = self._get_selected_regions()
 
-            print(f"고급모드: {is_advanced_mode}, 선택된 부위: {selected_regions} ")
+            print_debug("_apply_common_sliders",f"고급모드: {is_advanced_mode}, 선택된 부위: {selected_regions} ")
             if not selected_regions:
                 return image
 
@@ -418,6 +418,8 @@ class LogicMixin(EditingStepsMixin):
     ):
         from utils.face_morphing.region_extraction import _get_region_center
 
+        print_debug("얼굴편집", f"_transform_selected_landmarks 호출: selected_regions={selected_regions}")
+
         transformed_indices = set()
 
         region_centers = {}
@@ -469,7 +471,8 @@ class LogicMixin(EditingStepsMixin):
                 and (abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01)
             )
 
-            pivot_for_region = axis_pivot if axis_pivot is not None else (center_x, center_y)
+            #pivot_for_region = axis_pivot if axis_pivot is not None else (center_x, center_y)
+            pivot_for_region = (center_x, center_y)
             print_debug(
                 "얼굴편집",
                 f"가이드축 사용: {use_guide_axis}, " + \
@@ -531,6 +534,7 @@ class LogicMixin(EditingStepsMixin):
                             updated_landmarks[idx] = (new_iris_center_x, new_iris_center_y)
                             transformed_indices.add(idx)
             else:
+                print_debug("얼굴편집", f"region={region_name}, region_indices 개수={len(region_indices)}, use_guide_axis={use_guide_axis}")
                 for idx in region_indices:
                     if idx in transformed_indices or idx in dragged_indices or idx >= len(updated_landmarks):
                         continue
@@ -542,25 +546,17 @@ class LogicMixin(EditingStepsMixin):
                         point_x = updated_landmarks[idx].x * img_width
                         point_y = updated_landmarks[idx].y * img_height
 
-                    if use_global_axis:
-                        scaled_x, scaled_y = self._apply_guide_axis_transform(
-                            point_x,
-                            point_y,
-                            size_x,
-                            size_y,
-                            position_x,
-                            position_y,
-                            guide_axis_info,
-                            pivot=pivot_for_region,
-                        )
-                        new_point = (scaled_x, scaled_y)
-                    else:
-                        rel_x = point_x - center_x
-                        rel_y = point_y - center_y
-                        rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
-                        rel_x += position_x
-                        rel_y += position_y
-                        new_point = (center_x + rel_x, center_y + rel_y)
+                    print_debug(
+                        "얼굴편집",
+                        f"포인트 변환: idx={idx}, point=({point_x:.1f},{point_y:.1f}), center=({center_x:.1f},{center_y:.1f})"
+                    )
+
+                    rel_x = point_x - center_x
+                    rel_y = point_y - center_y
+                    rel_x, rel_y = scale_relative_fn(rel_x, rel_y)
+                    rel_x += position_x
+                    rel_y += position_y
+                    new_point = (center_x + rel_x, center_y + rel_y)                        
 
                     updated_landmarks[idx] = new_point
                     transformed_indices.add(idx)
@@ -570,12 +566,14 @@ class LogicMixin(EditingStepsMixin):
     def _is_advanced_mode(self):
         use_warping = getattr(self, 'use_landmark_warping', None)
         has_custom_landmarks = hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None
-        return (
+        result = (
             use_warping is not None and
             hasattr(use_warping, 'get') and
             use_warping.get() and
             has_custom_landmarks
         )
+        print_debug("얼굴편집", f"_is_advanced_mode: use_warping={use_warping}, use_warping.get()={use_warping.get() if use_warping and hasattr(use_warping, 'get') else 'N/A'}, has_custom_landmarks={has_custom_landmarks}, result={result}")
+        return result
 
     def _should_use_guide_axis(self):
         return (
@@ -820,7 +818,8 @@ class LogicMixin(EditingStepsMixin):
         if axis_info is None or (abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01):
             return abs_x + pos_x, abs_y + pos_y
 
-        pivot_point = pivot or axis_info.get('mid_center') or axis_info.get('left_center') or axis_info.get('right_center')
+        #pivot_point = pivot or axis_info.get('mid_center') or axis_info.get('left_center') or axis_info.get('right_center')
+        pivot_point = pivot
         if pivot_point is None:
             return abs_x + pos_x, abs_y + pos_y
 
@@ -835,14 +834,35 @@ class LogicMixin(EditingStepsMixin):
         dx = abs_x - pivot_x
         dy = abs_y - pivot_y
 
+        # 디버그 출력 (처음 3개 포인트만)
+        if not hasattr(self, '_debug_rotation_count'):
+            self._debug_rotation_count = 0
+        if self._debug_rotation_count < 3:
+            print(f"[DEBUG 전체탭] 원본: ({abs_x:.1f},{abs_y:.1f})")
+            print(f"  pivot=({pivot_x:.1f},{pivot_y:.1f}), dx={dx:.1f}, dy={dy:.1f}")
+            print(f"  angle={math.degrees(angle):.2f}°, cos={cos_angle:.3f}, sin={sin_angle:.3f}")
+        self._debug_rotation_count += 1
+
         rotated_x = dx * cos_angle + dy * sin_angle
         rotated_y = -dx * sin_angle + dy * cos_angle
+
+        if self._debug_rotation_count <= 3:
+            print(f"  회전후: ({rotated_x:.1f},{rotated_y:.1f})")
 
         rotated_x = rotated_x * size_x + pos_x
         rotated_y = rotated_y * size_y + pos_y
 
+        if self._debug_rotation_count <= 3:
+            print(f"  스케일후: ({rotated_x:.1f},{rotated_y:.1f})")
+
         new_x = pivot_x + (rotated_x * cos_angle - rotated_y * sin_angle)
         new_y = pivot_y + (rotated_x * sin_angle + rotated_y * cos_angle)
+
+        if self._debug_rotation_count <= 3:
+            print(f"  최종: ({new_x:.1f},{new_y:.1f})")
+            print(f"  y변화: {abs_y:.1f} -> {new_y:.1f} (차이={new_y-abs_y:.1f})")
+            print("---")
+
         return new_x, new_y
 
     def _log_guide_axis_landmark_snapshot(self, label, landmarks, guide_axis_info):
@@ -877,7 +897,7 @@ class LogicMixin(EditingStepsMixin):
         try:
             from utils.face_morphing.region_extraction import _get_region_center
             import utils.face_landmarks as face_landmarks
-            print("_apply_common_sliders_to_landmarks: called..")
+            print_debug("_apply_common_sliders_to_landmarks","_apply_common_sliders_to_landmarks: called..")
 
             context = self._collect_landmark_transform_context(
                 image=image,
@@ -979,6 +999,13 @@ class LogicMixin(EditingStepsMixin):
             )
 
             guide_info_for_log = context.get('guide_axis_info')
+            if guide_info_for_log:
+                print_debug(
+                    "guide_axis",
+                    f"pivot(mid)={guide_info_for_log.get('mid_center')}, "
+                    f"left={guide_info_for_log.get('left_center')}, right={guide_info_for_log.get('right_center')}, "
+                    f"angle={math.degrees(guide_info_for_log.get('angle', 0.0)):.2f}°",
+                )
 
             print("얼굴편집", f"guide_axis_info {guide_info_for_log}")
             self._log_guide_axis_landmark_snapshot("before_set_custom", finalized['final_landmarks_for_custom'], guide_info_for_log)
@@ -1192,6 +1219,8 @@ class LogicMixin(EditingStepsMixin):
         def _scale_relative(dx, dy):
             if not size_condition:
                 return dx, dy
+
+            #print_debug("얼굴편집", f"_scale_relative: use_guide_axis={use_guide_axis}, guide_angle={guide_angle}, size_x={size_x}, size_y={size_y}")
             if use_guide_axis and guide_angle is not None:
                 rot_x = dx * cos_angle + dy * sin_angle
                 rot_y = -dx * sin_angle + dy * cos_angle
@@ -1199,11 +1228,10 @@ class LogicMixin(EditingStepsMixin):
                 rot_y *= size_y
                 new_dx = rot_x * cos_angle - rot_y * sin_angle
                 new_dy = rot_x * sin_angle + rot_y * cos_angle
-                print(
-                    "얼굴편집",
-                    f"_scale_relative: in=({dx:.3f},{dy:.3f}) -> rotated=({rot_x:.3f},{rot_y:.3f}) -> out=({new_dx:.3f},{new_dy:.3f})"
-                )
+                #print_debug("얼굴편집", f"_scale_relative (가이드축): in=({dx:.3f},{dy:.3f}) -> out=({new_dx:.3f},{new_dy:.3f})")
                 return new_dx, new_dy
+
+            #print_debug("얼굴편집", f"_scale_relative (기본축): in=({dx:.3f},{dy:.3f}) -> out=({dx*size_x:.3f},{dy*size_y:.3f})")
             return dx * size_x, dy * size_y
 
         custom_for_drag = custom
@@ -1635,9 +1663,10 @@ class LogicMixin(EditingStepsMixin):
     
     def apply_editing(self ):
         """편집 적용"""
+        print_debug("logic", "apply_editing: called")        
         if self.current_image is None:
             return
-        print_debug("logic", "apply_editing: called")
+
         try:
             # 처리 순서: 정렬 → 특징 보정 → 스타일 전송 → 나이 변환
             # 편집은 항상 정렬된 이미지(또는 원본)를 기반으로 처음부터 다시 적용

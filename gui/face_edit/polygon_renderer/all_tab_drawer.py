@@ -493,7 +493,7 @@ class AllTabDrawerMixin:
             try:
                 LEFT_IRIS = list(mp_face_mesh.FACEMESH_LEFT_IRIS)
                 RIGHT_IRIS = list(mp_face_mesh.FACEMESH_RIGHT_IRIS)
-                print(f"MediaPipe LEFT_IRIS: {len(LEFT_IRIS)} {hasattr(self, 'show_left_iris') and self.show_left_iris.get()}, RIGHT_IRIS: {len(RIGHT_IRIS)} connections {hasattr(self, 'show_right_iris') and self.show_right_iris.get()}")
+                print(f"MediaPipe LEFT_IRIS: {len(LEFT_IRIS)} {hasattr(self, 'show_left_iris') and self.show_left_iris.get()}, RIGHT_IRIS: {len(RIGHT_IRIS)} {hasattr(self, 'show_right_iris') and self.show_right_iris.get()}")
 
             except AttributeError:
                 # 구버전 MediaPipe에서는 지원하지 않을 수 있음

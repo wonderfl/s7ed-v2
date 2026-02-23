@@ -68,13 +68,6 @@ class GuideLinesManager:
             
             right_center_x = sum(p[0] for p in right_eye_points) / len(right_eye_points)
             right_center_y = sum(p[1] for p in right_eye_points) / len(right_eye_points)
-            
-            # 디버깅: 눈동자 사용 여부 출력
-            if DEBUG_GUIDE_LINES:
-                use_iris_left = len([idx for idx in [468, 469, 470, 471, 472] if idx < len(landmarks)]) > 0
-                use_iris_right = len([idx for idx in [473, 474, 475, 476, 477] if idx < len(landmarks)]) > 0
-                print(f"[지시선] 스케일링용 눈 중심 계산: 왼쪽 눈동자={'사용' if use_iris_left else '눈주변'}, "
-                      f"오른쪽 눈동자={'사용' if use_iris_right else '눈주변'}")
 
             # 두 눈 중심을 지나는 직선 계산
             # 직선의 기울기 계산
@@ -509,14 +502,6 @@ class GuideLinesManager:
             
             right_center_x = sum(p[0] for p in right_eye_points) / len(right_eye_points)
             right_center_y = sum(p[1] for p in right_eye_points) / len(right_eye_points)
-            
-            # 디버깅: 눈동자 사용 여부 출력
-            if DEBUG_GUIDE_LINES:
-                use_iris_left = len([idx for idx in [468, 469, 470, 471, 472] if idx < len(landmarks)]) > 0
-                use_iris_right = len([idx for idx in [473, 474, 475, 476, 477] if idx < len(landmarks)]) > 0
-                print(f"[지시선] 스케일링용 눈 중심 계산: 왼쪽 눈동자={'사용' if use_iris_left else '눈주변'}, "
-                      f"오른쪽 눈동자={'사용' if use_iris_right else '눈주변'}")
-                print(f"[지시선] 계산된 눈 중심: 왼쪽=({left_center_x:.1f}, {left_center_y:.1f}), 오른쪽=({right_center_x:.1f}, {right_center_y:.1f})")
             
             # 눈 연결선 각도 계산
             dx = right_center_x - left_center_x

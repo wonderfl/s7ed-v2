@@ -235,7 +235,7 @@ def adjust_region_size_with_axis(
     guide_angle=None
 ):
     """지시선 축 기준 크기 조절 (회전 축 사용)"""
-    if guide_angle is None or abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01:
+    if guide_angle is None or (abs(size_x - 1.0) < 0.01 and abs(size_y - 1.0) < 0.01):
         return adjust_region_size(
             image, region_name, size_x, size_y,
             center_offset_x, center_offset_y, landmarks, blend_ratio

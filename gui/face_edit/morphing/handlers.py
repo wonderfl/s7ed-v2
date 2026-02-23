@@ -259,30 +259,43 @@ class HandlersMixin:
         if use_warping is not None and hasattr(use_warping, 'get') and use_warping.get():
             # 고급 모드가 활성화되었고 커스텀 랜드마크가 있으면 적용
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
+                # 슬라이더 이벤트일 때: 먼저 공통 슬라이더로 랜드마크 변환, 그 다음 apply_polygon_drag_final로 이미지 변형
+                if force_slider_mode and hasattr(self, '_apply_common_sliders'):
+                    base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
+                    self._apply_common_sliders(self.current_image, base_image=base_image)
+                
                 # apply_polygon_drag_final을 호출하여 기존 랜드마크 변경사항 적용
                 # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False, 그런데 고급모드일땐 True 여야하는데
                 if hasattr(self, 'apply_polygon_drag_final'):
-                    self.apply_polygon_drag_final(force_slider_mode=force_slider_mode)
-                    #self.apply_polygon_drag_final(force_slider_mode=True)
-                    final_signature = self._build_morphing_state_signature()
-                    if final_signature is not None:
-                        self._last_morphing_state_signature = final_signature
-                    return
+                    self.apply_polygon_drag_final(
+                        desc=f"use_warping:{use_warping.get()}, _perform_morphing_update",
+                        force_slider_mode=force_slider_mode,
+                    )
+                    if not force_slider_mode:
+                        refresh(
+                            image=False,
+                            landmarks=True,
+                            overlays=True,
+                            guide_lines=False,
+                        )
+                    # 슬라이더 이벤트일 때는 공통 슬라이더를 별도로 적용하기 위해 return하지 않음
+                    # (위 코드에서 이미 _apply_common_sliders 호출됨)
         else:
             # 고급 모드가 아닐 때도 눈동자 맵핑 방법 변경은 적용되어야 함
             if hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None:
                 if hasattr(self, 'apply_polygon_drag_final'):
                     # 옵션 변경 시에는 중심점 위치를 유지하기 위해 force_slider_mode=False
-                    self.apply_polygon_drag_final(force_slider_mode=False)
+                    self.apply_polygon_drag_final(desc=f"use_warping:{use_warping}, _perform_morphing_update", force_slider_mode=False)
 
         # 폴리곤 표시를 위해 custom_landmarks 업데이트 (apply_editing 전에)
-        # 고급 모드에서 Tesselation 선택 시에는 update_polygons_only를 호출하지 않음
-        # (공통 슬라이더로 직접 변형하므로 중복 변형 방지)
+        # 고급 모드 + 슬라이더 이벤트일 땐 apply_polygon_drag_final에서 이미 변형/갱신 처리되므로 건너뜀
         use_warping = getattr(self, 'use_landmark_warping', None)
         is_tesselation_selected = (hasattr(self, 'show_tesselation') and self.show_tesselation.get())
-        is_advanced_tesselation = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get() and is_tesselation_selected)
+        is_advanced_warping = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get())
+        skip_polygon_update = is_advanced_warping and force_slider_mode
+        is_advanced_tesselation = is_advanced_warping and is_tesselation_selected
 
-        if hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
+        if not skip_polygon_update and hasattr(self, 'show_landmark_polygons') and self.show_landmark_polygons.get():
             if hasattr(self, 'update_polygons_only') and not is_advanced_tesselation:
                 self.update_polygons_only()
         # 편집 적용 전에 현재 위치를 명시적으로 저장 (위치 유지)
@@ -310,20 +323,31 @@ class HandlersMixin:
             except Exception as e:
                 pass
 
-        # 고급 모드가 아닐 때만 apply_editing 호출 (고급 모드는 이미 apply_polygon_drag_final에서 처리됨)
+        # 고급 모드: 공통 슬라이더를 apply_polygon_drag_final 후에 별도로 적용
         use_warping = getattr(self, 'use_landmark_warping', None)
-        if use_warping is None or not (hasattr(use_warping, 'get') and use_warping.get() and 
-                                       hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None):
-            # 일반 모드: apply_editing 호출 (공통 슬라이더 포함)
-            self.apply_editing()
+        is_advanced_mode = (use_warping is not None and hasattr(use_warping, 'get') and use_warping.get() and 
+                           hasattr(self, 'custom_landmarks') and self.custom_landmarks is not None)
+        
+        print_debug("handler", f"_perform_morphing_update 슬라이더 적용: is_advanced_mode={is_advanced_mode}, force_slider_mode={force_slider_mode}")
+        
+        if is_advanced_mode and force_slider_mode:
+            # 고급 모드 + 슬라이더 이벤트: apply_polygon_drag_final에서 슬라이더가 적용되지 않았으므로 여기서 적용
+            print_debug("handler", "_apply_common_sliders 호출 시작")
+            if hasattr(self, '_apply_common_sliders'):
+                base_image = self.aligned_image if hasattr(self, 'aligned_image') and self.aligned_image is not None else self.current_image
+                self._apply_common_sliders(self.current_image, base_image=base_image)
+                print_debug("handler", "_apply_common_sliders 호출 완료")
+            else:
+                print_debug("handler", "_apply_common_sliders 메서드 없음")
+            
+            # 원본 이미지의 랜드마크만 업데이트 (폴리곤 표시용)
+            # _apply_common_sliders를 다시 호출하면 custom_landmarks가 누적되므로 주의
+            # 이미 첫 번째 호출에서 custom_landmarks가 변형되었으므로, 
+            # 원본 이미지는 현재 custom_landmarks를 사용하여 폴리곤만 표시하면 됨
+            # (원본 이미지 자체는 변형할 필요 없음 - 폴리곤 표시만 필요)
         else:
-            print(f"on_morphing_change: {self.edited_image}")
-            refresh(
-                image=True,
-                landmarks=True,
-                overlays=True,
-                guide_lines=True,
-            )
+            # 일반 모드: apply_editing 호출
+            self.apply_editing()
         
         final_signature = self._build_morphing_state_signature()
         if final_signature is not None:

@@ -381,7 +381,7 @@ class PolygonDragHandlerMixin:
         
         # 일반 랜드마크 드래그 또는 눈동자 중심점 드래그 모두 적용
         if custom is not None or is_iris_center_drag:
-            self.apply_polygon_drag_final()
+            self.apply_polygon_drag_final(desc="on_polygon_drag_end")
         
         # 마지막으로 선택한 포인트 인덱스 저장 (드래그 종료 후에도 유지)
         # landmark_index는 정수 또는 문자열('left'/'right')
@@ -668,7 +668,7 @@ class PolygonDragHandlerMixin:
         # custom_landmarks가 None이어도 중앙 포인트가 설정되어 있으면 적용
         # (on_iris_center_drag에서 custom_landmarks를 생성했을 수 있음)
         if custom is not None or final_left is not None or final_right is not None:
-            self.apply_polygon_drag_final()
+            self.apply_polygon_drag_final(desc="on_iris_center_drag_end")
         
         # 선택된 포인트 표시 제거
         self._remove_selected_landmark_indicator(canvas_obj)
@@ -781,7 +781,7 @@ class PolygonDragHandlerMixin:
         result_image = Image.fromarray(result.astype(np.uint8))
         return result_image
     
-    def apply_polygon_drag_final(self, force_slider_mode=False):
+    def apply_polygon_drag_final(self, desc="", force_slider_mode=False):
         """폴리곤 드래그 종료 시 최종 편집 적용
         
         Args:
@@ -791,7 +791,7 @@ class PolygonDragHandlerMixin:
         self._ensure_polygon_apply_guard_state()
         polygon_signature = self._build_polygon_apply_signature(force_slider_mode)
         
-        print(f"apply_polygon_drag_final: called.. polygon_signature={polygon_signature}")
+        print_debug("apply_polygon_drag_final",f"{desc} called..\npolygon_signature={polygon_signature}")
         if polygon_signature == getattr(self, '_last_polygon_apply_signature', None):
             return
 
@@ -878,8 +878,10 @@ class PolygonDragHandlerMixin:
             # 옵션 변경 시(force_slider_mode=False)에는 슬라이더 적용 건너뛰기
             # _apply_common_sliders_to_landmarks가 custom_landmarks를 변환하므로 먼저 호출
             
-            # 옵션 변경 시가 아니면 슬라이더 적용
-            if force_slider_mode != False:
+            slider_event_only = bool(force_slider_mode)
+            
+            # 옵션 변경 시가 아니면 슬라이더 적용 (고급 슬라이더 이벤트는 이미 반영됨)
+            if not slider_event_only:
                 if hasattr(self, '_apply_common_sliders'):
                     # _apply_common_sliders는 _apply_common_sliders_to_landmarks를 호출하여 custom_landmarks를 변환
                     # base_image를 전달하여 슬라이더가 모두 기본값일 때 원본으로 복원할 수 있도록 함
@@ -923,7 +925,7 @@ class PolygonDragHandlerMixin:
             
             # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았는지 확인
             # 옵션 변경 시(force_slider_mode=False)에는 이 체크를 건너뛰고 항상 morph_face_by_polygons 호출
-            if force_slider_mode != False:
+            if not slider_event_only:
                 size_x = self.region_size_x.get()
                 size_y = self.region_size_y.get()
                 center_offset_x = self.region_center_offset_x.get()
@@ -975,7 +977,7 @@ class PolygonDragHandlerMixin:
             
             # 슬라이더가 모두 기본값이고 랜드마크도 변형되지 않았으면 원본 이미지 반환
             # 옵션 변경 시(force_slider_mode=False)에는 이 체크를 건너뛰고 항상 morph_face_by_polygons 호출
-            if force_slider_mode != False:
+            if not slider_event_only:
                 if not conditions_met:
                     # 랜드마크가 변형되지 않았을 때만 custom_landmarks를 원본으로 복원
                     # (드래그로 변경한 랜드마크는 보존해야 함)
@@ -1093,11 +1095,18 @@ class PolygonDragHandlerMixin:
                 region_groups = None
                 if current_tab == '전체' and custom_landmarks_for_morph is not None:
                     region_groups = self._get_selected_region_index_groups(len(custom_landmarks_for_morph))
-                if (custom_landmarks_for_morph is not None and
-                        (abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01)):
+
+                size_scaling_needed = (
+                    not slider_event_only and
+                    custom_landmarks_for_morph is not None and
+                    (abs(size_x - 1.0) >= 0.01 or abs(size_y - 1.0) >= 0.01)
+                )
+
+                if size_scaling_needed:
                     if region_groups:
                         reference_landmarks = original_landmarks_for_morph if original_landmarks_for_morph is not None else original_landmarks
                         centers = self._compute_region_centers(region_groups.keys(), reference_landmarks, center_offset_x, center_offset_y)
+                        print_debug("apply_polygon_drag_final", f"region_size_scaling: try..")
                         custom_landmarks_for_morph = self._apply_region_size_scaling(
                             custom_landmarks_for_morph,
                             region_groups,
@@ -1105,7 +1114,9 @@ class PolygonDragHandlerMixin:
                             size_x,
                             size_y
                         )
+
                     else:
+                        print_debug("apply_polygon_drag_final", f"transform_points_for_face_size: try..")
                         scaled = face_morphing.transform_points_for_face_size(
                             custom_landmarks_for_morph,
                             face_width_ratio=size_x,
@@ -1113,7 +1124,8 @@ class PolygonDragHandlerMixin:
                         )
                         if scaled is not None:
                             custom_landmarks_for_morph = scaled
-                    print_info("얼굴편집", f"apply_polygon_drag_final: Size 슬라이더 적용 - X:{size_x:.3f}, Y:{size_y:.3f}")
+
+                    print_info("apply_polygon_drag_final", f"{len(region_groups)},  {current_tab}, Size 슬라이더 적용 - X:{size_x:.3f}, Y:{size_y:.3f}")
                 
                 # original_landmarks는 항상 468개 (중앙 포인트는 파라미터로 전달)
                 # 눈동자 중심점만 변경한 경우, custom_landmarks_for_morph와 동일하게 원본 사용
@@ -1154,16 +1166,7 @@ class PolygonDragHandlerMixin:
                 margin_ratio = getattr(self, 'iris_clamping_margin_ratio', None)
                 clamping_enabled_val = clamping_enabled.get() if clamping_enabled is not None else True
                 margin_ratio_val = margin_ratio.get() if margin_ratio is not None else 0.3
-                
-                # 디버그: morph_face_by_polygons 호출 전 파라미터 확인
-                print_info("얼굴편집", f"morph_face_by_polygons 호출: original={len(original_landmarks_for_morph)}개, transformed={len(custom_landmarks_for_morph)}개")
-                print_info("얼굴편집", f"중앙 포인트: left={left_center}, right={right_center}, left_orig={left_center_orig}, right_orig={right_center_orig}")
-                print_info("얼굴편집", f"클램핑: enabled={clamping_enabled_val}, margin_ratio={margin_ratio_val}")
-                
                
-                # morph_face_by_polygons 호출 (폴리곤 모드)
-                # iris_mapping_method 파라미터로 맵핑 방법 구분
-                
                 # 맵핑 방법 파라미터 가져오기
                 iris_mapping_method = getattr(self, 'iris_mapping_method', None)
                 iris_mapping_method_val = iris_mapping_method.get() if iris_mapping_method is not None else "iris_outline"
@@ -1186,12 +1189,13 @@ class PolygonDragHandlerMixin:
                             selected_indices = base_indices
                     else:
                         selected_indices = base_indices
-                    print(f"[DEBUG] morph_handler _force_use_indices 사용: {len(selected_indices)}개")
+
+                    print_debug("apply_polygon_drag_final",f"morph_handler _force_use_indices 사용: {len(selected_indices)}개")
                 elif region_filter:
                     selected_indices = sorted(region_filter)
-                    print(f"[DEBUG] morph_handler 선택 부위 인덱스 사용: {len(selected_indices)}개")
+                    print_debug("apply_polygon_drag_final",f"morph_handler 선택 부위 인덱스 사용: {len(selected_indices)}개")
                 else:
-                    print(f"[DEBUG] morph_handler _force_use_indices 없음, 전체 변형 사용")
+                    print_debug("apply_polygon_drag_final",f"morph_handler _force_use_indices 없음, 전체 변형 사용")
                 
                 result = face_morphing.morph_face_by_polygons(
                         self.current_image,  # 원본 이미지
@@ -1206,11 +1210,12 @@ class PolygonDragHandlerMixin:
                         blend_ratio=blend_ratio,  # 블렌딩 비율
                         clamping_enabled=clamping_enabled_val,  # 눈동자 이동 범위 제한 활성화 여부
                         margin_ratio=margin_ratio_val,  # 눈동자 이동 범위 제한 마진 비율
-                        iris_mapping_method=iris_mapping_method_val  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
+                        iris_mapping_method=iris_mapping_method_val,  # 눈동자 맵핑 방법 (iris_outline/eye_landmarks)
+                        skip_pixel_warp=False
                     )
                 
                 # 디버그: 결과 확인
-                print_info("얼굴편집", f"morph_face_by_polygons 결과: {type(result)}, 크기: {result.size if result else 'None'}")
+                print_debug("얼굴편집", f"morph_face_by_polygons 결과: {type(result)}, 크기: {result.size if result else 'None'}")
             if result is None:
                 print_error("얼굴편집", "랜드마크 변형 결과가 None입니다")
                 return
@@ -1264,6 +1269,7 @@ class PolygonDragHandlerMixin:
                 image_needs_refresh = force_option_update or current_hash != previous_hash
 
                 if hasattr(self, 'update_face_edit_display'):
+                    print_debug("apply_polygon_drag_final", "update_face_edit_display: try..")
                     self.update_face_edit_display(
                         image=image_needs_refresh,
                         landmarks=landmarks_enabled,
@@ -1275,6 +1281,7 @@ class PolygonDragHandlerMixin:
                     if image_needs_refresh and hasattr(self, 'show_edited_preview'):
                         self.show_edited_preview()
                     if landmarks_enabled and hasattr(self, 'update_face_features_display'):
+                        print_debug("apply_polygon_drag_final", "update_face_features_display: try..")
                         self.update_face_features_display()
 
                 if image_needs_refresh:

@@ -91,7 +91,8 @@ class DrawingMixin(AllTabDrawerMixin, TabDrawersMixin):
             custom = self.landmark_manager.get_custom_landmarks()
             if custom is None or len(custom) == 468:
                 # custom_landmarks가 없으면 landmarks 사용, 있으면 custom 사용
-                base_landmarks = custom if custom is not None else landmarks
+                #base_landmarks = custom if custom is not None else landmarks
+                base_landmarks = landmarks
                 if base_landmarks is not None:
                     # 중앙 포인트 좌표 초기화 (original_iris_landmarks에서 계산)
                     left_center = None

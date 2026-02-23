@@ -91,7 +91,7 @@ class IrisUI:
         if hasattr(self.parent, 'edited_image') and self.parent.edited_image is not None:
             # apply_polygon_drag_final 호출하여 새로운 맵핑 방법으로 이미지 다시 생성
             if hasattr(self.parent, 'apply_polygon_drag_final'):
-                self.parent.apply_polygon_drag_final(force_slider_mode=False)
+                self.parent.apply_polygon_drag_final( desc="on_mapping_method_change", force_slider_mode=False)
         
         # 캔버스 다시 그리기 (랜드마크 표시 업데이트용)
         if hasattr(self.parent, 'update_face_features_display'):

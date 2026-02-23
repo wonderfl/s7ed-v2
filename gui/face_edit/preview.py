@@ -6,6 +6,8 @@ import math
 import tkinter as tk
 from PIL import Image, ImageTk
 
+from utils.logger import print_debug
+
 # 디버그용 플래그 (필요 시 True로 전환)
 DEBUG_PREVIEW = False
 
@@ -857,6 +859,7 @@ class PreviewManagerMixin:
         if not hasattr(self, 'canvas_original'):
             return
 
+        print_debug("display", "_initialize_display_update_state: try..")
         self._initialize_display_update_state()
 
         image_created_original = getattr(self, 'image_created_original', None)
@@ -871,6 +874,7 @@ class PreviewManagerMixin:
 
         should_update_edited = image and has_edited_image
 
+        print_debug("display", "_build_preview_update_signature: try..")
         requested_signature = self._build_preview_update_signature(
             image,
             landmarks,
@@ -884,6 +888,7 @@ class PreviewManagerMixin:
             return
 
         try:
+            print_debug("display", "show preview: try..")
             if image:
                 if should_update_original and self.current_image is not None:
                     self.show_original_preview(include_features=False)
@@ -904,6 +909,7 @@ class PreviewManagerMixin:
                 self._last_displayed_original_image_id = None
 
             if overlays:
+                print_debug("display", "overlays: try..")
                 refresh = getattr(self, '_refresh_overlays_and_polygons', None)
                 if callable(refresh):
                     refresh()
@@ -911,9 +917,11 @@ class PreviewManagerMixin:
                     self._fallback_overlay_refresh()
 
             if landmarks and self._is_landmark_display_enabled():
+                print_debug("display", "update_face_features_display: try..")
                 self.update_face_features_display()
 
             if guide_lines and self._should_update_guide_lines():
+                print_debug("display", "update_guide_lines: try..")
                 self.update_guide_lines()
 
             self._last_preview_update_signature = requested_signature

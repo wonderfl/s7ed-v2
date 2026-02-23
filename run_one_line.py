@@ -1,0 +1,1 @@
+import sys, os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import tkinter as tk; root = tk.Tk(); root.withdraw(); from gui.face_edit_v2 import FaceEditPanel; panel = FaceEditPanel(parent=root); panel.protocol("WM_DELETE_WINDOW", lambda: (panel.destroy(), root.destroy())); panel.mainloop()

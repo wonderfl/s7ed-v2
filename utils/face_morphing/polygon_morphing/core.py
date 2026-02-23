@@ -1286,7 +1286,9 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
                            left_iris_center_orig=None, right_iris_center_orig=None,
                            cached_original_bbox=None, blend_ratio=1.0,
                            clamping_enabled=True, margin_ratio=0.3, iris_center_only=False,
-                           iris_mapping_method="iris_outline"):
+                           iris_mapping_method="iris_outline",
+                           skip_pixel_warp=False,
+                           return_contexts=False):
     """
     Delaunay Triangulation을 사용하여 폴리곤(랜드마크 포인트) 기반 얼굴 변형을 수행합니다.
     뒤집힌 삼각형이 발생하면 변형을 점진적으로 줄여서 재시도합니다.
@@ -1306,6 +1308,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         margin_ratio: 눈동자 이동 범위 제한 마진 비율 (기본값: 0.3)
         iris_center_only: 눈동자 중심점만 드래그 플래그 (기본값: False)
         iris_mapping_method: 눈동자 맵핑 방법 (iris_outline/eye_landmarks, 기본값: "iris_outline")
+        skip_pixel_warp: True일 경우 픽셀 변형 단계 없이 컨텍스트만 준비하고 입력 이미지를 반환
+        return_contexts: True일 경우 (결과 이미지, 컨텍스트 dict)를 반환
     
     Returns:
         PIL.Image: 변형된 이미지
@@ -1315,7 +1319,7 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         # 입력 검증 및 전처리
         validation_result = _validate_and_prepare_inputs(image, original_landmarks, transformed_landmarks)
         if validation_result is None:
-            return image
+            return image if not return_contexts else (image, None)
 
         img_array, img_width, img_height = validation_result
 
@@ -1337,16 +1341,17 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         selected_point_indices = iris_ctx.selected_point_indices
         try:
             if selected_point_indices:
-                selected_sample = list(selected_point_indices)[:5]
+                selected_sample = list(selected_point_indices)
                 used_orig = []
                 used_trans = []
+                
+                print_debug("morph_face_by_polygons", f"selected 인덱스 갯수: {len(selected_sample)}")
                 for idx in selected_sample:
                     if idx < len(original_landmarks_no_iris) and idx < len(transformed_landmarks_no_iris):
                         used_orig.append(original_landmarks_no_iris[idx])
                         used_trans.append(transformed_landmarks_no_iris[idx])
-                print_info("얼굴모핑", f"사용 인덱스 샘플: {selected_sample}")
-                print_info("얼굴모핑", f"사용 원본 좌표 샘플: {used_orig}")
-                print_info("얼굴모핑", f"사용 변형 좌표 샘플: {used_trans}")
+                        print_debug("morph_face_by_polygons", f"selected 좌표 샘플: {original_landmarks_no_iris[idx]} => {transformed_landmarks_no_iris[idx]}")
+                
         except NameError:
             print_error("얼굴모핑", f"모핑 샘플 Not found..")
             pass
@@ -1367,6 +1372,23 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         delaunay_ctx.transformed_points_array = transformed_points_array
 
         render_ctx = _build_pixel_coordinate_map(delaunay_ctx)
+        contexts = {
+            "iris": iris_ctx,
+            "delaunay": delaunay_ctx,
+            "render": render_ctx,
+        }
+
+        def _finalize_return(img_result):
+            if return_contexts:
+                return img_result, contexts
+            return img_result
+
+        if skip_pixel_warp:
+            try:
+                print_info("얼굴모핑", "skip_pixel_warp=True: 픽셀 변형 단계를 건너뜀")
+            except NameError:
+                pass
+            return _finalize_return(image.copy() if hasattr(image, 'copy') else Image.fromarray(img_array))
 
         original_points_array = delaunay_ctx.original_points_array
         transformed_points_array = delaunay_ctx.transformed_points_array
@@ -1382,19 +1404,11 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
         else:
             max_diff = 0.0
             changed_count = 0
-        try:
-            print_info("얼굴모핑", f"변형 진행 (max_diff={max_diff:.3f}, changed_count={changed_count})")
-        except NameError:
-            print(f"[얼굴모핑] 변형 진행 (max_diff={max_diff:.3f}, changed_count={changed_count})")
 
         try:
-            print_info("얼굴모핑", f"[DEBUG] 선택적 변형 건너뛰고 전체 변형 사용")
+            print_debug("얼굴모핑", f"selected: {len(selected_point_indices)}개, (max_diff={max_diff:.3f}, changed_count={changed_count})")
         except NameError:
-            print(f"[얼굴모핑] [DEBUG] 선택적 변형 건너뛰고 전체 변형 사용")
-        try:
-            print_info("얼굴모핑", f"[DEBUG] 최종 selected_point_indices: {len(selected_point_indices)}개 포인트 사용")
-        except NameError:
-            print(f"[얼굴모핑] [DEBUG] 최종 selected_point_indices: {len(selected_point_indices)}개 포인트 사용")
+            print(f"[얼굴모핑] selected: {len(selected_point_indices)}개, (max_diff={max_diff:.3f}, changed_count={changed_count})")
 
         result, result_count, transformed_mask, total_pixels_processed, pixels_out_of_bounds = _apply_forward_transforms(
             delaunay_ctx=delaunay_ctx,
@@ -1417,8 +1431,8 @@ def morph_face_by_polygons(image, original_landmarks, transformed_landmarks, sel
             blend_ratio=blend_ratio,
         )
 
-        return final_image
+        return _finalize_return(final_image)
 
     except Exception as e:
         print_error("얼굴모핑", f"모핑 실패: {e}")
-        return image
+        return image if not return_contexts else (image, None)
