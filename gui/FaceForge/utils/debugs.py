@@ -1,0 +1,58 @@
+# drag
+DEBUG_CANVAS_DRAG = False
+DEBUG_CANVAS_DRAGGING = False
+
+# pivots
+DEBUG_REGION_PIVOTS = False
+
+# file
+DEBUG_FILES = False
+
+# init
+DEBUG_INIT_PANEL = False
+DEBUG_INIT_SETTINGS = False
+
+# guide
+DEBUG_GUIDE_LINES = False
+DEBUG_GUIDE_LINES_UPDATE = False
+
+# morph
+DEBUG_MORPHING_UPDATE = False
+
+# warp
+DEBUG_WARPING_UPDATE = True
+DEBUG_POLYGON_WARPING = True
+DEBUG_IRIS_WARPING = False
+DEBUG_FACE_WARPING = True
+
+
+# preview
+DEBUG_PREVIEW_UPDATE = True
+DEBUG_PREVIEW_RATIO = False
+DEBUG_REGION_PIVOTS = True
+
+# region
+DEBUG_REGION_PANEL = False
+DEBUG_REGION_ADJUST = False
+
+# render
+DEBUG_RENDER_POLYGONS = False
+
+# drawing
+DEBUG_DRAWING_CURRENT = False
+
+# slider
+DEBUG_APPLY_SLIDERS = False
+DEBUG_APPLY_TRANSFORM = False
+
+# landmark
+DEBUG_CURRENT_LANDMARKS = False
+
+# performance
+DEBUG_PERFORMANCE = False
+DEBUG_PERFORMANCE_COUNT = False
+
+# elapsed time
+DEBUG_ELAPSED_TIME = True
+
+

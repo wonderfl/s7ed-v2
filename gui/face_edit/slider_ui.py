@@ -1169,7 +1169,7 @@ class SliderUIMixin:
         
         # MediaPipe 사용 가능 여부 확인
         try:
-            import utils.face_landmarks as face_landmarks
+            from gui.FaceForge.utils import landmarks as face_landmarks
             mediapipe_available = face_landmarks.is_available()
         except Exception as e:
             mediapipe_available = False

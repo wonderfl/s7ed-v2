@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "alignments": {
+    "offset_x": 0.0,
+    "offset_y": 0.0,
+    "scale_x": 1.0,
+    "scale_y": 1.0,
+    "pivot_x": 0.0,
+    "pivot_y": 0.0,
+    "rotation_deg": 0.0
+  },
+  "regions": {
+    "face_oval": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "left_eye": {
+      "enabled": true,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.137,
+        "position_x": 0.0,
+        "position_y": 0.0,
+        "expansion_level": 0
+      },
+      "dragged_points": {},
+      "applied": true
+    },
+    "right_eye": {
+      "enabled": true,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.137,
+        "position_x": 0.0,
+        "position_y": 0.0,
+        "expansion_level": 0
+      },
+      "dragged_points": {},
+      "applied": true
+    },
+    "left_eyebrow": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "right_eyebrow": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "nose": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "lips": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 0.935,
+        "size_y": 1.0,
+        "position_x": 0.0,
+        "position_y": 0.0,
+        "expansion_level": 1
+      },
+      "dragged_points": {},
+      "applied": true
+    },
+    "left_iris": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "right_iris": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "contours": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    },
+    "tesselation": {
+      "enabled": false,
+      "sliders": {
+        "pivot_x": 0.0,
+        "pivot_y": 0.0,
+        "size_x": 1.0,
+        "size_y": 1.0,
+        "move_x": 0.0,
+        "move_y": 0.0
+      },
+      "dragged_points": {}
+    }
+  },
+  "global": {
+    "original_image": "kingdom_112414_164.png",
+    "timestamp": 1771843660.0087924,
+    "timestamp_iso": "2026-02-23T10:47:40.008792+00:00"
+  }
+}

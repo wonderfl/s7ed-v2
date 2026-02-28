@@ -232,7 +232,7 @@ class FaceGeneratePanel(tk.Toplevel):
     
     def _create_preview_ui(self, parent):
         """미리보기 UI 생성"""
-        preview_frame = tk.LabelFrame(parent, text="미리보기", padx=5, pady=5)
+        preview_frame = tk.LabelFrame(parent, text=f"미리보기 ({self.original_image_path})", padx=5, pady=5)
         preview_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # 이미지 크기: 288x360

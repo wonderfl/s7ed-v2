@@ -1,0 +1,34 @@
+🔍 최종 슬라이더 조정 시 호출 절차: 슬라이더 조정
+→ on_slider_release
+→ on_warping_change
+→ _perform_warping_update
+→ apply_polygon_warping
+→ _apply_sliders_and_restore_dragged_points
+→ _apply_common_sliders_to_landmarks (랜드마크 업데이트)
+    랜드마크 업데이트
+    landmark_state 업데이트
+    set_current_landmarks 호출
+→ _execute_face_morphing
+→ _call_morph_face_by_polygons
+→ morph_face_by_polygons (1번 호출)
+→ _handle_morphing_result (폴리곤 업데이트 포함)
+→ update_face_edit_display 
+→ show_original_preview + draw_overlays_current 
+→ draw_polygons_current
+
+🔍 최종 드래그 시 호출 절차: 드래그 종료
+→ on_polygon_dragging_end
+→ _perform_warping_update
+→ apply_polygon_warping
+→ _apply_sliders_and_restore_dragged_points
+→ _apply_common_sliders_to_landmarks (랜드마크 업데이트)
+    랜드마크 업데이트
+    landmark_state 업데이트
+    set_current_landmarks 호출
+→ _execute_face_morphing
+→ _call_morph_face_by_polygons
+→ morph_face_by_polygons (1번 호출)
+→ _handle_morphing_result (폴리곤 업데이트 포함)
+→ update_face_edit_display 
+→ show_original_preview + draw_overlays_current 
+→ draw_polygons_current
